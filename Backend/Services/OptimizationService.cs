@@ -524,14 +524,24 @@ public class OptimizationService
         // Type C: "The functionality of code is incorrect"
         // Timeout: "The execution of the code has exceeded the time limit"
         var errorLogSb = new StringBuilder();
-        bool hasFunctionalBug = diagnosis.Bugs.Any(b => b.PrimaryType.Contains("Functional"));
+        bool hasTimeout = diagnosis.Bugs.Any(b => b.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase) || (b.TaxonomyId == "B.5" && b.Message.Contains("time limit", StringComparison.OrdinalIgnoreCase)))
+            || (verification?.Techniques.Any(t => t.Details.Contains("timeout", StringComparison.OrdinalIgnoreCase)) ?? false);
         bool hasSyntaxOrRuntime = diagnosis.Bugs.Any(b => b.PrimaryType.Contains("Syntax") || b.PrimaryType.Contains("Runtime"));
+        bool hasFunctionalBug = diagnosis.Bugs.Any(b => b.PrimaryType.Contains("Functional"));
 
-        if (hasSyntaxOrRuntime)
+        if (hasTimeout)
+        {
+            errorLogSb.AppendLine("The execution of the code has exceeded the time limit");
+        }
+        else if (hasSyntaxOrRuntime)
         {
             foreach (var bug in diagnosis.Bugs.Where(b => !b.PrimaryType.Contains("Functional")).Take(5))
             {
-                errorLogSb.AppendLine($"{bug.File}: {bug.Message}");
+                if (!string.IsNullOrEmpty(bug.CompilerFeedback))
+                    errorLogSb.AppendLine(bug.CompilerFeedback);
+                else
+                    errorLogSb.AppendLine($"{bug.File}: {bug.Message}");
+
                 if (!string.IsNullOrEmpty(bug.CodeSnippet))
                     errorLogSb.AppendLine($"  {bug.CodeSnippet}");
             }
@@ -545,7 +555,7 @@ public class OptimizationService
             errorLogSb.AppendLine("Compilation or execution check failed.");
         }
 
-        if (mode == "dou")
+        if (mode is "dou" or "dou_no_bt")
         {
             // Exact Figure 6 prompt from paper
             return _taxonomyProvider.Renderer.Render("dou_critique", new Dictionary<string, string>
@@ -553,7 +563,7 @@ public class OptimizationService
                 ["prompt"] = originalPrompt,
                 ["solution"] = solutionSb.ToString().Trim(),
                 ["error log"] = errorLogSb.ToString().Trim(),
-                ["checklist"] = _taxonomyProvider.Definition.ChecklistText()
+                ["checklist"] = mode == "dou" ? _taxonomyProvider.Definition.ChecklistText() : ""
             });
         }
 
