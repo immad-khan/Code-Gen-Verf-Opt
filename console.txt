@@ -1,0 +1,127 @@
+
+extractJson called with text: {
+  "summary": "Python data ingestion and feature engineering pipeline with pandas, scikit-learn, typed dataclasses, and pydantic-settings.",
+   "files": [
+      {
+         "name": "config.py",
+         "path": "app/config.py",
+         "category": "config",
+         "description": "Pydantic settings for the pipeline",
+         "content": "","\nfrom pydantic import BaseSettings\nfrom typing import List\n\nclass Settings(BaseSettings):\n    data_path: str = 'data/raw.csv'\n    target_column: str = 'target'\n\n    class Config:\n        env_file = '.env'\n        env_file_encoding = 'utf-8'\n\nsettings = Settings()\n         ":""
+      },
+      {
+         "name": "dataclass.py",
+         "path": "app/dataclass.py",
+         "category": "model",
+         "description": "Typed dataclass for data",
+         "content": "","\nfrom dataclasses import dataclass\nfrom typing import List\n\n@dataclass\nclass Data:\n    features: List[float]\n    target: float\n         ":""
+      },
+      {
+         "name": "ingest.py",
+         "path": "app/ingest.py",
+         "category": "service",
+         "description": "Data ingestion service",
+         "content": "","\nimport pandas as pd\nfrom app.config import settings\nfrom app.dataclass import Data\n\ndef ingest_data() -> pd.DataFrame:\n    data = pd.read_csv(settings.data_path)\n    return data\n\ndef convert_to_data(data: pd.DataFrame) -> List[Data]:\n    result = []\n    for index, row in data.iterrows():\n        result.append(Data(features=row[['feature1', 'feature2']].values, target=row['target']))\n    return result\n         ":""
+      },
+      {
+         "name": "feature_engineering.py",
+         "path": "app/feature_engineering.py",
+         "category": "service",
+         "description": "Feature engineering service",
+         "content": "","\nimport pandas as pd\nfrom app.config import settings\nfrom app.dataclass import Data\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.impute import SimpleImputer\n\ndef engineer_features(data: List[Data]) -> pd.DataFrame:\n    features = pd.DataFrame([d.features for d in data])\n    scaler = StandardScaler()\n    features[['feature1', 'feature2']] = scaler.fit_transform(features[['feature1', 'feature2']])\n    imputer = SimpleImputer(strategy='median')\n    features[['feature1', 'feature2']] = imputer.fit_transform(features[['feature1', 'feature2']])\n    return features\n         ":""
+      },
+      {
+         "name": "utils.py",
+         "path": "app/utils.py",
+         "category": "utils",
+         "description": "Utility functions",
+         "content": "","\nimport pandas as pd\n\ndef safe_deserialize(data: str) -> pd.DataFrame:\n    try:\n        return pd.read_csv(data)\n    except pd.errors.EmptyDataError:\n        return pd.DataFrame()\n         ":""
+      },
+      {
+         "name": "test_ingest.py",
+         "path": "tests/test_ingest.py",
+         "category": "test",
+         "description": "Test for data ingestion service",
+         "content": "","\nimport pytest\nfrom app.ingest import ingest_data\nfrom app.dataclass import Data\n\ndef test_ingest_data():\n    data = ingest_data()\n    assert isinstance(data, pd.DataFrame)\n    assert not data.empty\n         ":""
+      },
+      {
+         "name": "test_feature_engineering.py",
+         "path": "tests/test_feature_engineering.py",
+         "category": "test",
+         "description": "Test for feature engineering service",
+         "content": "","\nimport pytest\nfrom app.feature_engineering import engineer_features\nfrom app.dataclass import Data\n\ndef test_engineer_features():\n    data = [Data(features=[1.0, 2.0], target=1.0)]\n    features = engineer_features(data)\n    assert isinstance(features, pd.DataFrame)\n    assert not features.empty\n         ":""
+      },
+      {
+         "name": "pyproject.toml",
+         "path": "pyproject.toml",
+         "category": "config",
+         "description": "Project configuration",
+         "content": "","\n[tool.black]\nline_length = 88\n\n[tool.isort]\nprofile = basic\n\n[tool.pytest.ini_options]\naddopts = -s\n\n[tool.pydantic]\nsettings = app.config:Settings\n         ":""
+      }
+   ]
+} aiService.ts:27:11
+Trying to parse outer JSON: {
+  "summary": "Python data ingestion and feature engineering pipeline with pandas, scikit-learn, typed dataclasses, and pydantic-settings.",
+   "files": [
+      {
+         "name": "config.py",
+         "path": "app/config.py",
+         "category": "config",
+         "description": "Pydantic settings for the pipeline",
+         "content": "","\nfrom pydantic import BaseSettings\nfrom typing import List\n\nclass Settings(BaseSettings):\n    data_path: str = 'data/raw.csv'\n    target_column: str = 'target'\n\n    class Config:\n        env_file = '.env'\n        env_file_encoding = 'utf-8'\n\nsettings = Settings()\n         ":""
+      },
+      {
+         "name": "dataclass.py",
+         "path": "app/dataclass.py",
+         "category": "model",
+         "description": "Typed dataclass for data",
+         "content": "","\nfrom dataclasses import dataclass\nfrom typing import List\n\n@dataclass\nclass Data:\n    features: List[float]\n    target: float\n         ":""
+      },
+      {
+         "name": "ingest.py",
+         "path": "app/ingest.py",
+         "category": "service",
+         "description": "Data ingestion service",
+         "content": "","\nimport pandas as pd\nfrom app.config import settings\nfrom app.dataclass import Data\n\ndef ingest_data() -> pd.DataFrame:\n    data = pd.read_csv(settings.data_path)\n    return data\n\ndef convert_to_data(data: pd.DataFrame) -> List[Data]:\n    result = []\n    for index, row in data.iterrows():\n        result.append(Data(features=row[['feature1', 'feature2']].values, target=row['target']))\n    return result\n         ":""
+      },
+      {
+         "name": "feature_engineering.py",
+         "path": "app/feature_engineering.py",
+         "category": "service",
+         "description": "Feature engineering service",
+         "content": "","\nimport pandas as pd\nfrom app.config import settings\nfrom app.dataclass import Data\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.impute import SimpleImputer\n\ndef engineer_features(data: List[Data]) -> pd.DataFrame:\n    features = pd.DataFrame([d.features for d in data])\n    scaler = StandardScaler()\n    features[['feature1', 'feature2']] = scaler.fit_transform(features[['feature1', 'feature2']])\n    imputer = SimpleImputer(strategy='median')\n    features[['feature1', 'feature2']] = imputer.fit_transform(features[['feature1', 'feature2']])\n    return features\n         ":""
+      },
+      {
+         "name": "utils.py",
+         "path": "app/utils.py",
+         "category": "utils",
+         "description": "Utility functions",
+         "content": "","\nimport pandas as pd\n\ndef safe_deserialize(data: str) -> pd.DataFrame:\n    try:\n        return pd.read_csv(data)\n    except pd.errors.EmptyDataError:\n        return pd.DataFrame()\n         ":""
+      },
+      {
+         "name": "test_ingest.py",
+         "path": "tests/test_ingest.py",
+         "category": "test",
+         "description": "Test for data ingestion service",
+         "content": "","\nimport pytest\nfrom app.ingest import ingest_data\nfrom app.dataclass import Data\n\ndef test_ingest_data():\n    data = ingest_data()\n    assert isinstance(data, pd.DataFrame)\n    assert not data.empty\n         ":""
+      },
+      {
+         "name": "test_feature_engineering.py",
+         "path": "tests/test_feature_engineering.py",
+         "category": "test",
+         "description": "Test for feature engineering service",
+         "content": "","\nimport pytest\nfrom app.feature_engineering import engineer_features\nfrom app.dataclass import Data\n\ndef test_engineer_features():\n    data = [Data(features=[1.0, 2.0], target=1.0)]\n    features = engineer_features(data)\n    assert isinstance(features, pd.DataFrame)\n    assert not features.empty\n         ":""
+      },
+      {
+         "name": "pyproject.toml",
+         "path": "pyproject.toml",
+         "category": "config",
+         "description": "Project configuration",
+         "content": "","\n[tool.black]\nline_length = 88\n\n[tool.isort]\nprofile = basic\n\n[tool.pytest.ini_options]\naddopts = -s\n\n[tool.pydantic]\nsettings = app.config:Settings\n         ":""
+      }
+   ]
+} aiService.ts:64:13
+Parsed outer JSON: 
+Object { summary: "Python data ingestion and feature engineering pipeline with pandas, scikit-learn, typed dataclasses, and pydantic-settings.", files: (8) […] }
+aiService.ts:66:13
+
