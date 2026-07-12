@@ -1,0 +1,161 @@
+@import "tailwindcss";
+
+/* ============================================================
+   MACI — Design System
+   A refined, product-grade SaaS aesthetic:
+   - Inter for UI, JetBrains Mono for code
+   - Cool neutral slate canvas with a single indigo→violet accent
+   - Soft depth via layered shadows, not heavy borders
+   ============================================================ */
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Canvas + surfaces */
+  --color-canvas: #0b0c10;
+  --color-surface: #101218;
+  --color-surface-2: #16181f;
+  --color-surface-3: #1c1f28;
+  --color-hairline: #23262f;
+
+  /* Text */
+  --color-ink: #e8eaf0;
+  --color-ink-muted: #9aa1af;
+  --color-ink-faint: #6b7280;
+
+  /* Brand accent — indigo→violet */
+  --color-brand: #7c6cff;
+  --color-brand-soft: #a78bfa;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #0b0c10;
+  color: #e8eaf0;
+  font-family: var(--font-sans);
+  font-feature-settings: "cv02", "cv03", "cv04", "ss01";
+  letter-spacing: -0.011em;
+}
+
+/* Ambient background wash — subtle, expensive-looking */
+.app-shell {
+  position: relative;
+  background:
+    radial-gradient(900px 500px at 12% -8%, rgba(124, 108, 255, 0.10), transparent 60%),
+    radial-gradient(760px 520px at 92% 0%, rgba(56, 189, 248, 0.06), transparent 55%),
+    #0b0c10;
+}
+
+/* Refined scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2a2e39 transparent;
+}
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: #2a2e39;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: #3a3f4d; background-clip: content-box; }
+
+/* ---------- Reusable primitives ---------- */
+
+.card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-hairline);
+  border-radius: 16px;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset, 0 12px 30px -18px rgba(0,0,0,0.8);
+}
+
+.card-quiet {
+  background-color: var(--color-surface-2);
+  border: 1px solid var(--color-hairline);
+  border-radius: 12px;
+}
+
+.btn-primary {
+  background: linear-gradient(180deg, #8b7bff, #6b57f5);
+  color: #fff;
+  border-radius: 10px;
+  font-weight: 600;
+  box-shadow: 0 6px 20px -8px rgba(124,108,255,0.7), 0 1px 0 rgba(255,255,255,0.15) inset;
+  transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+}
+.btn-primary:hover { filter: brightness(1.06); box-shadow: 0 10px 28px -8px rgba(124,108,255,0.85); }
+.btn-primary:active { transform: translateY(1px); }
+.btn-primary:disabled { filter: grayscale(0.6) brightness(0.7); box-shadow: none; cursor: not-allowed; }
+
+.btn-ghost {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-hairline);
+  color: var(--color-ink-muted);
+  border-radius: 10px;
+  font-weight: 500;
+  transition: color .15s ease, border-color .15s ease, background .15s ease;
+}
+.btn-ghost:hover { color: var(--color-ink); border-color: #33384a; background: var(--color-surface-3); }
+
+.chip {
+  border: 1px solid var(--color-hairline);
+  background: var(--color-surface-2);
+  border-radius: 999px;
+  color: var(--color-ink-muted);
+  font-weight: 500;
+}
+
+.input-field {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-hairline);
+  border-radius: 12px;
+  color: var(--color-ink);
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.input-field::placeholder { color: var(--color-ink-faint); }
+.input-field:focus {
+  outline: none;
+  border-color: #5b52c9;
+  box-shadow: 0 0 0 4px rgba(124,108,255,0.12);
+}
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+}
+
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+/* Animations */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up { animation: fade-up .4s cubic-bezier(.22,1,.36,1) both; }
+
+@keyframes soft-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.animate-soft-pulse { animation: soft-pulse 2s ease-in-out infinite; }
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}

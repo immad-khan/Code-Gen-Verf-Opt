@@ -1,0 +1,9 @@
+D:\Desktop\MACI\Backend\obj\Debug\net9.0\Backend.csproj.AssemblyReference.cache
+D:\Desktop\MACI\Backend\obj\Debug\net9.0\rpswa.dswa.cache.json
+D:\Desktop\MACI\Backend\obj\Debug\net9.0\Backend.GeneratedMSBuildEditorConfig.editorconfig
+D:\Desktop\MACI\Backend\obj\Debug\net9.0\Backend.AssemblyInfoInputs.cache
+D:\Desktop\MACI\Backend\obj\Debug\net9.0\Backend.AssemblyInfo.cs
+D:\Desktop\MACI\Backend\obj\Debug\net9.0\Backend.csproj.CoreCompileInputs.cache
+D:\Desktop\MACI\Backend\obj\Debug\net9.0\Backend.MvcApplicationPartsAssemblyInfo.cs
+D:\Desktop\MACI\Backend\obj\Debug\net9.0\Backend.MvcApplicationPartsAssemblyInfo.cache
+D:\Desktop\MACI\Backend\obj\Debug\net9.0\Backend.sourcelink.json
