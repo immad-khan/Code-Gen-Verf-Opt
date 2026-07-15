@@ -8,31 +8,31 @@ export interface PromptPreset {
 
 export const PRESET_PROMPTS: PromptPreset[] = [
   {
-    id: 'py-library-api',
-    title: 'FastAPI Library Management API',
-    description: 'Python FastAPI service with SQLAlchemy, JWT auth, member lookup, book reservations, and pytest coverage.',
-    category: 'Python · FastAPI',
-    prompt: 'Generate a complete Python FastAPI Library Management API using SQLAlchemy and Pydantic. Include routers, services, models, schemas, database session, and pytest tests. Then audit the generated Python code with Ruff, Bandit, mypy, and pip-audit across all 12 techniques.'
+    id: 'heap-largest',
+    title: 'Largest Integers (Heap)',
+    description: 'Find the largest integers from a list using the heap queue (heapq) algorithm.',
+    category: 'Python · Algorithms',
+    prompt: 'Write a function to find the largest integers from a given list of numbers using heap queue algorithm'
   },
   {
-    id: 'py-ecommerce-api',
-    title: 'E-Commerce Order Service',
-    description: 'Python FastAPI checkout microservice with Stripe, Pydantic validation, and async SQLAlchemy.',
-    category: 'Python · Microservice',
-    prompt: 'Build a Python FastAPI e-commerce order service with cart validation, Stripe payment processing, async SQLAlchemy transactions, and Hypothesis property tests. Audit for SQL injection, hardcoded secrets, and dependency CVEs.'
+    id: 'domino-filling',
+    title: 'Dominoes Filling (3xN)',
+    description: 'Find the number of ways to fill a 3 x n board with 2 x 1 dominoes.',
+    category: 'Python · Dynamic Prog',
+    prompt: 'Write a function to find the number of ways to fill it with 2 x 1 dominoes for the given 3 x n board.'
   },
   {
-    id: 'py-ml-pipeline',
-    title: 'ML Data Ingestion Pipeline',
-    description: 'Python pandas + scikit-learn feature pipeline with typed dataclasses and pytest fixtures.',
-    category: 'Python · Data/ML',
-    prompt: 'Create a Python data ingestion and feature engineering pipeline using pandas and scikit-learn with typed dataclasses, config via pydantic-settings, and pytest. Audit for unsafe deserialization, eval usage, and pandas performance anti-patterns.'
+    id: 'bit-difference',
+    title: 'One-Bit Difference Checker',
+    description: 'Check whether two given integers differ at exactly one bit position.',
+    category: 'Python · Bitwise',
+    prompt: 'Write a python function to check whether the two numbers differ at one bit position only or not.'
   },
   {
-    id: 'py-flask-portal',
-    title: 'Flask Patient Record Portal',
-    description: 'Python Flask REST API with SQLAlchemy, role-based auth, Fernet encryption, and audit logging.',
-    category: 'Python · Healthcare',
-    prompt: 'Develop a secure Python Flask patient record API with JWT auth, cryptography.Fernet encryption at rest, prescription endpoints, and pytest. Audit for PII logging, weak crypto, and injection sinks.'
+    id: 'top-k-frequent',
+    title: 'Top K Frequent Integers',
+    description: 'Find the top k integers that occur most frequently from given lists of sorted and distinct integers using heap queue algorithm.',
+    category: 'Python · Algorithms',
+    prompt: 'Write a function to find the top k integers that occur most frequently from given lists of sorted and distinct integers using heap queue algorithm'
   }
 ];

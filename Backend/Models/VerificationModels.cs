@@ -5,6 +5,27 @@ public class VerifyRequest
     public List<GeneratedCodeFile> Files { get; set; } = new();
 }
 
+public class CodeMetrics
+{
+    // Core verification metric
+    public double PassRate { get; set; }           // % of tests that passed
+    public int TotalTests { get; set; }
+    public int PassedTests { get; set; }
+    public int FailedTests { get; set; }
+
+    // Code quality / complexity metrics
+    public int TotalLinesOfCode { get; set; }      // non-blank lines across all files
+    public double AvgCyclomaticComplexity { get; set; }  // average CC across functions
+    public int MaxCyclomaticComplexity { get; set; }     // highest CC found
+    public int TotalApiCount { get; set; }         // distinct imports / API calls
+    public double CommentCodeRatio { get; set; }   // comment lines / code lines
+
+    // Bug distribution metrics
+    public int SyntaxBugCount { get; set; }
+    public int RuntimeBugCount { get; set; }
+    public int FunctionalBugCount { get; set; }
+}
+
 public class VerificationResponse
 {
     public List<VerificationTechnique> Techniques { get; set; } = new();
@@ -13,6 +34,7 @@ public class VerificationResponse
     public int TotalSkipped { get; set; }
     public string OverallVerdict { get; set; } = "UNKNOWN";
     public long TotalDurationMs { get; set; }
+    public CodeMetrics Metrics { get; set; } = new();
 }
 
 public class VerificationTechnique

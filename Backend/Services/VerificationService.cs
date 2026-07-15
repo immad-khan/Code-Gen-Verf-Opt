@@ -76,6 +76,75 @@ for root, dirs, files_list in os.walk(target):
 print(json.dumps(results))
 """;
 
+    private const string CODE_METRICS_SCRIPT = """
+import ast, sys, json, os
+
+def cyclomatic_complexity(tree):
+    """Count decision points + 1 = McCabe CC"""
+    decision_nodes = (ast.If, ast.For, ast.While, ast.ExceptHandler,
+                      ast.With, ast.Assert, ast.comprehension)
+    count = 1
+    for node in ast.walk(tree):
+        if isinstance(node, decision_nodes):
+            count += 1
+        elif isinstance(node, ast.BoolOp):
+            count += len(node.values) - 1
+    return count
+
+target = sys.argv[1]
+total_loc = 0
+total_comment = 0
+total_code_lines = 0
+all_cc = []
+all_imports = set()
+file_count = 0
+
+for root, dirs, files_list in os.walk(target):
+    for f in files_list:
+        if f.endswith('.py') and not f.startswith('_maci_'):
+            filepath = os.path.join(root, f)
+            file_count += 1
+            try:
+                with open(filepath, 'r', encoding='utf-8') as fh:
+                    lines = fh.readlines()
+                # LoC = non-blank lines
+                non_blank = [l for l in lines if l.strip()]
+                total_loc += len(non_blank)
+                # Comment lines
+                comment_lines = [l for l in non_blank if l.strip().startswith('#')]
+                total_comment += len(comment_lines)
+                total_code_lines += len(non_blank) - len(comment_lines)
+                # AST for CC and imports
+                source = ''.join(lines)
+                tree = ast.parse(source)
+                # CC per function
+                for node in ast.walk(tree):
+                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        all_cc.append(cyclomatic_complexity(node))
+                # Imports
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.Import):
+                        for alias in node.names:
+                            all_imports.add(alias.name.split('.')[0])
+                    elif isinstance(node, ast.ImportFrom) and node.module:
+                        all_imports.add(node.module.split('.')[0])
+            except:
+                pass
+
+avg_cc = round(sum(all_cc) / len(all_cc), 2) if all_cc else 0
+max_cc = max(all_cc) if all_cc else 0
+comment_ratio = round(total_comment / total_code_lines, 3) if total_code_lines > 0 else 0
+
+print(json.dumps({
+    'total_loc': total_loc,
+    'avg_cc': avg_cc,
+    'max_cc': max_cc,
+    'api_count': len(all_imports),
+    'comment_ratio': comment_ratio,
+    'file_count': file_count
+}))
+""";
+
     // ------------------------------------------------------------------ main entry
 
     public async Task<VerificationResponse> VerifyAsync(List<GeneratedCodeFile> files)
@@ -135,6 +204,9 @@ print(json.dumps(results))
                 ? "FAIL"
                 : response.Techniques.All(t => t.Status is "PASS" or "SKIP")
                     ? "PASS" : "PARTIAL";
+
+            // Compute research paper metrics
+            response.Metrics = await ComputeCodeMetrics(python, tempDir, t1, t3, t4);
         }
         catch (Exception ex)
         {
@@ -456,6 +528,61 @@ print(json.dumps(results))
 
         technique.DurationMs = sw.ElapsedMilliseconds;
         return technique;
+    }
+
+    // ------------------------------------------------------------------ Code Metrics (research paper)
+
+    private async Task<CodeMetrics> ComputeCodeMetrics(
+        string python, string tempDir,
+        VerificationTechnique t1Ast,
+        VerificationTechnique t3Pytest,
+        VerificationTechnique t4Runtime)
+    {
+        var metrics = new CodeMetrics();
+        try
+        {
+            var scriptPath = Path.Combine(tempDir, "_maci_metrics.py");
+            await File.WriteAllTextAsync(scriptPath, CODE_METRICS_SCRIPT);
+            var (_, stdout, _) = await RunCommandAsync(python, $"\"{scriptPath}\" \"{tempDir}\"", tempDir, 15000);
+
+            if (!string.IsNullOrWhiteSpace(stdout))
+            {
+                var doc = System.Text.Json.JsonDocument.Parse(stdout);
+                var root = doc.RootElement;
+                metrics.TotalLinesOfCode     = root.TryGetProperty("total_loc",     out var loc)  ? loc.GetInt32()    : 0;
+                metrics.AvgCyclomaticComplexity = root.TryGetProperty("avg_cc",     out var acc)  ? acc.GetDouble()   : 0;
+                metrics.MaxCyclomaticComplexity = root.TryGetProperty("max_cc",     out var mcc)  ? mcc.GetInt32()    : 0;
+                metrics.TotalApiCount        = root.TryGetProperty("api_count",     out var api)  ? api.GetInt32()    : 0;
+                metrics.CommentCodeRatio     = root.TryGetProperty("comment_ratio", out var ccr)  ? ccr.GetDouble()   : 0;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("Code metrics computation failed: {Msg}", ex.Message);
+        }
+
+        // Pass rate from pytest output
+        if (t3Pytest.Status == "PASS" || t3Pytest.Status == "FAIL")
+        {
+            var pytestDetails = t3Pytest.Details ?? "";
+            var passMatch = System.Text.RegularExpressions.Regex.Match(pytestDetails, @"(\d+)\s+passed");
+            var failMatch = System.Text.RegularExpressions.Regex.Match(pytestDetails, @"(\d+)\s+failed");
+            metrics.PassedTests  = passMatch.Success ? int.Parse(passMatch.Groups[1].Value) : (t3Pytest.Status == "PASS" ? 1 : 0);
+            metrics.FailedTests  = failMatch.Success ? int.Parse(failMatch.Groups[1].Value) : 0;
+            metrics.TotalTests   = metrics.PassedTests + metrics.FailedTests;
+            metrics.PassRate     = metrics.TotalTests > 0
+                ? Math.Round((double)metrics.PassedTests / metrics.TotalTests * 100, 1)
+                : (t3Pytest.Status == "PASS" ? 100.0 : 0.0);
+        }
+
+        // Bug distribution
+        metrics.SyntaxBugCount   = t1Ast.Status == "FAIL"    ? t1Ast.Issues.Count    : 0;
+        metrics.RuntimeBugCount  = t4Runtime.Status == "FAIL" ? t4Runtime.Issues.Count : 0;
+        metrics.FunctionalBugCount = t3Pytest.Status == "FAIL"
+            ? Math.Max(0, t3Pytest.Issues.Count - metrics.RuntimeBugCount)
+            : 0;
+
+        return metrics;
     }
 
     // ------------------------------------------------------------------ helpers

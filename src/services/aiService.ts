@@ -462,6 +462,7 @@ export async function processPromptWithAgents(
   apiSettings: ApiSettings,
   onProgress?: (p: number, log: AgentLog) => void
 ): Promise<AIResultData> {
+  const startTime = Date.now();
   const ts = () => new Date().toLocaleTimeString();
 
   // Get all available providers (including the current one first)
@@ -538,9 +539,14 @@ export async function processPromptWithAgents(
       }
 
       const base = createEmptyResultData(prompt, `${config.provider.toUpperCase()} · ${config.model}`);
+      const duration = Date.now() - startTime;
       return {
         ...base,
-        generatedCode: files
+        generatedCode: files,
+        metrics: {
+          ...base.metrics,
+          processingTimeMs: duration
+        }
       };
     } catch (err: any) {
       console.warn(`Failed with ${config.provider}: ${err.message}`);

@@ -159,3 +159,138 @@ body {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
+
+/* ============================================================
+   Print Style overrides for PDF Generation
+   ============================================================ */
+@media print {
+  /* Setup clean page margins */
+  @page {
+    margin: 15mm 15mm;
+  }
+
+  /* Force light theme colors for printing */
+  html, body, .app-shell {
+    background: #ffffff !important;
+    color: #111827 !important;
+    box-shadow: none !important;
+  }
+
+  body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide interactive, overlay, and layout control elements */
+  header,
+  footer,
+  button,
+  .btn-primary,
+  .btn-ghost,
+  .fixed,
+  .z-50,
+  a[href^="javascript:"],
+  .arrow-left,
+  .back-to-code,
+  .print-hide {
+    display: none !important;
+  }
+
+  /* Expand max-width of printable area */
+  .max-w-6xl {
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Clean up card boxes */
+  .card, .card-quiet {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    border: 1px solid #e5e7eb !important;
+    box-shadow: none !important;
+    color: #111827 !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    border-radius: 8px !important;
+    padding: 16px !important;
+    margin-bottom: 16px !important;
+  }
+
+  /* Grid layout adjustments for print (Force 2-column or list view to avoid overlapping issues) */
+  .grid {
+    display: block !important;
+  }
+  
+  /* Verification Techniques block structure for print */
+  .grid-cols-1, .md\:grid-cols-5 {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 12px !important;
+  }
+
+  .grid-cols-1 > div, .md\:grid-cols-5 > div {
+    flex: 1 1 45% !important; /* Make them print as nice 2-column boxes side-by-side */
+    min-height: auto !important;
+    margin-bottom: 8px !important;
+  }
+
+  /* Override text colors for contrast */
+  h1, h2, h3, h4, h5, h6, .text-\[color\:var\(--color-ink\)\] {
+    color: #111827 !important;
+  }
+
+  p, span, div, .text-\[color\:var\(--color-ink-muted\)\] {
+    color: #374151 !important;
+  }
+
+  .text-\[color\:var\(--color-ink-faint\)\] {
+    color: #6b7280 !important;
+  }
+
+  .text-emerald-400 {
+    color: #047857 !important; /* darker green for readability on paper */
+  }
+
+  .text-rose-400 {
+    color: #b91c1c !important; /* darker red for print */
+  }
+
+  .text-amber-400 {
+    color: #b45309 !important; /* darker amber */
+  }
+
+  /* Badges adjustments */
+  .bg-emerald-500\/10, .bg-rose-500\/10, .bg-amber-500\/10, .bg-rose-500\/20 {
+    background-color: #f3f4f6 !important;
+    border-color: #d1d5db !important;
+  }
+
+  .chip {
+    background: #f3f4f6 !important;
+    border-color: #d1d5db !important;
+    color: #374151 !important;
+  }
+
+  /* Console Output / Code Blocks styling in PDF */
+  pre, code {
+    background: #f9fafb !important;
+    background-color: #f9fafb !important;
+    color: #1f2937 !important;
+    border: 1px solid #e5e7eb !important;
+    box-shadow: none !important;
+    white-space: pre-wrap !important;
+    word-break: break-all !important;
+    font-size: 11px !important;
+  }
+
+  /* Ensure correct fonts are used */
+  * {
+    font-family: Arial, Helvetica, sans-serif !important;
+  }
+
+  .font-mono, pre, code {
+    font-family: Courier, monospace !important;
+  }
+}

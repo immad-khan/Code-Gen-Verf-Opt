@@ -12,7 +12,7 @@ import { ProcessingOverlay } from './components/ProcessingOverlay';
 import { ExportModal } from './components/ExportModal';
 import { ApiSettingsModal } from './components/ApiSettingsModal';
 
-const DEFAULT_PROMPT = 'Create a complete Python FastAPI Library Management API using SQLAlchemy and Pydantic. Include routers, services, models, schemas, database session, and pytest tests.';
+const DEFAULT_PROMPT = '';
 
 function createInitialResultData(): AIResultData {
   return {

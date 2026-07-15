@@ -16,6 +16,24 @@ export interface VerificationTechnique {
   durationMs: number;
 }
 
+export interface CodeMetrics {
+  // Core verification metric
+  passRate: number;
+  totalTests: number;
+  passedTests: number;
+  failedTests: number;
+  // Code quality / complexity
+  totalLinesOfCode: number;
+  avgCyclomaticComplexity: number;
+  maxCyclomaticComplexity: number;
+  totalApiCount: number;
+  commentCodeRatio: number;
+  // Bug distribution
+  syntaxBugCount: number;
+  runtimeBugCount: number;
+  functionalBugCount: number;
+}
+
 export interface VerificationResponse {
   techniques: VerificationTechnique[];
   totalPassed: number;
@@ -23,6 +41,7 @@ export interface VerificationResponse {
   totalSkipped: number;
   overallVerdict: string;
   totalDurationMs: number;
+  metrics: CodeMetrics;
 }
 
 const BACKEND_URL = 'http://localhost:5000';
