@@ -30,15 +30,14 @@ export const Step1Input: React.FC<Step1InputProps> = ({
         <div className="max-w-3xl mx-auto px-4 md:px-6 pt-16 pb-10 text-center animate-fade-up">
           <div className="inline-flex items-center gap-2 chip px-3 py-1.5 text-xs mb-6">
             <span className="w-1.5 h-1.5 rounded-full bg-[#7c6cff] animate-soft-pulse" />
-            <span className="text-[color:var(--color-ink-muted)]">Generate Python · Audit with Ruff, Bandit &amp; mypy</span>
+            <span className="text-[color:var(--color-ink-muted)]">Generate - Verify - Optimize</span>
           </div>
           <h1 className="text-3xl md:text-[42px] font-extrabold tracking-tight leading-[1.1] text-[color:var(--color-ink)]">
             Ship Python code you can
             <span className="bg-gradient-to-r from-[#a78bfa] to-[#7c6cff] bg-clip-text text-transparent"> actually trust.</span>
           </h1>
           <p className="mt-4 text-[15px] text-[color:var(--color-ink-muted)] max-w-xl mx-auto leading-relaxed">
-            Describe your project once. MACI generates a complete Python codebase, then runs a
-            zero-trust, 12-technique security audit on every line before you merge.
+            Describe your project once. MACI generates a complete Python codebase, then verifies and if issues reported optimizes it for you .
           </p>
 
           {/* Trust strip */}
