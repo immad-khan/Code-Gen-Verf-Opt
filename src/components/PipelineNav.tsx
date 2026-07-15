@@ -16,7 +16,7 @@ export const PipelineNav: React.FC<PipelineNavProps> = ({
   const steps = [
     { number: 1 as PipelineStep, label: 'Prompt', desc: 'Describe what to build', Icon: PenLine },
     { number: 2 as PipelineStep, label: 'Generate', desc: 'Python code synthesis', Icon: Code2 },
-    { number: 3 as PipelineStep, label: 'Audit', desc: 'Security & quality report', Icon: ShieldCheck },
+    { number: 3 as PipelineStep, label: 'Verification', desc: 'Security & quality report', Icon: ShieldCheck },
   ];
 
   return (

@@ -44,7 +44,6 @@ export const Step1Input: React.FC<Step1InputProps> = ({
           <div className="mt-7 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-[color:var(--color-ink-faint)]">
             <span className="inline-flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5 text-[color:var(--color-brand-soft)]" /> SQLi &amp; secret detection</span>
             <span className="inline-flex items-center gap-1.5"><Gauge className="w-3.5 h-3.5 text-[color:var(--color-brand-soft)]" /> Type &amp; performance checks</span>
-            <span className="inline-flex items-center gap-1.5"><GitBranch className="w-3.5 h-3.5 text-[color:var(--color-brand-soft)]" /> CI merge-gate ready</span>
           </div>
         </div>
       </section>
@@ -68,7 +67,7 @@ export const Step1Input: React.FC<Step1InputProps> = ({
 
           <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3">
             <p className="text-[11px] text-[color:var(--color-ink-faint)] order-2 sm:order-1">
-              Generate → Review code → Full audit report
+              Prompt Input → Generate → Verification
             </p>
             <button
               onClick={onProcess}
