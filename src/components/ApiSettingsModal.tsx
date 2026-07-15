@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ApiSettings } from '../types';
-import { X, Key, Check, Shield, AlertTriangle } from 'lucide-react';
+import { X, Key, Check, Shield, AlertTriangle, Loader2, Wifi, WifiOff } from 'lucide-react';
+import { testApiKey } from '../services/aiService';
 
 export interface ApiSettingsModalProps {
   isOpen: boolean;
@@ -59,6 +60,8 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
   });
   
   const [model, setModel] = useState(settings.model);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   useEffect(() => {
     const p = PROVIDERS.find(x => x.id === provider)!;
@@ -69,6 +72,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
     if (envKey) {
       setApiKey(envKey);
     }
+    setTestResult(null); // reset test result when provider changes
   }, [provider]);
 
   // Update state when settings change (e.g., when modal reopens)
@@ -83,6 +87,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
       setApiKey('');
     }
     setModel(settings.model);
+    setTestResult(null);
   }, [settings]);
 
   if (!isOpen) return null;
@@ -93,6 +98,15 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
   const handleSave = () => {
     onSave({ provider, apiKey, model });
     onClose();
+  };
+
+  const handleTest = async () => {
+    if (!apiKey.trim() || testing) return;
+    setTesting(true);
+    setTestResult(null);
+    const result = await testApiKey(provider, apiKey.trim(), model);
+    setTestResult(result);
+    setTesting(false);
   };
 
   const handleClear = () => {
@@ -146,11 +160,18 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
             <input
               type="password"
               value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
+              onChange={(e) => { setApiKey(e.target.value); setTestResult(null); }}
               placeholder={`${providerMeta.envVar} — paste your key here or set VITE_${providerMeta.envVar} in .env`}
-              className="input-field w-full pl-10 pr-3 py-2.5 text-sm font-mono"
+              className="input-field w-full pl-10 pr-28 py-2.5 text-sm font-mono"
               autoComplete="off"
             />
+            <button
+              onClick={handleTest}
+              disabled={!apiKey.trim() || apiKey.trim().length <= 8 || testing}
+              className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 text-xs font-semibold rounded-lg bg-[#7c6cff]/20 text-[color:var(--color-brand-soft)] hover:bg-[#7c6cff]/40 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1.5 cursor-pointer"
+            >
+              {testing ? <><Loader2 className="w-3 h-3 animate-spin" /> Testing…</> : <>Test</>}
+            </button>
           </div>
           <p className="text-[10px] text-[color:var(--color-ink-faint)] mt-1.5 flex items-center gap-1">
             <Shield className="w-3 h-3" />
@@ -171,9 +192,17 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
         </div>
 
         {/* Status */}
-        <div className={`card-quiet p-3 flex items-center gap-2.5 mb-5 ${active ? 'border-emerald-500/25' : 'border-amber-500/25'}`}>
-          {active
-            ? <><Check className="w-4 h-4 text-emerald-400" /><span className="text-xs text-emerald-300">Ready — key set</span></>
+        <div className={`card-quiet p-3 flex items-center gap-2.5 mb-5 transition-colors ${
+          testResult
+            ? testResult.ok ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-rose-500/40 bg-rose-500/5'
+            : active ? 'border-emerald-500/25' : 'border-amber-500/25'
+        }`}>
+          {testResult ? (
+            testResult.ok
+              ? <><Wifi className="w-4 h-4 text-emerald-400" /><span className="text-xs text-emerald-300">{testResult.message}</span></>
+              : <><WifiOff className="w-4 h-4 text-rose-400" /><span className="text-xs text-rose-300">{testResult.message}</span></>
+          ) : active
+            ? <><Check className="w-4 h-4 text-emerald-400" /><span className="text-xs text-emerald-300">Key entered — click Test to verify</span></>
             : <><AlertTriangle className="w-4 h-4 text-amber-400" /><span className="text-xs text-amber-300">Enter a key to enable live generation</span></>
           }
         </div>

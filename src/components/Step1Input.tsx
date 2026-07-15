@@ -81,9 +81,7 @@ export const Step1Input: React.FC<Step1InputProps> = ({
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4" />
-                  <span>Generate &amp; Audit</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <span>Generate</span>
                 </>
               )}
             </button>

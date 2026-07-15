@@ -552,3 +552,55 @@ export async function processPromptWithAgents(
 
   throw new Error("No API keys configured! Please add at least one API key in the settings.");
 }
+
+// ------------------------------------------------------------------ API key tester
+export async function testApiKey(provider: string, apiKey: string, model: string): Promise<{ ok: boolean; message: string }> {
+  const ping = 'Reply with the single word: PONG';
+  try {
+    switch (provider.toLowerCase()) {
+      case 'openai': {
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+          body: JSON.stringify({ model, max_tokens: 5, messages: [{ role: 'user', content: ping }] })
+        });
+        if (!res.ok) { const e = await res.json(); throw new Error(e?.error?.message ?? res.statusText); }
+        return { ok: true, message: 'OpenAI key is valid ✓' };
+      }
+      case 'groq': {
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+          body: JSON.stringify({ model, max_tokens: 5, messages: [{ role: 'user', content: ping }] })
+        });
+        if (!res.ok) { const e = await res.json(); throw new Error(e?.error?.message ?? res.statusText); }
+        return { ok: true, message: 'Groq key is valid ✓' };
+      }
+      case 'anthropic': {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({ model, max_tokens: 5, messages: [{ role: 'user', content: ping }] })
+        });
+        if (!res.ok) { const e = await res.json(); throw new Error(e?.error?.message ?? res.statusText); }
+        return { ok: true, message: 'Anthropic key is valid ✓' };
+      }
+      case 'gemini': {
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: ping }] }], generationConfig: { maxOutputTokens: 5 } })
+          }
+        );
+        if (!res.ok) { const e = await res.json(); throw new Error(e?.error?.message ?? res.statusText); }
+        return { ok: true, message: 'Gemini key is valid ✓' };
+      }
+      default:
+        return { ok: false, message: 'Unknown provider' };
+    }
+  } catch (err: any) {
+    return { ok: false, message: err.message ?? 'Connection failed' };
+  }
+}
