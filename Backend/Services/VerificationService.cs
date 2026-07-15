@@ -80,7 +80,7 @@ print(json.dumps(results))
 import ast, sys, json, os
 
 def cyclomatic_complexity(tree):
-    """Count decision points + 1 = McCabe CC"""
+    # Count decision points + 1 = McCabe cyclomatic complexity
     decision_nodes = (ast.If, ast.For, ast.While, ast.ExceptHandler,
                       ast.With, ast.Assert, ast.comprehension)
     count = 1
@@ -107,21 +107,16 @@ for root, dirs, files_list in os.walk(target):
             try:
                 with open(filepath, 'r', encoding='utf-8') as fh:
                     lines = fh.readlines()
-                # LoC = non-blank lines
                 non_blank = [l for l in lines if l.strip()]
                 total_loc += len(non_blank)
-                # Comment lines
                 comment_lines = [l for l in non_blank if l.strip().startswith('#')]
                 total_comment += len(comment_lines)
                 total_code_lines += len(non_blank) - len(comment_lines)
-                # AST for CC and imports
                 source = ''.join(lines)
                 tree = ast.parse(source)
-                # CC per function
                 for node in ast.walk(tree):
                     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                         all_cc.append(cyclomatic_complexity(node))
-                # Imports
                 for node in ast.walk(tree):
                     if isinstance(node, ast.Import):
                         for alias in node.names:

@@ -19,9 +19,35 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   if (!isOpen) return null;
 
   const handleDownloadJson = () => {
+    const m = backendVerification?.metrics;
     const exportPayload = {
-      ai_result: result,
-      verification_result: backendVerification
+      metadata: {
+        exportedAt: new Date().toISOString(),
+        prompt: result.prompt,
+        modelUsed: result.modelUsed,
+        timestamp: result.timestamp,
+      },
+      verification_verdict: backendVerification?.overallVerdict ?? 'UNVERIFIED',
+      verification_duration_ms: backendVerification?.totalDurationMs ?? 0,
+      code_metrics: m ? {
+        // Core verification
+        pass_rate_pct: m.passRate,
+        total_tests: m.totalTests,
+        passed_tests: m.passedTests,
+        failed_tests: m.failedTests,
+        // Bug distribution
+        syntax_bug_count: m.syntaxBugCount,
+        runtime_bug_count: m.runtimeBugCount,
+        functional_bug_count: m.functionalBugCount,
+        // Code quality
+        lines_of_code: m.totalLinesOfCode,
+        avg_cyclomatic_complexity: m.avgCyclomaticComplexity,
+        max_cyclomatic_complexity: m.maxCyclomaticComplexity,
+        api_import_count: m.totalApiCount,
+        comment_code_ratio: m.commentCodeRatio,
+      } : null,
+      verification_techniques: backendVerification?.techniques ?? [],
+      generated_files: result.generatedCode,
     };
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(exportPayload, null, 2));
     const a = document.createElement('a');
