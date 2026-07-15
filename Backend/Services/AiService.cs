@@ -28,12 +28,12 @@ public class AiService
         {
           "summary": "one-line description of what was built",
           "files": [
-            { "name": "filename.py", "path": "relative/path/filename.py", "category": "router|service|model|schema|data|test|config|utils|other", "description": "Plain-English purpose", "content": "full file content" }
+            { "name": "filename.py", "path": "relative/path/filename.py", "category": "router|service|model|schema|data|test|config|utils|other", "description": "Plain-English purpose", "content": "# Write the ACTUAL complete Python code here. Do not leave empty! Do not use placeholders." }
           ]
         }
 
         category must be one of: router | service | model | schema | data | test | config | utils | other.
-        Every file's content must be the full file, not a stub.
+        Every file's content must contain the ACTUAL FULL PYTHON CODE, not a stub or placeholder. Do not leave the content field empty.
         """;
 
     private readonly HttpClient _httpClient;

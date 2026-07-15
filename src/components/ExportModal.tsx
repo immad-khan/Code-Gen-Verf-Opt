@@ -1,66 +1,84 @@
 import React, { useState } from 'react';
 import { AIResultData } from '../types';
+import { VerificationResponse } from '../services/verificationService';
 import { X, Download, FileJson, FileText, Printer, Check, Copy } from 'lucide-react';
 
 interface ExportModalProps {
   isOpen: boolean;
   onClose: () => void;
   result: AIResultData;
+  backendVerification: VerificationResponse | null;
 }
 
 export const ExportModal: React.FC<ExportModalProps> = ({
   isOpen,
   onClose,
-  result
+  result,
+  backendVerification
 }) => {
   const [copied, setCopied] = useState(false);
 
   if (!isOpen) return null;
 
   const handleDownloadJson = () => {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(result, null, 2));
+    const exportPayload = {
+      ai_result: result,
+      verification_result: backendVerification
+    };
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(exportPayload, null, 2));
     const a = document.createElement('a');
     a.setAttribute('href', dataStr);
-    a.setAttribute('download', `Python_Audit_Report_${Date.now()}.json`);
+    a.setAttribute('download', `MACI_Verification_Report_${Date.now()}.json`);
     document.body.appendChild(a);
     a.click();
     a.remove();
   };
 
   const getMarkdownText = () => {
-    return `# MACI Python LLM Code Audit Report
-**Prompt:** ${result.prompt}
-**Model Used:** ${result.modelUsed}
-**Timestamp:** ${result.timestamp}
+    const verdict = backendVerification?.overallVerdict || 'UNVERIFIED';
+    const duration = backendVerification?.totalDurationMs ?? 0;
+    const passed = backendVerification?.totalPassed ?? 0;
+    const total = backendVerification?.techniques?.length ?? 5;
 
-## Executive Summary
-- Overall Risk: ${result.executiveSummary.overallRisk}
-- Total Findings: ${result.executiveSummary.totalFindings} (Critical: ${result.executiveSummary.criticalCount}, High: ${result.executiveSummary.highCount}, Med: ${result.executiveSummary.mediumCount}, Low: ${result.executiveSummary.lowCount})
-- Confidence: ${result.executiveSummary.confidence} (${result.executiveSummary.confidenceReason})
+    return `# MACI Execution & Verification Report
 
-### Top Priority Fixes
-${result.executiveSummary.topMustFixes.map((f, i) => `${i + 1}. ${f}`).join('\n')}
+## Metadata
+- **Prompt:** ${result.prompt}
+- **Model Used:** ${result.modelUsed}
+- **Timestamp:** ${result.timestamp}
 
-## Python Audit Findings
-${result.findings.map(f => `### [${f.severity}] #${f.number} ${f.title}
-- File: ${f.filePath} (${f.lineRange})
-- Rule / CWE: ${f.cwe || 'N/A'} / ${f.ruleId || 'N/A'}
-- Detection Technique: ${f.detectionTechnique}
-- Why it matters: ${f.whyItMatters}
-\`\`\`python
-${f.pythonFix}
+## Verification Summary
+- **Overall Verdict:** ${verdict}
+- **Verification Duration:** ${duration}ms
+- **Passed Checks:** ${passed} / ${total}
+
+## Verification Techniques Details
+${backendVerification ? backendVerification.techniques.map(t => {
+  let issuesMd = '';
+  if (t.issues.length > 0) {
+    issuesMd = '\n\n**Issues Found:**\n' + t.issues.map(i => `* ${i.file ? `${i.file}${i.line ? `:${i.line}` : ''} - ` : ''}${i.message}`).join('\n');
+  }
+  return `### [${t.status}] ${t.name}
+- **Status:** ${t.status}
+- **Duration:** ${t.durationMs}ms
+- **Details:** ${t.details}${issuesMd}
+`;
+}).join('\n') : '*No backend verification data available.*'}
+
+## pytest Execution Terminal Logs
 \`\`\`
-`).join('\n\n')}
-
-## Dependency Verification Table
-| Package | Version | Status | Evidence | Action |
-|---|---|---|---|---|
-${result.dependencyTable.map(d => `| ${d.packageOrApi} | ${d.version} | ${d.status} | ${d.evidence} | ${d.action} |`).join('\n')}
+${backendVerification?.techniques.find(t => t.id === 3)?.details || 'No pytest output available.'}
+\`\`\`
 
 ## Generated Python Code
+${result.generatedCode.map(file => `
+### File: ${file.path || file.name}
+*Category: ${file.category || 'other'} · Description: ${file.description || 'No description'}*
+
 \`\`\`python
-${result.generatedCode[0]?.content || ''}
+${file.content}
 \`\`\`
+`).join('\n\n')}
 `;
   };
 
@@ -69,7 +87,7 @@ ${result.generatedCode[0]?.content || ''}
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Python_Audit_Report_${Date.now()}.md`;
+    a.download = `MACI_Verification_Report_${Date.now()}.md`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -81,9 +99,9 @@ ${result.generatedCode[0]?.content || ''}
   };
 
   const options = [
-    { onClick: handleDownloadJson, Icon: FileJson, iconClass: 'text-amber-400', title: 'Full session (JSON)', desc: 'Raw code, findings, dependency table & tests' },
-    { onClick: handleDownloadMarkdown, Icon: FileText, iconClass: 'text-sky-400', title: 'Audit report (Markdown)', desc: 'Formatted docs for pull requests' },
-    { onClick: () => window.print(), Icon: Printer, iconClass: 'text-emerald-400', title: 'Print / Save PDF', desc: 'Browser print dialog for stakeholders' },
+    { onClick: handleDownloadJson, Icon: FileJson, iconClass: 'text-amber-400', title: 'Full session (JSON)', desc: 'Raw AI generation payload + C# execution check output' },
+    { onClick: handleDownloadMarkdown, Icon: FileText, iconClass: 'text-sky-400', title: 'Verification report (Markdown)', desc: 'Formatted docs detailing python execution status' },
+    { onClick: () => window.print(), Icon: Printer, iconClass: 'text-emerald-400', title: 'Print / Save PDF', desc: 'Browser print dialog for verification records' },
   ];
 
   return (
@@ -98,8 +116,8 @@ ${result.generatedCode[0]?.content || ''}
             <Download className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="font-semibold text-[color:var(--color-ink)] text-base">Export audit package</h3>
-            <p className="text-xs text-[color:var(--color-ink-muted)]">Python source, findings &amp; CI/CD config</p>
+            <h3 className="font-semibold text-[color:var(--color-ink)] text-base">Export report package</h3>
+            <p className="text-xs text-[color:var(--color-ink-muted)]">Python code &amp; execution check details</p>
           </div>
         </div>
 

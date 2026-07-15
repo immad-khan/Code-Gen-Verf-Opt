@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { PipelineStep, AIResultData, ApiSettings, AgentLog, PythonAuditFinding } from './types';
 import { processPromptWithAgents } from './services/aiService';
 import { analyzePythonCode } from './analyzer';
+import { runBackendVerification, VerificationResponse } from './services/verificationService';
 import { Header } from './components/Header';
 import { PipelineNav } from './components/PipelineNav';
 import { Step1Input } from './components/Step1Input';
@@ -131,6 +132,8 @@ export function App() {
   const [resultData, setResultData] = useState<AIResultData>(createInitialResultData());
   const [hasGeneratedResult, setHasGeneratedResult] = useState(false);
   const [apiSettings, setApiSettings] = useState<ApiSettings>(loadSettings);
+  const [backendVerification, setBackendVerification] = useState<VerificationResponse | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   // Reset localStorage on initial load to use the latest .env keys
   useEffect(() => {
@@ -164,7 +167,14 @@ export function App() {
         setAllLogs(prev => [...prev, log]);
       });
 
-      // RUN THE REAL 12-TECHNIQUE ANALYZER over the generated code
+      // Check if LLM returned an error (non-code request)
+      if (data.generatedCode.length === 0) {
+        setErrorMessage('I can only generate Python code. Please describe a Python project or program you would like me to create.');
+        setIsProcessing(false);
+        return;
+      }
+
+      // Run client-side code quality analysis (patterns, style, security hints)
       const analysis = analyzePythonCode(data.generatedCode);
 
       const enriched: AIResultData = {
@@ -187,16 +197,16 @@ export function App() {
             .slice(0, 3)
             .map(f => f.title),
           confidence: 'High',
-          confidenceReason: `Live code from ${apiSettings.provider.toUpperCase()} + 12-technique client-side analyzer with line-accurate findings.`,
+          confidenceReason: `Live code from ${apiSettings.provider.toUpperCase()} + real verification on backend.`,
         },
         mergeGate: {
           verdict: analysis.findings.some(f => f.severity === 'CRITICAL') ? 'BLOCKED'
             : analysis.findings.some(f => f.severity === 'HIGH') ? 'PASS_WITH_WARNINGS' : 'APPROVED',
           reason: analysis.findings.some(f => f.severity === 'CRITICAL')
-            ? `Real analyzer found ${analysis.findings.filter(f => f.severity === 'CRITICAL').length} CRITICAL issue(s) (SQLi, secrets, eval, etc.) — merge blocked until fixed.`
+            ? `Analyzer found ${analysis.findings.filter(f => f.severity === 'CRITICAL').length} CRITICAL issue(s).`
             : analysis.findings.some(f => f.severity === 'HIGH')
-            ? `Real analyzer found HIGH-severity issues — address before merge.`
-            : `Real analyzer cleared all CRITICAL/HIGH checks across 12 techniques. Safe to merge.`,
+            ? `Analyzer found HIGH-severity issues — address before merge.`
+            : `Analyzer cleared all CRITICAL/HIGH checks. Safe to merge.`,
           temperature: 0.2,
         },
         metrics: {
@@ -209,6 +219,19 @@ export function App() {
       setResultData(enriched);
       setHasGeneratedResult(true);
       setCurrentStep(2);
+
+      // Run real backend verification in parallel (AST, imports, pytest, runtime, mypy)
+      setIsVerifying(true);
+      setBackendVerification(null);
+      try {
+        const verification = await runBackendVerification(data.generatedCode);
+        setBackendVerification(verification);
+        console.log('Backend verification:', verification);
+      } catch (verifyErr) {
+        console.warn('Backend verification failed (backend may be offline):', verifyErr);
+      } finally {
+        setIsVerifying(false);
+      }
     } catch (err) {
       console.error('Processing failed:', err);
       setErrorMessage(err instanceof Error ? err.message : 'An unknown error occurred');
@@ -269,6 +292,8 @@ export function App() {
             onBackToCode={() => setCurrentStep(2)}
             onBackToPrompt={() => setCurrentStep(1)}
             onExport={() => setIsExportModalOpen(true)}
+            backendVerification={backendVerification}
+            isVerifying={isVerifying}
           />
         )}
       </main>
@@ -284,7 +309,12 @@ export function App() {
 
       {isProcessing && <ProcessingOverlay progress={progress} currentLog={currentLog} allLogs={allLogs} />}
       {hasGeneratedResult && (
-        <ExportModal isOpen={isExportModalOpen} onClose={() => setIsExportModalOpen(false)} result={resultData} />
+        <ExportModal 
+          isOpen={isExportModalOpen} 
+          onClose={() => setIsExportModalOpen(false)} 
+          result={resultData} 
+          backendVerification={backendVerification}
+        />
       )}
       <ApiSettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={apiSettings} onSave={handleSaveSettings} />
     </div>

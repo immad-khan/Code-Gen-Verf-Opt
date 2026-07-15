@@ -26,15 +26,16 @@ IMPORTANT RULES:
       "path": "relative/path/to/filename.py",
       "category": "router|service|model|schema|data|test|config|utils|other",
       "description": "plain english description of the file",
-      "content": "full file content here"
+      "content": "# Write the ACTUAL complete Python code here. Do not leave empty! Do not use placeholders."
     }
   ]
 }
 
 6. "category" MUST be one of: router, service, model, schema, data, test, config, utils, other
-7. MAKE SURE THE JSON IS VALID - no trailing commas, proper quotes, complete structure!
-8. DO NOT wrap the JSON in markdown code blocks!
-9. DO NOT add any extra text before or after the JSON!`;
+7. The "content" field MUST contain the ACTUAL WORKING PYTHON CODE. Do not use stubs, do not leave it empty, and do not write placeholders like "code goes here".
+8. MAKE SURE THE JSON IS VALID - no trailing commas, proper quotes, complete structure!
+9. DO NOT wrap the JSON in markdown code blocks!
+10. DO NOT add any extra text before or after the JSON!`;
 
 function createEmptyResultData(prompt: string, modelUsed: string): AIResultData {
   return {

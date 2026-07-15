@@ -49,8 +49,6 @@ export const Step2CodeOutput: React.FC<Step2CodeOutputProps> = ({
   const stats = [
     { label: 'Generation time', value: `${(result.metrics.processingTimeMs / 1000).toFixed(1)}s` },
     { label: 'Files', value: String(result.generatedCode.length) },
-    { label: 'Quality score', value: `${result.metrics.qualityScore}/10` },
-    { label: 'Audit findings', value: String(result.executiveSummary.totalFindings), warn: true },
   ];
 
   return (
@@ -67,13 +65,13 @@ export const Step2CodeOutput: React.FC<Step2CodeOutputProps> = ({
           </p>
         </div>
         <button onClick={onProceedToVerification} className="btn-primary px-5 py-2.5 text-sm flex items-center gap-2">
-          <span>View audit report</span>
+          <span>View Verification</span>
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         {stats.map((s) => (
           <div key={s.label} className="card-quiet p-4">
             <div className="eyebrow mb-1.5">{s.label}</div>
@@ -195,10 +193,6 @@ export const Step2CodeOutput: React.FC<Step2CodeOutputProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <button onClick={onRegenerate} className="btn-ghost px-4 py-2.5 text-sm flex items-center gap-2 cursor-pointer">
           <RefreshCw className="w-4 h-4" /> Regenerate
-        </button>
-        <button onClick={onProceedToVerification} className="btn-primary px-6 py-2.5 text-sm flex items-center gap-2">
-          <span>Run security audit</span>
-          <ArrowRight className="w-4 h-4" />
         </button>
       </div>
     </div>
