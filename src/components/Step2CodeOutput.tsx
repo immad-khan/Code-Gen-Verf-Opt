@@ -61,7 +61,7 @@ export const Step2CodeOutput: React.FC<Step2CodeOutputProps> = ({
           </button>
           <h1 className="text-xl font-bold tracking-tight text-[color:var(--color-ink)]">Generated Python project</h1>
           <p className="text-sm text-[color:var(--color-ink-muted)] mt-0.5">
-            FastAPI · SQLAlchemy · Pydantic · pytest — ready to review, then audit.
+            FastAPI · Pydantic · pytest — ready to review, then audit.
           </p>
         </div>
         <button onClick={onProceedToVerification} className="btn-primary px-5 py-2.5 text-sm flex items-center gap-2">
@@ -91,11 +91,10 @@ export const Step2CodeOutput: React.FC<Step2CodeOutputProps> = ({
               <button
                 key={t.id}
                 onClick={() => setActiveTab(t.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
-                  activeTab === t.id
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${activeTab === t.id
                     ? 'bg-[color:var(--color-surface-3)] text-[color:var(--color-ink)] shadow-sm'
                     : 'text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-ink-muted)]'
-                }`}
+                  }`}
               >
                 <t.Icon className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">{t.label}</span>

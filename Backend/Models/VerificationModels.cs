@@ -20,6 +20,13 @@ public class CodeMetrics
     public int TotalApiCount { get; set; }         // distinct imports / API calls
     public double CommentCodeRatio { get; set; }   // comment lines / code lines
 
+    // Radon-specific metrics
+    public double MaintainabilityIndex { get; set; }     // average MI score (0–100, higher = better)
+    public int RadonComplexFunctionCount { get; set; }   // functions graded C / D / E / F by radon
+
+    // Semgrep-specific metrics
+    public int SemgrepFindingCount { get; set; }         // total security/correctness findings (0 = clean)
+
     // Bug distribution metrics
     public int SyntaxBugCount { get; set; }
     public int RuntimeBugCount { get; set; }
@@ -53,4 +60,6 @@ public class VerificationIssue
     public int? Line { get; set; }
     public string Message { get; set; } = "";
     public string Severity { get; set; } = "INFO";
+    /// <summary>The actual source line(s) from the generated file at the reported line number.</summary>
+    public string? CodeSnippet { get; set; }
 }

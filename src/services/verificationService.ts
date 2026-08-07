@@ -5,6 +5,7 @@ export interface VerificationIssue {
   line?: number;
   message: string;
   severity: string;
+  codeSnippet?: string;
 }
 
 export interface VerificationTechnique {
@@ -28,6 +29,11 @@ export interface CodeMetrics {
   maxCyclomaticComplexity: number;
   totalApiCount: number;
   commentCodeRatio: number;
+  // Radon-specific
+  maintainabilityIndex: number;    // 0–100, -1 = unavailable
+  radonComplexFunctionCount: number; // functions graded C / D / E / F
+  // Semgrep-specific
+  semgrepFindingCount: number;     // 0 = clean; -1 = not run
   // Bug distribution
   syntaxBugCount: number;
   runtimeBugCount: number;

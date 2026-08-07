@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "D:\\Desktop\\MACI\\Backend\\Backend.csproj": {}
+    "D:\\Desktop\\MACI\\backend\\Backend.csproj": {}
   },
   "projects": {
-    "D:\\Desktop\\MACI\\Backend\\Backend.csproj": {
+    "D:\\Desktop\\MACI\\backend\\Backend.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\Desktop\\MACI\\Backend\\Backend.csproj",
+        "projectUniqueName": "D:\\Desktop\\MACI\\backend\\Backend.csproj",
         "projectName": "Backend",
-        "projectPath": "D:\\Desktop\\MACI\\Backend\\Backend.csproj",
+        "projectPath": "D:\\Desktop\\MACI\\backend\\Backend.csproj",
         "packagesPath": "C:\\Users\\Immad Ahmed\\.nuget\\packages\\",
-        "outputPath": "D:\\Desktop\\MACI\\Backend\\obj\\",
+        "outputPath": "D:\\Desktop\\MACI\\backend\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

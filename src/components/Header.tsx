@@ -9,13 +9,17 @@ interface HeaderProps {
 }
 
 const TEMPERATURE_OPTIONS = [
-  { value: 0.0, label: 'Deterministic', desc: 'Strict, reproducible output' },
-  { value: 0.2, label: 'Focused', desc: 'Highly consistent (recommended for audits)' },
-  { value: 0.4, label: 'Balanced-Low', desc: 'Slight variation allowed' },
-  { value: 0.6, label: 'Balanced', desc: 'Default creative balance' },
-  { value: 0.8, label: 'Creative', desc: 'More diverse responses' },
-  { value: 1.0, label: 'Exploratory', desc: 'High randomness' },
-  { value: 1.2, label: 'Experimental', desc: 'Maximum creativity' },
+  { value: 0.0, label: 'Deterministic',  desc: 'Identical output every run — zero randomness' },
+  { value: 0.1, label: 'Ultra-Focused',  desc: 'Near-deterministic with minimal drift' },
+  { value: 0.2, label: 'Strict',         desc: 'Highly consistent — recommended for security audits' },
+  { value: 0.3, label: 'Precise',        desc: 'Low variation, strong adherence to spec' },
+  { value: 0.4, label: 'Balanced-Low',   desc: 'Slight creativity while staying accurate' },
+  { value: 0.5, label: 'Neutral',        desc: 'Equal balance of precision and variation' },
+  { value: 0.6, label: 'Balanced',       desc: 'Default — good creative / accuracy mix' },
+  { value: 0.7, label: 'Flexible',       desc: 'More varied phrasing and structure' },
+  { value: 0.8, label: 'Creative',       desc: 'Diverse, less predictable responses' },
+  { value: 0.9, label: 'Exploratory',    desc: 'High randomness, novel approaches' },
+  { value: 1.0, label: 'Max Creativity', desc: 'Maximum entropy — unpredictable output' },
 ];
 
 export const Header: React.FC<HeaderProps> = ({ temperature, onTemperatureChange, hasApiKey, onOpenSettings }) => {
@@ -77,7 +81,7 @@ export const Header: React.FC<HeaderProps> = ({ temperature, onTemperatureChange
               <div className="eyebrow">Generation Temperature</div>
               <p className="text-[11px] text-[color:var(--color-ink-faint)] mt-1">Controls output randomness. Lower is safer for security audits.</p>
             </div>
-            <div className="space-y-0.5">
+            <div className="space-y-0.5 max-h-72 overflow-y-auto pr-0.5 scrollbar-thin">
               {TEMPERATURE_OPTIONS.map((opt) => {
                 const active = Math.abs(opt.value - temperature) < 0.001;
                 return (

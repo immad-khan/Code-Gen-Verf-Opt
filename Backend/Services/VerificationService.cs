@@ -140,13 +140,81 @@ print(json.dumps({
 }))
 """;
 
+    // ------------------------------------------------------------------ Radon embedded runners
+
+    private const string RADON_CC_SCRIPT = """
+import sys, json
+try:
+    from radon.complexity import cc_visit, cc_rank
+except ImportError:
+    print(json.dumps({'error': 'radon_not_installed'}))
+    sys.exit(0)
+
+import os
+target = sys.argv[1]
+results = []
+for root, dirs, files_list in os.walk(target):
+    for f in files_list:
+        if f.endswith('.py') and not f.startswith('_maci_'):
+            filepath = os.path.join(root, f)
+            relpath = os.path.relpath(filepath, target)
+            try:
+                with open(filepath, 'r', encoding='utf-8') as fh:
+                    source = fh.read()
+                blocks = cc_visit(source)
+                for b in blocks:
+                    rank = cc_rank(b.complexity)
+                    results.append({
+                        'file': relpath,
+                        'name': b.name,
+                        'type': b.letter,
+                        'lineno': b.lineno,
+                        'complexity': b.complexity,
+                        'rank': rank
+                    })
+            except Exception as e:
+                results.append({'file': relpath, 'error': str(e)})
+print(json.dumps(results))
+""";
+
+    private const string RADON_MI_SCRIPT = """
+import sys, json
+try:
+    from radon.metrics import mi_visit, mi_rank
+except ImportError:
+    print(json.dumps({'error': 'radon_not_installed'}))
+    sys.exit(0)
+
+import os
+target = sys.argv[1]
+results = []
+for root, dirs, files_list in os.walk(target):
+    for f in files_list:
+        if f.endswith('.py') and not f.startswith('_maci_'):
+            filepath = os.path.join(root, f)
+            relpath = os.path.relpath(filepath, target)
+            try:
+                with open(filepath, 'r', encoding='utf-8') as fh:
+                    source = fh.read()
+                mi = mi_visit(source, multi=True)
+                rank = mi_rank(mi)
+                results.append({'file': relpath, 'mi': round(mi, 2), 'rank': rank})
+            except Exception as e:
+                results.append({'file': relpath, 'mi': None, 'rank': 'X', 'error': str(e)})
+print(json.dumps(results))
+""";
+
     // ------------------------------------------------------------------ main entry
+
+    // Stored during a verify run so snippet helper can access files on disk
+    private string _currentTempDir = "";
 
     public async Task<VerificationResponse> VerifyAsync(List<GeneratedCodeFile> files)
     {
         var response = new VerificationResponse();
         var sw = Stopwatch.StartNew();
         var tempDir = Path.Combine(Path.GetTempPath(), $"maci_{Guid.NewGuid():N}");
+        _currentTempDir = tempDir;
 
         try
         {
@@ -183,14 +251,16 @@ print(json.dumps({
 
             _logger.LogInformation("Running verification in {TempDir} with {Python}", tempDir, python);
 
-            // Run all 5 techniques
+            // Run all 7 techniques
             var t1 = await RunTechnique1_AstParse(python, tempDir);
             var t2 = await RunTechnique2_ImportCheck(python, tempDir);
             var t3 = await RunTechnique3_Pytest(python, tempDir);
             var t4 = ExtractTechnique4_RuntimeErrors(t3);
             var t5 = await RunTechnique5_Mypy(python, tempDir);
+            var t6 = await RunTechnique6_Radon(python, tempDir);
+            var t7 = await RunTechnique7_Semgrep(python, tempDir);
 
-            response.Techniques = new List<VerificationTechnique> { t1, t2, t3, t4, t5 };
+            response.Techniques = new List<VerificationTechnique> { t1, t2, t3, t4, t5, t6, t7 };
             response.TotalPassed = response.Techniques.Count(t => t.Status == "PASS");
             response.TotalFailed = response.Techniques.Count(t => t.Status == "FAIL");
             response.TotalSkipped = response.Techniques.Count(t => t.Status == "SKIP");
@@ -200,8 +270,8 @@ print(json.dumps({
                 : response.Techniques.All(t => t.Status is "PASS" or "SKIP")
                     ? "PASS" : "PARTIAL";
 
-            // Compute research paper metrics
-            response.Metrics = await ComputeCodeMetrics(python, tempDir, t1, t3, t4);
+            // Compute research paper metrics (pass t6 + t7 for Radon/Semgrep fields)
+            response.Metrics = await ComputeCodeMetrics(python, tempDir, t1, t3, t4, t6, t7);
         }
         catch (Exception ex)
         {
@@ -245,7 +315,8 @@ print(json.dumps({
                             File = fail.file ?? "",
                             Line = fail.line,
                             Message = fail.message ?? "Syntax error",
-                            Severity = "ERROR"
+                            Severity = "ERROR",
+                            CodeSnippet = GetCodeSnippet(fail.file, fail.line)
                         });
                     }
                     var total = results.Count;
@@ -377,17 +448,30 @@ print(json.dumps({
                 var passed = passMatch.Success ? passMatch.Groups[1].Value : "0";
                 technique.Details = $"{failed} test(s) failed, {passed} passed";
 
-                // Extract individual failure messages
+                // Extract individual failure messages with file+line context
                 var errorLines = output.Split('\n')
                     .Where(l => l.Contains("FAILED") || l.Contains("ERROR") || l.Contains("assert"))
                     .Take(10)
                     .ToList();
-                foreach (var line in errorLines)
+                foreach (var rawLine in errorLines)
                 {
+                    // Try to parse pytest's "path/file.py::test_name" or "file.py:N" pattern
+                    string? snippetFile = null;
+                    int? snippetLineNo = null;
+                    var pathMatch = System.Text.RegularExpressions.Regex.Match(rawLine, @"([\w/\\][\w./\\]+\.py)(?::(\d+))?");
+                    if (pathMatch.Success)
+                    {
+                        snippetFile = pathMatch.Groups[1].Value;
+                        if (pathMatch.Groups[2].Success && int.TryParse(pathMatch.Groups[2].Value, out var ln))
+                            snippetLineNo = ln;
+                    }
                     technique.Issues.Add(new VerificationIssue
                     {
-                        Message = line.Trim(),
-                        Severity = "ERROR"
+                        File = snippetFile ?? "",
+                        Line = snippetLineNo,
+                        Message = rawLine.Trim(),
+                        Severity = "ERROR",
+                        CodeSnippet = GetCodeSnippet(snippetFile, snippetLineNo)
                     });
                 }
             }
@@ -525,13 +609,255 @@ print(json.dumps({
         return technique;
     }
 
+    // ------------------------------------------------------------------ Technique 6: Radon (CC + MI)
+
+    private async Task<VerificationTechnique> RunTechnique6_Radon(string python, string tempDir)
+    {
+        var technique = new VerificationTechnique { Id = 6, Name = "Radon Complexity & Maintainability" };
+        var sw = Stopwatch.StartNew();
+
+        try
+        {
+            // Check availability via a quick import
+            var (checkExit, checkOut, _) = await RunCommandAsync(
+                python, "-c \"import radon; print('ok')\"", tempDir, 5000);
+            if (checkExit != 0 || !checkOut.Contains("ok"))
+            {
+                technique.Status = "SKIP";
+                technique.Details = "radon not installed. Run: pip install radon";
+                technique.DurationMs = sw.ElapsedMilliseconds;
+                return technique;
+            }
+
+            // Run CC analysis
+            var ccScript = Path.Combine(tempDir, "_maci_radon_cc.py");
+            await File.WriteAllTextAsync(ccScript, RADON_CC_SCRIPT);
+            var (_, ccOut, _) = await RunCommandAsync(python, $"\"{ccScript}\" \"{tempDir}\"", tempDir, 20000);
+
+            // Run MI analysis
+            var miScript = Path.Combine(tempDir, "_maci_radon_mi.py");
+            await File.WriteAllTextAsync(miScript, RADON_MI_SCRIPT);
+            var (_, miOut, _) = await RunCommandAsync(python, $"\"{miScript}\" \"{tempDir}\"", tempDir, 20000);
+
+            var complexCount  = 0;
+            var issueList     = new List<VerificationIssue>();
+            var miValues      = new List<double>();
+
+            // Parse CC results – flag anything graded C, D, E, or F
+            if (!string.IsNullOrWhiteSpace(ccOut))
+            {
+                try
+                {
+                    var ccDoc = System.Text.Json.JsonDocument.Parse(ccOut);
+                    if (ccDoc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    {
+                        foreach (var block in ccDoc.RootElement.EnumerateArray())
+                        {
+                            if (!block.TryGetProperty("rank", out var rankProp)) continue;
+                            var rank = rankProp.GetString() ?? "A";
+                            if (rank is "C" or "D" or "E" or "F")
+                            {
+                                complexCount++;
+                                var fname   = block.TryGetProperty("file",       out var fp) ? fp.GetString()  : "";
+                                var name    = block.TryGetProperty("name",       out var np) ? np.GetString()  : "?";
+                                var lineno  = block.TryGetProperty("lineno",     out var lp) ? (int?)lp.GetInt32() : null;
+                                var cc      = block.TryGetProperty("complexity", out var cp) ? cp.GetInt32()  : 0;
+                                var btype   = block.TryGetProperty("type",       out var tp) ? tp.GetString()  : "F";
+                                var typeLabel = btype == "C" ? "class" : btype == "M" ? "method" : "function";
+                                issueList.Add(new VerificationIssue
+                                {
+                                    File      = fname ?? "",
+                                    Line      = lineno,
+                                    Message   = $"{typeLabel} '{name}' has cyclomatic complexity {cc} (grade {rank}) — consider refactoring.",
+                                    Severity  = rank is "E" or "F" ? "ERROR" : "WARNING",
+                                    CodeSnippet = GetCodeSnippet(fname, lineno)
+                                });
+                            }
+                        }
+                    }
+                }
+                catch { /* non-fatal */ }
+            }
+
+            // Parse MI results
+            if (!string.IsNullOrWhiteSpace(miOut))
+            {
+                try
+                {
+                    var miDoc = System.Text.Json.JsonDocument.Parse(miOut);
+                    if (miDoc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    {
+                        foreach (var file in miDoc.RootElement.EnumerateArray())
+                        {
+                            if (file.TryGetProperty("mi", out var miVal) &&
+                                miVal.ValueKind != System.Text.Json.JsonValueKind.Null)
+                                miValues.Add(miVal.GetDouble());
+                        }
+                    }
+                }
+                catch { /* non-fatal */ }
+            }
+
+            technique.Issues = issueList;
+
+            // Store aggregates in Details (serialised as JSON for the frontend to read)
+            var avgMi = miValues.Count > 0 ? Math.Round(miValues.Average(), 1) : -1;
+            var miSummary = avgMi >= 0
+                ? $"Avg MI {avgMi}/100 · " + (avgMi >= 80 ? "Excellent" : avgMi >= 65 ? "Good" : avgMi >= 20 ? "Moderate" : "Low")
+                : "MI unavailable";
+
+            technique.Details = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                avgMi,
+                complexFunctions = complexCount,
+                summary = $"{(complexCount == 0 ? "No" : complexCount.ToString())} complex function(s) (grade ≥ C). {miSummary}."
+            });
+
+            technique.Status = complexCount == 0 ? "PASS" : (complexCount <= 2 ? "FAIL" : "FAIL");
+        }
+        catch (Exception ex)
+        {
+            technique.Status = "ERROR";
+            technique.Details = $"Radon check error: {ex.Message}";
+        }
+
+        technique.DurationMs = sw.ElapsedMilliseconds;
+        return technique;
+    }
+
+    // ------------------------------------------------------------------ Technique 7: Semgrep Security Scan
+
+    private async Task<VerificationTechnique> RunTechnique7_Semgrep(string python, string tempDir)
+    {
+        var technique = new VerificationTechnique { Id = 7, Name = "Semgrep Security Scan" };
+        var sw = Stopwatch.StartNew();
+
+        try
+        {
+            // Check if semgrep is available (installed as a standalone CLI or as a Python package)
+            string? semgrepCmd = null;
+            foreach (var candidate in new[] { "semgrep", python })
+            {
+                var args = candidate == python ? "-m semgrep --version" : "--version";
+                var (exit, verOut, _) = await RunCommandAsync(candidate, args, tempDir, 8000);
+                if (exit == 0 && verOut.Contains("semgrep", StringComparison.OrdinalIgnoreCase))
+                {
+                    semgrepCmd  = candidate == python ? python  : "semgrep";
+                    break;
+                }
+            }
+
+            if (semgrepCmd == null)
+            {
+                technique.Status  = "SKIP";
+                technique.Details = "semgrep not installed. Run: pip install semgrep";
+                technique.DurationMs = sw.ElapsedMilliseconds;
+                return technique;
+            }
+
+            // Build args: use `semgrep scan` for newer versions, fall back to plain `semgrep`
+            // p/python ruleset covers security + correctness patterns for Python
+            var scanArgs = semgrepCmd == python
+                ? $"-m semgrep scan --config p/python --json --quiet \"{tempDir}\""
+                : $"scan --config p/python --json --quiet \"{tempDir}\"";
+
+            var (exitCode, stdout, stderr) = await RunCommandAsync(
+                semgrepCmd, scanArgs, tempDir, 60000);
+
+            // Semgrep exits 0 (no findings) or 1 (findings found) — both are valid
+            var jsonOutput = !string.IsNullOrWhiteSpace(stdout) ? stdout : stderr;
+            var findingCount = 0;
+            var issueList   = new List<VerificationIssue>();
+
+            if (!string.IsNullOrWhiteSpace(jsonOutput))
+            {
+                try
+                {
+                    // Find the JSON object in the output (semgrep may print extra lines)
+                    var jsonStart = jsonOutput.IndexOf('{');
+                    if (jsonStart >= 0)
+                    {
+                        var doc = System.Text.Json.JsonDocument.Parse(jsonOutput[jsonStart..]);
+                        if (doc.RootElement.TryGetProperty("results", out var resultsEl) &&
+                            resultsEl.ValueKind == System.Text.Json.JsonValueKind.Array)
+                        {
+                            foreach (var finding in resultsEl.EnumerateArray())
+                            {
+                                findingCount++;
+                                // Extract fields from semgrep JSON schema
+                                var path    = finding.TryGetProperty("path",     out var pEl) ? pEl.GetString()  : "";
+                                var checkId = finding.TryGetProperty("check_id", out var cEl) ? cEl.GetString()  : "rule";
+                                int? lineNo = null;
+                                string? codeLine = null;
+                                string? message  = null;
+                                string  severity = "WARNING";
+
+                                if (finding.TryGetProperty("start", out var startEl) &&
+                                    startEl.TryGetProperty("line", out var lineEl))
+                                    lineNo = lineEl.GetInt32();
+
+                                if (finding.TryGetProperty("extra", out var extraEl))
+                                {
+                                    if (extraEl.TryGetProperty("message",  out var msgEl))  message  = msgEl.GetString();
+                                    if (extraEl.TryGetProperty("severity", out var sevEl))  severity = sevEl.GetString() ?? "WARNING";
+                                    if (extraEl.TryGetProperty("lines",    out var linesEl)) codeLine = linesEl.GetString()?.Trim();
+                                }
+
+                                // Relativise path
+                                var relPath = path ?? "";
+                                if (relPath.StartsWith(tempDir, StringComparison.OrdinalIgnoreCase))
+                                    relPath = relPath[(tempDir.Length + 1)..].Replace('\\', '/');
+
+                                // Build a code snippet: semgrep gives us the line directly
+                                string? snippet = codeLine != null
+                                    ? $"→ {lineNo,4}: {codeLine}"
+                                    : GetCodeSnippet(relPath, lineNo);
+
+                                issueList.Add(new VerificationIssue
+                                {
+                                    File        = relPath,
+                                    Line        = lineNo,
+                                    Message     = $"[{checkId}] {message ?? "Pattern match"}",
+                                    Severity    = severity.ToUpperInvariant() switch
+                                    {
+                                        "ERROR"   => "ERROR",
+                                        "WARNING" => "WARNING",
+                                        _         => "INFO"
+                                    },
+                                    CodeSnippet = snippet
+                                });
+                            }
+                        }
+                    }
+                }
+                catch { /* semgrep JSON parse failed — non-fatal */ }
+            }
+
+            technique.Issues  = issueList;
+            technique.Status  = findingCount == 0 ? "PASS" : "FAIL";
+            technique.Details = findingCount == 0
+                ? "No security or correctness issues found (p/python ruleset)"
+                : $"{findingCount} finding(s) · rule set: p/python";
+        }
+        catch (Exception ex)
+        {
+            technique.Status  = "ERROR";
+            technique.Details = $"Semgrep error: {ex.Message}";
+        }
+
+        technique.DurationMs = sw.ElapsedMilliseconds;
+        return technique;
+    }
+
     // ------------------------------------------------------------------ Code Metrics (research paper)
 
     private async Task<CodeMetrics> ComputeCodeMetrics(
         string python, string tempDir,
         VerificationTechnique t1Ast,
         VerificationTechnique t3Pytest,
-        VerificationTechnique t4Runtime)
+        VerificationTechnique t4Runtime,
+        VerificationTechnique? t6Radon   = null,
+        VerificationTechnique? t7Semgrep = null)
     {
         var metrics = new CodeMetrics();
         try
@@ -577,7 +903,55 @@ print(json.dumps({
             ? Math.Max(0, t3Pytest.Issues.Count - metrics.RuntimeBugCount)
             : 0;
 
+        // Radon-derived fields
+        if (t6Radon != null && t6Radon.Status is "PASS" or "FAIL")
+        {
+            try
+            {
+                var doc  = System.Text.Json.JsonDocument.Parse(t6Radon.Details ?? "{}");
+                var root = doc.RootElement;
+                if (root.TryGetProperty("avgMi", out var mi) &&
+                    mi.ValueKind != System.Text.Json.JsonValueKind.Null)
+                    metrics.MaintainabilityIndex = mi.GetDouble();
+                if (root.TryGetProperty("complexFunctions", out var cf))
+                    metrics.RadonComplexFunctionCount = cf.GetInt32();
+            }
+            catch { /* non-fatal */ }
+        }
+
+        // Semgrep-derived fields
+        if (t7Semgrep != null && t7Semgrep.Status is "PASS" or "FAIL")
+            metrics.SemgrepFindingCount = t7Semgrep.Issues.Count;
+
         return metrics;
+    }
+
+    // ------------------------------------------------------------------ snippet helper
+
+    /// <summary>
+    /// Reads the source file on disk and returns a 3-line context window around <paramref name="lineNo"/>.
+    /// Returns null if the file or line cannot be resolved.
+    /// </summary>
+    private string? GetCodeSnippet(string? relativeFile, int? lineNo)
+    {
+        if (string.IsNullOrEmpty(relativeFile) || lineNo == null) return null;
+        try
+        {
+            var fullPath = Path.Combine(_currentTempDir, relativeFile.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(fullPath)) return null;
+            var lines = File.ReadAllLines(fullPath);
+            var target = lineNo.Value;
+            var from = Math.Max(0, target - 2);          // 1 line before
+            var to   = Math.Min(lines.Length - 1, target); // 1 line after (target is 1-indexed)
+            var sb = new System.Text.StringBuilder();
+            for (var i = from; i <= to; i++)
+            {
+                var marker = (i + 1 == target) ? "→" : " ";
+                sb.AppendLine($"{marker} {i + 1,4}: {lines[i]}");
+            }
+            return sb.ToString().TrimEnd();
+        }
+        catch { return null; }
     }
 
     // ------------------------------------------------------------------ helpers

@@ -4,7 +4,7 @@ import { VerificationResponse } from '../services/verificationService';
 import {
   ArrowLeft, ShieldCheck, ShieldAlert, Ban, Loader2, WifiOff,
   CheckCircle2, XCircle, AlertTriangle, HelpCircle, Terminal, Download,
-  Bug, BarChart2, Zap, Code2, GitBranch, BookOpen, Layers
+  Bug, BarChart2, Zap, Code2, GitBranch, BookOpen, Layers, Activity, Shield
 } from 'lucide-react';
 
 interface Step3VerificationProps {
@@ -249,6 +249,58 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
                 </span>
                 <span className="text-[10px] text-[color:var(--color-ink-faint)]">Comment lines / code lines</span>
               </div>
+
+              {/* Radon: Maintainability Index */}
+              {m.maintainabilityIndex !== undefined && m.maintainabilityIndex >= 0 && (
+                <div className="card-quiet p-3.5 flex flex-col gap-1">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Activity className="w-3.5 h-3.5 text-fuchsia-400" />
+                    <span className="text-[10px] font-semibold text-[color:var(--color-ink-muted)] uppercase tracking-wide">Maint. Index</span>
+                  </div>
+                  <span className={`text-2xl font-extrabold tracking-tight ${
+                    m.maintainabilityIndex >= 80 ? 'text-emerald-400'
+                    : m.maintainabilityIndex >= 65 ? 'text-amber-400'
+                    : 'text-rose-400'
+                  }`}>
+                    {m.maintainabilityIndex.toFixed(1)}
+                  </span>
+                  <span className="text-[10px] text-[color:var(--color-ink-faint)]">
+                    /100 · {m.maintainabilityIndex >= 80 ? 'Excellent' : m.maintainabilityIndex >= 65 ? 'Good' : 'Needs work'}
+                  </span>
+                </div>
+              )}
+
+              {/* Radon: Complex Functions */}
+              {m.radonComplexFunctionCount !== undefined && (
+                <div className="card-quiet p-3.5 flex flex-col gap-1">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <GitBranch className="w-3.5 h-3.5 text-orange-400" />
+                    <span className="text-[10px] font-semibold text-[color:var(--color-ink-muted)] uppercase tracking-wide">Complex Fns</span>
+                  </div>
+                  <span className={`text-2xl font-extrabold tracking-tight ${
+                    m.radonComplexFunctionCount === 0 ? 'text-emerald-400' : 'text-orange-400'
+                  }`}>
+                    {m.radonComplexFunctionCount}
+                  </span>
+                  <span className="text-[10px] text-[color:var(--color-ink-faint)]">Grade C+ (radon)</span>
+                </div>
+              )}
+
+              {/* Semgrep: Security Findings */}
+              {m.semgrepFindingCount !== undefined && m.semgrepFindingCount >= 0 && (
+                <div className="card-quiet p-3.5 flex flex-col gap-1">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Shield className="w-3.5 h-3.5 text-violet-400" />
+                    <span className="text-[10px] font-semibold text-[color:var(--color-ink-muted)] uppercase tracking-wide">Sec. Findings</span>
+                  </div>
+                  <span className={`text-2xl font-extrabold tracking-tight ${
+                    m.semgrepFindingCount === 0 ? 'text-emerald-400' : 'text-rose-400'
+                  }`}>
+                    {m.semgrepFindingCount}
+                  </span>
+                  <span className="text-[10px] text-[color:var(--color-ink-faint)]">Semgrep p/python</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -261,7 +313,7 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
         {isVerifying && !backendVerification && (
           <div className="flex flex-col items-center justify-center py-12 text-sm text-[color:var(--color-ink-muted)] gap-3">
             <Loader2 className="w-6 h-6 animate-spin text-[color:var(--color-brand-soft)]" />
-            <span>Running AST check, import checks, pytest suite, and type checking...</span>
+            <span>Running AST, imports, pytest, mypy, Radon, and Semgrep...</span>
           </div>
         )}
 
@@ -273,10 +325,18 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
         )}
 
         {backendVerification && (
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {backendVerification.techniques.map((t) => {
               const isPass = t.status === 'PASS';
               const isFail = t.status === 'FAIL';
+              // For Radon technique (id=6), details is JSON — parse the human summary
+              let displayDetails = t.details;
+              if (t.id === 6) {
+                try {
+                  const parsed = JSON.parse(t.details);
+                  displayDetails = parsed.summary ?? t.details;
+                } catch { /* keep raw */ }
+              }
               return (
                 <div key={t.id} className={`card-quiet p-4 flex flex-col justify-between min-h-[140px] transition ${
                   isPass ? 'border-emerald-500/20 bg-emerald-500/[0.01]'
@@ -290,7 +350,7 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
                         {t.status}
                       </span>
                     </div>
-                    <p className="text-[10px] text-[color:var(--color-ink-muted)] leading-relaxed">{t.details}</p>
+                    <p className="text-[10px] text-[color:var(--color-ink-muted)] leading-relaxed">{displayDetails}</p>
                   </div>
                   <div className="flex items-center justify-between mt-4 pt-2 border-t border-[color:var(--color-hairline)]/40">
                     <span className="text-[9px] font-mono text-[color:var(--color-ink-faint)]">{t.durationMs}ms</span>
@@ -317,14 +377,59 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
                   <span className="text-xs font-semibold text-[color:var(--color-ink)]">{t.name}</span>
                   <span className="text-[10px] text-rose-400 font-mono">{t.issues.length} issue(s)</span>
                 </div>
-                <div className="p-3 bg-[#0a0b0f] font-mono text-xs text-rose-300/90 overflow-x-auto space-y-2">
+                <div className="divide-y divide-white/[0.04]">
                   {t.issues.map((issue, idx) => (
-                    <div key={idx} className="flex items-start gap-2 py-1 border-b border-white/[0.03] last:border-0">
-                      <span className="text-rose-500 shrink-0 select-none">❯</span>
-                      <div className="whitespace-pre-wrap">
-                        {issue.file && <span className="text-sky-400 underline mr-1.5">{issue.file}{issue.line ? `:${issue.line}` : ''}</span>}
-                        {issue.message}
+                    <div key={idx} className="bg-[#0a0b0f] p-3.5 space-y-2">
+                      {/* Header: file + line badge + severity */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-rose-500 font-mono text-xs select-none">❯</span>
+                        {issue.file && (
+                          <span className="inline-flex items-center gap-1 bg-sky-500/10 border border-sky-500/20 text-sky-300 text-[10px] font-mono px-2 py-0.5 rounded-md">
+                            {issue.file}{issue.line ? `:${issue.line}` : ''}
+                          </span>
+                        )}
+                        <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded border ${
+                          issue.severity === 'ERROR' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                          : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                        }`}>{issue.severity}</span>
                       </div>
+                      {/* Error message */}
+                      <p className="font-mono text-xs text-rose-300/90 whitespace-pre-wrap leading-relaxed pl-5">
+                        {issue.message}
+                      </p>
+                      {/* Code snippet: 3-line context with the offending line highlighted */}
+                      {issue.codeSnippet && (
+                        <div className="pl-5">
+                          <div className="rounded-lg overflow-hidden border border-rose-500/15 mt-1">
+                            <div className="px-3 py-1 bg-rose-500/8 border-b border-rose-500/10 flex items-center gap-1.5">
+                              <Code2 className="w-3 h-3 text-rose-400/60" />
+                              <span className="text-[9px] text-rose-400/60 font-mono uppercase tracking-wider">Code at issue</span>
+                            </div>
+                            <pre className="p-3 bg-[#0d0e14] text-[11px] font-mono overflow-x-auto leading-relaxed">
+                              {issue.codeSnippet.split('\n').map((codeLine, lineIdx) => {
+                                const isTarget = codeLine.trimStart().startsWith('→');
+                                return (
+                                  <div
+                                    key={lineIdx}
+                                    className={`flex ${isTarget ? 'bg-rose-500/10 -mx-3 px-3 rounded' : ''}`}
+                                  >
+                                    <span className={`select-none mr-2 ${isTarget ? 'text-rose-400' : 'text-[color:var(--color-ink-faint)]/40'}`}>
+                                      {isTarget ? '→' : ' '}
+                                    </span>
+                                    <span className={isTarget ? 'text-rose-200' : 'text-[color:var(--color-ink-muted)]'}>
+                                      {codeLine.replace(/^[→ ]\s*\d+:\s?/, (m) => {
+                                        // strip the marker+linenum prefix we already rendered as arrow
+                                        const numMatch = m.match(/(\d+)/);
+                                        return numMatch ? `${numMatch[1].padStart(4,' ')}: ` : m;
+                                      })}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </pre>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

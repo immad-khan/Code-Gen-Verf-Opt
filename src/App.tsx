@@ -11,6 +11,7 @@ import { Step3Verification } from './components/Step3Verification';
 import { ProcessingOverlay } from './components/ProcessingOverlay';
 import { ExportModal } from './components/ExportModal';
 import { ApiSettingsModal } from './components/ApiSettingsModal';
+import { PrintReport } from './components/PrintReport';
 
 const DEFAULT_PROMPT = '';
 
@@ -317,6 +318,9 @@ export function App() {
         />
       )}
       <ApiSettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={apiSettings} onSave={handleSaveSettings} />
+      {hasGeneratedResult && (
+        <PrintReport result={resultData} backendVerification={backendVerification} />
+      )}
     </div>
   );
 }

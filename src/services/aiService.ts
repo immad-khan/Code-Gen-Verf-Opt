@@ -26,13 +26,13 @@ IMPORTANT RULES:
       "path": "relative/path/to/filename.py",
       "category": "router|service|model|schema|data|test|config|utils|other",
       "description": "plain english description of the file",
-      "content": "# Write the ACTUAL complete Python code here. Do not leave empty! Do not use placeholders."
+      "content": "import heapq\n\ndef find_largest(nums, n):\n    return heapq.nlargest(n, nums)\n"
     }
   ]
 }
 
 6. "category" MUST be one of: router, service, model, schema, data, test, config, utils, other
-7. The "content" field MUST contain the ACTUAL WORKING PYTHON CODE. Do not use stubs, do not leave it empty, and do not write placeholders like "code goes here".
+7. CRITICAL - The "content" field MUST be a SINGLE JSON string value containing the complete Python code with newlines escaped as \\n. NEVER split it into multiple key-value pairs. NEVER write "content": "","code here":"". The correct form is always "content": "line1\\nline2\\nline3".
 8. MAKE SURE THE JSON IS VALID - no trailing commas, proper quotes, complete structure!
 9. DO NOT wrap the JSON in markdown code blocks!
 10. DO NOT add any extra text before or after the JSON!`;
@@ -178,6 +178,18 @@ function extractJson(text: string): any {
     return `"content": "${escapedContent}"`;
   });
 
+  // Step 2b: Fix the "split-content" malformation where LLM outputs:
+  //   "content": "","<actual python code>":""
+  // The actual code ends up as a JSON key instead of the value.
+  // We detect: "content": "","<...code...>":"" and collapse it into "content": "<code>"
+  processedText = processedText.replace(
+    /"content"\s*:\s*""\s*,\s*"([\s\S]*?)"\s*:\s*""/g,
+    (_match, code) => {
+      // The captured group IS the actual code, already JSON-escaped as it was a key.
+      return `"content": "${code}"`;
+    }
+  );
+
   // Step 3: Find the main JSON object
   const tryParseJson = (jsonStr: string): any => {
     try {
@@ -247,13 +259,17 @@ function normalizeFiles(parsed: any): GeneratedCodeFile[] {
     if (file.category && validCategories.includes(file.category)) {
       category = file.category;
     }
+    const content = file.content ?? '';
+    if (!content.trim()) {
+      console.warn(`[normalizeFiles] WARNING: file "${name}" has empty content after parsing! Raw file object:`, JSON.stringify(file));
+    }
     files.push({
       name,
       path,
       language: name.endsWith('.toml') || path.endsWith('.toml') ? 'toml' : 'python',
       category: category as any,
       description: file.description ?? 'Generated file',
-      content: file.content ?? ''
+      content,
     });
     index++;
   }
@@ -528,15 +544,7 @@ export async function processPromptWithAgents(
         throw new Error(`Could not parse valid files from ${config.provider}'s response.`);
       }
 
-      if (onProgress) {
-        onProgress(100, {
-          agentName: 'Pipeline',
-          role: 'Complete',
-          status: 'completed',
-          message: `Received ${files.length} Python files with ${config.provider.toUpperCase()}. Running 12-technique analyzer next...`,
-          timestamp: ts(),
-        });
-      }
+
 
       const base = createEmptyResultData(prompt, `${config.provider.toUpperCase()} · ${config.model}`);
       const duration = Date.now() - startTime;

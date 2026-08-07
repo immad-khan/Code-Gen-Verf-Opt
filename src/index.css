@@ -184,6 +184,8 @@ body {
   /* Hide interactive, overlay, and layout control elements */
   header,
   footer,
+  nav,
+  main,
   button,
   .btn-primary,
   .btn-ghost,
@@ -293,4 +295,12 @@ body {
   .font-mono, pre, code {
     font-family: Courier, monospace !important;
   }
+
+  .print-report-container {
+    display: block !important;
+  }
+}
+
+.print-report-container {
+  display: none !important;
 }
