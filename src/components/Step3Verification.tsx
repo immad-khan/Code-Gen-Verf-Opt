@@ -2,25 +2,6 @@ import React from 'react';
 import { AIResultData } from '../types';
 import { VerificationResponse } from '../services/verificationService';
 import {
-  ArrowLeft, ShieldCheck, ShieldAlert, Ban, Loader2, WifiOff,
-  CheckCircle2, XCircle, AlertTriangle, HelpCircle, Terminal, Download,
-  Bug, BarChart2, Zap, Code2, GitBranch, BookOpen, Layers, Activity, Shield
-} from 'lucide-react';
-
-interface Step3VerificationProps {
-  result: AIResultData;
-  onUpdateFindings?: (newFindings: any[]) => void;
-  onBackToCode: () => void;
-  onBackToPrompt: () => void;
-  onExport: () => void;
-  backendVerification: VerificationResponse | null;
-  isVerifying: boolean;
-}
-
-import React from 'react';
-import { AIResultData } from '../types';
-import { VerificationResponse } from '../services/verificationService';
-import {
   ArrowLeft, Download, AlertTriangle, Info, CheckCircle2,
   XCircle, Terminal, ShieldAlert, BarChart2, ChevronDown, ChevronUp
 } from 'lucide-react';
