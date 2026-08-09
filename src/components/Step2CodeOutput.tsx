@@ -46,7 +46,7 @@ export const Step2CodeOutput: React.FC<Step2CodeOutputProps> = ({
     { id: 'logs' as const, label: 'Agent Logs', Icon: Terminal },
   ];
 
-  const stats = [
+  const stats: { label: string; value: string; warn?: boolean }[] = [
     { label: 'Generation time', value: `${(result.metrics.processingTimeMs / 1000).toFixed(1)}s` },
     { label: 'Files', value: String(result.generatedCode.length) },
   ];
