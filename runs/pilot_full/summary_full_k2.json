@@ -1,0 +1,22 @@
+{
+  "mode": "full",
+  "k": 2,
+  "model": "deepseek-chat",
+  "tasks": 10,
+  "pass@1_before_repair": 0.0,
+  "pass@1_after_repair": 0.0,
+  "repair_success_rate": 0.0,
+  "initially_failing": 10,
+  "repaired": 0,
+  "per_category_seen": {
+    "C.1": 15,
+    "C.3": 4
+  },
+  "per_category_repair_rate": {
+    "C.1": 0.0,
+    "C.3": 0.0
+  },
+  "total_llm_calls": 29,
+  "total_prompt_tokens": 8388,
+  "total_completion_tokens": 2900
+}
