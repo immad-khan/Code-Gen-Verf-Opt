@@ -18,41 +18,42 @@ from schemas import Finding, TaxonomyDiagnosis, VerificationReport, BLOCKING
 TAXONOMY: dict[str, dict] = {
     # --- Primary: Type A: Syntax Bug ---
     "A.1": dict(primary="Type A: Syntax Bug", secondary="A.1 Incomplete syntax structure",
-                repair_hint="The generated code includes an open or partially written syntax element (unmatched brackets, unclosed quotes, missing colon). Regenerate the full, closed code block."),
+                repair_hint="Syntax error detected at line(s). Unmatched delimiters (parentheses, brackets, braces) or missing colons/quotes detected. Complete all open code structures and output a syntactically valid block."),
     "A.2": dict(primary="Type A: Syntax Bug", secondary="A.2 Incorrect indentation",
-                repair_hint="Python relies on indentation to define block scope. Fix inconsistent or invalid indentation spaces without changing code logic."),
+                repair_hint="Indentation error detected. Check block nesting (if/for/def) and ensure consistent 4-space indentation across all lines without altering code logic."),
     "A.3": dict(primary="Type A: Syntax Bug", secondary="A.3 Library import error",
-                repair_hint="A module import is missing or placed inside a scope where it is not allowed (e.g. star import inside function). Add proper top-level imports."),
+                repair_hint="Module import failure or forbidden scope import (e.g. star import inside function). Move standard/valid imports to the top level of the file and remove non-existent modules."),
 
     # --- Primary: Type B: Runtime Bug ---
     "B.1": dict(primary="Type B: Runtime Bug", secondary="B.1 API misuse",
-                repair_hint="An attribute, method, or operation was called on an incompatible type or non-existent attribute (e.g. AttributeError, inappropriate type usage). Verify object type and correct API calls."),
+                repair_hint="AttributeError or inappropriate operation on type. Verify object types before calling methods (e.g. dict vs list methods), and replace hallucinated APIs with standard library calls."),
     "B.2": dict(primary="Type B: Runtime Bug", secondary="B.2 Definition missing",
-                repair_hint="A variable or function is referenced before definition or misspelled (NameError/UnboundLocalError). Ensure all names are initialized and scoped properly."),
+                repair_hint="NameError / UnboundLocalError: a variable, parameter, or helper function is referenced before assignment or misspelled. Check scoping and ensure initialization before use."),
     "B.3": dict(primary="Type B: Runtime Bug", secondary="B.3 Incorrect boundary condition check",
-                repair_hint="Edge check is missing or flawed (e.g., ZeroDivisionError on empty list, IndexError/KeyError). Insert bounds, non-empty, or zero guards before accessing indices or arithmetic operations."),
+                repair_hint="Boundary execution crash (IndexError, KeyError, ValueError, ZeroDivisionError). Add explicit guards for empty inputs, zero denominators, and index ranges before access."),
     "B.4": dict(primary="Type B: Runtime Bug", secondary="B.4 Incorrect argument",
-                repair_hint="Function call arguments mismatch expected count, types, or order. Adjust signature and parameter passing."),
+                repair_hint="TypeError in function call: argument count, positional/keyword mismatch, or expected parameter types. Adjust the function call arguments to match the definition signature."),
     "B.5": dict(primary="Type B: Runtime Bug", secondary="B.5 Minors",
-                repair_hint="Execution timed out or raised custom exceptions. Ensure loop termination conditions and handle unexpected branch errors."),
+                repair_hint="Runtime exception or execution timeout (e.g. RecursionError / Infinite loop). Add base case checks or loop exit conditions to ensure timely execution."),
 
     # --- Primary: Type C: Functional Bug ---
     "C.1": dict(primary="Type C: Functional Bug", secondary="C.1 Misunderstanding and logic error",
-                repair_hint="The logic or specification was misunderstood, leading to incorrect assertion outputs. Re-examine the problem specification sentence by sentence and fix the algorithmic logic."),
+                repair_hint="Functional assertion failure: algorithm misinterprets the core problem specification. Re-read the task constraints, trace expected vs actual values in evidence, and fix the core algorithm logic."),
     "C.2": dict(primary="Type C: Functional Bug", secondary="C.2 Hallucination",
-                repair_hint="The code generates syntactically plausible constructs that do not address the problem requirements. Re-align implementation strictly with specification."),
+                repair_hint="Code satisfies syntax but completely strays from problem goals (hallucinated problem transformation). Re-align the algorithm strictly with the problem prompt requirements."),
     "C.3": dict(primary="Type C: Functional Bug", secondary="C.3 Input/output format error",
-                repair_hint="Return or argument formatting, data types, precision, or order mismatch requirements (e.g. int vs float, list vs tuple). Cast output to the required format."),
+                repair_hint="Return value or data structure mismatch (e.g., returning float instead of int, list instead of tuple, or wrong string formatting). Explicitly cast the return value to match the expected return type."),
     "C.4": dict(primary="Type C: Functional Bug", secondary="C.4 Minors",
-                repair_hint="Sub-optimal algorithm, incorrect variable initialization, or infinite loops causing partial test failure or non-termination. Fix initialization values or optimize algorithm."),
+                repair_hint="Minor algorithmic flaw or off-by-one error causing isolated test failures. Adjust boundary constants (e.g., `<` vs `<=`, initial accumulator values)."),
 }
 
-# Structural & Syntax errors first, Runtime next, Functional errors last
+# Strict paper severity ordering: Syntax bugs (A.1-A.3) -> Runtime bugs (B.1-B.5) -> Functional bugs (C.1-C.4)
 PRIORITY = [
     "A.1", "A.2", "A.3",
-    "B.2", "B.1", "B.4", "B.3", "B.5",
+    "B.1", "B.2", "B.3", "B.4", "B.5",
     "C.1", "C.2", "C.3", "C.4"
 ]
+
 
 
 # ---------------------------------------------------------------------
