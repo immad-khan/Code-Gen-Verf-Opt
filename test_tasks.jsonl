@@ -1,0 +1,1 @@
+{"task_id": "SmokeTest/0", "prompt": "Write a function `add_two_numbers(a: int, b: int) -> int` that returns the sum of two integers `a` and `b`.", "visible_tests": "def test_add_visible():\n    assert add_two_numbers(2, 3) == 5", "hidden_tests": "def test_add_hidden():\n    assert add_two_numbers(10, 20) == 30\n    assert add_two_numbers(-1, 1) == 0"}

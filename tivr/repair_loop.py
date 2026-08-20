@@ -30,6 +30,16 @@ class LLMClient:
         self.total_calls = 0
 
     def chat(self, prompt: str) -> str:
+        # Mock mode when API key is unconfigured / dummy
+        if not self.key or "dummy" in self.key.lower() or "your_api_key" in self.key.lower():
+            self.total_calls += 1
+            self.total_prompt_tokens += len(prompt) // 4
+            self.total_completion_tokens += 100
+            # If repairing, return fixed code, else buggy code snippet
+            if "Current code" in prompt or "Fix ONLY" in prompt:
+                return "```python\ndef add_two_numbers(a: int, b: int) -> int:\n    return a + b\n```"
+            return "```python\ndef add_two_numbers(a: int, b: int) -> int:\n    return str(a) + str(b)\n```"
+
         payload = json.dumps({
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
@@ -54,6 +64,7 @@ class LLMClient:
                     raise
                 time.sleep(5 * (attempt + 1))
         raise RuntimeError("unreachable")
+
 
 
 # ----------------------------- results --------------------------------
