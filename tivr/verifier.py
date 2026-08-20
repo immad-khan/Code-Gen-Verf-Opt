@@ -60,9 +60,12 @@ class Verifier:
             imports_ok = not any(f.severity == BLOCKING for f in imp)
 
             if imports_ok and visible_tests is not None:
-                (tmp / "test_solution.py").write_text(visible_tests,
-                                                      encoding="utf-8")
+                full_test_src = visible_tests
+                if "from solution import" not in visible_tests and "import solution" not in visible_tests:
+                    full_test_src = "from solution import *\n\n" + visible_tests
+                (tmp / "test_solution.py").write_text(full_test_src, encoding="utf-8")
                 findings += self._timed("tests", self._stage_tests_and_runtime, tmp)
+
 
             findings += self._timed("types", self._stage_types, tmp)
             findings += self._timed("quality", self._stage_quality, code)
