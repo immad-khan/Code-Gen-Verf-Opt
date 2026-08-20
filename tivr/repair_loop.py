@@ -35,10 +35,17 @@ class LLMClient:
             self.total_calls += 1
             self.total_prompt_tokens += len(prompt) // 4
             self.total_completion_tokens += 100
-            # If repairing, return fixed code, else buggy code snippet
+            
+            # Extract entry point function name from task prompt
+            import re
+            m = re.search(r"def ([a-zA-Z0-9_]+)\(", prompt)
+            fn_name = m.group(1) if m else "solve"
+
+            # If repairing, return fixed valid signature, else buggy signature
             if "Current code" in prompt or "Fix ONLY" in prompt:
-                return "```python\ndef add_two_numbers(a: int, b: int) -> int:\n    return a + b\n```"
-            return "```python\ndef add_two_numbers(a: int, b: int) -> int:\n    return str(a) + str(b)\n```"
+                return f"```python\ndef {fn_name}(*args, **kwargs):\n    return True\n```"
+            return f"```python\ndef {fn_name}(*args, **kwargs):\n    return False\n```"
+
 
         payload = json.dumps({
             "model": self.model,
