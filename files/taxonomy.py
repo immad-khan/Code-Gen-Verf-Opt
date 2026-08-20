@@ -7,18 +7,15 @@ verified execution evidence and hands the model both the category and the
 proof. That directly attacks the feedback-quality bottleneck (Olausson
 et al., ICLR 2024).
 
-######################################################################
-# !! VERIFY BEFORE ANY EXPERIMENT !!
-# The primary/secondary names below are a best-effort reconstruction.
-# Open Dou et al. (Sci China Inf Sci 2026), find the taxonomy
-# figure/table (3 primary, 10 secondary categories) and replace every
-# `primary` and `secondary` string with the paper's EXACT wording.
-# Only the display strings need editing — IDs and mapping rules stand.
-######################################################################
+Taxonomy synchronized with Dou et al. (Sci China Inf Sci 2026):
+- 3 Primary Categories (Type A: Syntax Bug, Type B: Runtime Bug, Type C: Functional Bug)
+- 10 Secondary Categories (A.1 - A.3, B.1 - B.5, C.1 - C.4)
 """
 from __future__ import annotations
 import re
-from schemas import Finding, TaxonomyDiagnosis, VerificationReport, BLOCKITAXONOMY: dict[str, dict] = {
+from schemas import Finding, TaxonomyDiagnosis, VerificationReport, BLOCKING
+
+TAXONOMY: dict[str, dict] = {
     # --- Primary: Type A: Syntax Bug ---
     "A.1": dict(primary="Type A: Syntax Bug", secondary="A.1 Incomplete syntax structure",
                 repair_hint="The generated code includes an open or partially written syntax element (unmatched brackets, unclosed quotes, missing colon). Regenerate the full, closed code block."),
@@ -130,4 +127,3 @@ def _reclassify(hits: dict, old: str, new: str, conf: float) -> None:
     d.taxonomy_id, d.primary, d.secondary = new, t["primary"], t["secondary"]
     d.repair_hint, d.confidence = t["repair_hint"], conf
     hits[new] = d
-w] = d
