@@ -11,12 +11,12 @@ interface Step2CodeOutputProps {
   onRegenerate: () => void;
 }
 
-export const Step2CodeOutput: React.FC<Step2CodeOutputProps> = ({
+export const Step2CodeOutput = ({
   result,
   onProceedToVerification,
   onBackToPrompt,
   onRegenerate
-}) => {
+}: Step2CodeOutputProps) => {
   const [activeFileIndex, setActiveFileIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<'tree' | 'code' | 'sandbox' | 'logs'>('tree');
   const [copied, setCopied] = useState(false);
