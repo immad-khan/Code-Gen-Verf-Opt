@@ -13,20 +13,20 @@
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
   /* Canvas + surfaces */
-  --color-canvas: #0b0c10;
-  --color-surface: #101218;
-  --color-surface-2: #16181f;
-  --color-surface-3: #1c1f28;
-  --color-hairline: #23262f;
+  --color-canvas: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-2: #f8fafc;
+  --color-surface-3: #f1f5f9;
+  --color-hairline: #e2e8f0;
 
-  /* Text */
-  --color-ink: #e8eaf0;
-  --color-ink-muted: #9aa1af;
-  --color-ink-faint: #6b7280;
+  /* Text - readable dark slate with purple tint hints */
+  --color-ink: #0f172a;
+  --color-ink-muted: #64748b;
+  --color-ink-faint: #94a3b8;
 
   /* Brand accent — indigo→violet */
   --color-brand: #7c6cff;
-  --color-brand-soft: #a78bfa;
+  --color-brand-soft: #8b7bff;
 }
 
 html {
@@ -36,45 +36,44 @@ html {
 }
 
 body {
-  background: #0b0c10;
-  color: #e8eaf0;
+  background: #ffffff;
+  color: #0f172a;
   font-family: var(--font-sans);
   font-feature-settings: "cv02", "cv03", "cv04", "ss01";
   letter-spacing: -0.011em;
 }
 
-/* Ambient background wash — subtle, expensive-looking */
+/* Ambient background wash on white */
 .app-shell {
   position: relative;
   background:
-    radial-gradient(900px 500px at 12% -8%, rgba(124, 108, 255, 0.10), transparent 60%),
-    radial-gradient(760px 520px at 92% 0%, rgba(56, 189, 248, 0.06), transparent 55%),
-    #0b0c10;
+    radial-gradient(900px 500px at 12% -8%, rgba(124, 108, 255, 0.08), transparent 60%),
+    radial-gradient(760px 520px at 92% 0%, rgba(167, 139, 250, 0.08), transparent 55%),
+    #ffffff;
 }
 
 /* Refined scrollbars */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #2a2e39 transparent;
+  scrollbar-color: #cbd5e1 transparent;
 }
 *::-webkit-scrollbar { width: 8px; height: 8px; }
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb {
-  background: #2a2e39;
+  background: #cbd5e1;
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
-*::-webkit-scrollbar-thumb:hover { background: #3a3f4d; background-clip: content-box; }
+*::-webkit-scrollbar-thumb:hover { background: #94a3b8; background-clip: content-box; }
 
 /* ---------- Reusable primitives ---------- */
 
 .card {
-  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
   background-color: var(--color-surface);
   border: 1px solid var(--color-hairline);
   border-radius: 16px;
-  box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset, 0 12px 30px -18px rgba(0,0,0,0.8);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 10px 25px -5px rgba(124, 108, 255, 0.05);
 }
 
 .card-quiet {
@@ -88,7 +87,7 @@ body {
   color: #fff;
   border-radius: 10px;
   font-weight: 600;
-  box-shadow: 0 6px 20px -8px rgba(124,108,255,0.7), 0 1px 0 rgba(255,255,255,0.15) inset;
+  box-shadow: 0 6px 20px -8px rgba(124,108,255,0.7), 0 1px 0 rgba(255,255,255,0.2) inset;
   transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
 }
 .btn-primary:hover { filter: brightness(1.06); box-shadow: 0 10px 28px -8px rgba(124,108,255,0.85); }
@@ -96,14 +95,14 @@ body {
 .btn-primary:disabled { filter: grayscale(0.6) brightness(0.7); box-shadow: none; cursor: not-allowed; }
 
 .btn-ghost {
-  background: var(--color-surface-2);
+  background: var(--color-surface);
   border: 1px solid var(--color-hairline);
   color: var(--color-ink-muted);
   border-radius: 10px;
   font-weight: 500;
   transition: color .15s ease, border-color .15s ease, background .15s ease;
 }
-.btn-ghost:hover { color: var(--color-ink); border-color: #33384a; background: var(--color-surface-3); }
+.btn-ghost:hover { color: var(--color-ink); border-color: #cbd5e1; background: var(--color-surface-2); }
 
 .chip {
   border: 1px solid var(--color-hairline);
@@ -114,7 +113,7 @@ body {
 }
 
 .input-field {
-  background: var(--color-surface-2);
+  background: var(--color-surface);
   border: 1px solid var(--color-hairline);
   border-radius: 12px;
   color: var(--color-ink);
@@ -123,7 +122,7 @@ body {
 .input-field::placeholder { color: var(--color-ink-faint); }
 .input-field:focus {
   outline: none;
-  border-color: #5b52c9;
+  border-color: #7c6cff;
   box-shadow: 0 0 0 4px rgba(124,108,255,0.12);
 }
 
@@ -137,8 +136,8 @@ body {
 
 .grid-bg {
   background-image:
-    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    linear-gradient(rgba(124,108,255,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(124,108,255,0.04) 1px, transparent 1px);
   background-size: 44px 44px;
 }
 
