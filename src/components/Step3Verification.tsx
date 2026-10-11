@@ -3,7 +3,7 @@ import { AIResultData } from '../types';
 import { VerificationResponse } from '../services/verificationService';
 import {
   ArrowLeft, Download, AlertTriangle, Info,
-  Terminal, BarChart2, ChevronDown, ChevronUp, Sparkles
+  Terminal, BarChart2, ChevronDown, ChevronUp, Sparkles, CheckCircle2, ShieldAlert, HelpCircle
 } from 'lucide-react';
 
 interface Step3VerificationProps {
@@ -18,6 +18,7 @@ interface Step3VerificationProps {
 }
 
 export const Step3Verification: React.FC<Step3VerificationProps> = ({
+  result,
   onBackToCode,
   onExport,
   onProceedToOptimization,
@@ -30,6 +31,109 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
   const passRate = m ? Math.round(m.passRate) : 17;
   const passedTests = m ? m.passedTests : 1;
   const totalTests = m ? m.totalTests : 6;
+
+  // Helper to explain why any issue is a problem
+  const getWhyItIsAnIssue = (msg: string, tech: string) => {
+    const text = (msg || '').toLowerCase();
+    if (text.includes('syntaxerror') || text.includes('syntax')) {
+      return 'Invalid Python syntax prevents the interpreter from parsing or compiling the code into bytecode. The program crashes immediately upon load.';
+    }
+    if (text.includes('indentationerror') || text.includes('taberror')) {
+      return 'Python enforces whitespace indentation for code blocks. Misaligned indentation corrupts block scope and halts the interpreter before execution.';
+    }
+    if (text.includes('modulenotfounderror') || text.includes('importerror')) {
+      return 'The required library or module does not exist in the environment or cannot be resolved, causing an unhandled startup crash.';
+    }
+    if (text.includes('assertionerror') || text.includes('assert')) {
+      return 'The computed output does not match expected test assertions, indicating a functional algorithm defect or missing edge-case handling.';
+    }
+    if (text.includes('indexerror')) {
+      return 'Attempted to access a sequence item outside its valid bounds (e.g., accessing index 0 on an empty list), causing an unhandled runtime crash.';
+    }
+    if (text.includes('keyerror')) {
+      return 'A dictionary key was accessed that does not exist in the collection, crashing execution without defensive .get() or membership guards.';
+    }
+    if (text.includes('zerodivisionerror')) {
+      return 'Dividing or taking modulo by zero results in a fatal arithmetic crash when denominator inputs evaluate to zero.';
+    }
+    if (text.includes('nameerror') || text.includes('unboundlocalerror')) {
+      return 'A variable, parameter, or helper is referenced before declaration or is misspelled, triggering an immediate crash at runtime.';
+    }
+    if (text.includes('typeerror')) {
+      return 'An operation or function was invoked with incompatible types or the wrong number of parameters, violating the function signature contract.';
+    }
+    if (text.includes('attributeerror')) {
+      return 'Calling a non-existent method or property on an object (often an API misuse or hallucinated method) halts execution.';
+    }
+    if (text.includes('timeout') || text.includes('recursionerror')) {
+      return 'Unbounded loops or missing recursion base cases prevent execution from terminating, causing process hang or stack overflow.';
+    }
+    if (tech.includes('Radon')) {
+      return 'High cyclomatic complexity and low maintainability make the logic fragile, defect-prone, and difficult to test.';
+    }
+    if (tech.includes('Semgrep') || tech.includes('Security')) {
+      return 'Identified security or correctness flaw (e.g. injection risk, insecure regex, hardcoded secrets) that violates safe production standards.';
+    }
+    return 'Violates correctness, security, or runtime constraints, preventing this check from passing automated quality verification.';
+  };
+
+  // Compile issues from both backend verification techniques and static analysis findings
+  const allVerificationIssues = React.useMemo(() => {
+    const list: Array<{
+      id: string;
+      title: string;
+      source: string;
+      severity: string;
+      file: string;
+      line?: number | string;
+      message: string;
+      whyIsThisAnIssue: string;
+      snippet?: string;
+      fix?: string;
+    }> = [];
+
+    // 1. From backend verification
+    if (backendVerification) {
+      backendVerification.techniques.forEach(t => {
+        t.issues.forEach((iss, iIdx) => {
+          list.push({
+            id: `backend-${t.id}-${iIdx}`,
+            title: `${t.name}: ${iss.message.slice(0, 75)}`,
+            source: t.name,
+            severity: iss.severity || (t.status === 'FAIL' ? 'HIGH' : 'MEDIUM'),
+            file: iss.file || 'project',
+            line: iss.line,
+            message: iss.message,
+            whyIsThisAnIssue: getWhyItIsAnIssue(iss.message, t.name),
+            snippet: iss.codeSnippet,
+          });
+        });
+      });
+    }
+
+    // 2. From result.findings
+    if (result?.findings) {
+      result.findings.forEach((f, fIdx) => {
+        const alreadyHas = list.some(item => item.file === f.filePath && item.line === f.lineRange);
+        if (!alreadyHas) {
+          list.push({
+            id: `finding-${f.id || fIdx}`,
+            title: f.title,
+            source: f.detectionTechnique || 'Static Code Analysis',
+            severity: f.severity,
+            file: f.filePath,
+            line: f.lineRange,
+            message: f.title,
+            whyIsThisAnIssue: f.whyItMatters || getWhyItIsAnIssue(f.title, f.detectionTechnique || ''),
+            snippet: f.codeSnippet,
+            fix: f.pythonFix,
+          });
+        }
+      });
+    }
+
+    return list;
+  }, [backendVerification, result]);
 
   // Grouped items for the dashboard cards
   const missingInstances = backendVerification?.techniques.find(t => t.id === 1 || t.name.includes('Syntax'))?.issues.map(i => i.file || i.message) || [
@@ -156,37 +260,47 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
         </div>
 
         {/* Card 3: Missing Instances */}
-        <div className="card p-5 flex flex-col justify-start min-h-[220px]">
-          <div className="flex items-center gap-2 mb-4">
-            <AlertTriangle className="w-4 h-4 text-amber-500 fill-amber-500/20" />
-            <h3 className="text-sm font-semibold text-[color:var(--color-ink)]">Missing Instances</h3>
+        <div className="card p-5 flex flex-col justify-between min-h-[220px]">
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <AlertTriangle className="w-4 h-4 text-amber-500 fill-amber-500/20" />
+              <h3 className="text-sm font-semibold text-[color:var(--color-ink)]">Missing Instances</h3>
+            </div>
+            <ul className="space-y-2">
+              {missingInstances.slice(0, 5).map((item, idx) => (
+                <li key={idx} className="flex items-center gap-2 text-xs font-medium text-[color:var(--color-ink-muted)]">
+                  <span className="w-3.5 h-3.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center justify-center text-[9px] font-bold">!</span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
           </div>
-          <ul className="space-y-2.5">
-            {missingInstances.slice(0, 5).map((item, idx) => (
-              <li key={idx} className="flex items-center gap-2 text-xs font-medium text-[color:var(--color-ink-muted)]">
-                <span className="w-3.5 h-3.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center justify-center text-[9px] font-bold">!</span>
-                <span>{item}</span>
-              </li>
-            ))}
-          </ul>
+          <div className="mt-3 pt-2 border-t border-[color:var(--color-hairline)] text-[10px] text-[color:var(--color-ink-muted)]">
+            <strong className="text-amber-400">Why it's an issue:</strong> Missing components cause unresolved NameError crashes during execution.
+          </div>
         </div>
 
         {/* Card 4: Overspecified Classes */}
-        <div className="card p-5 flex flex-col justify-start min-h-[220px]">
-          <div className="flex items-center gap-2 mb-4">
-            <Info className="w-4 h-4 text-blue-500 fill-blue-500/20" />
-            <h3 className="text-sm font-semibold text-[color:var(--color-ink)]">
-              Overspecified Classes ({overspecifiedClasses.length})
-            </h3>
+        <div className="card p-5 flex flex-col justify-between min-h-[220px]">
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Info className="w-4 h-4 text-blue-500 fill-blue-500/20" />
+              <h3 className="text-sm font-semibold text-[color:var(--color-ink)]">
+                Overspecified Classes ({overspecifiedClasses.length})
+              </h3>
+            </div>
+            <ul className="space-y-2">
+              {overspecifiedClasses.map((cls, idx) => (
+                <li key={idx} className="flex items-center gap-2 text-xs font-medium text-[color:var(--color-ink-muted)]">
+                  <span className="w-3.5 h-3.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center text-[9px] font-bold">i</span>
+                  <span>{cls}</span>
+                </li>
+              ))}
+            </ul>
           </div>
-          <ul className="space-y-2.5">
-            {overspecifiedClasses.map((cls, idx) => (
-              <li key={idx} className="flex items-center gap-2 text-xs font-medium text-[color:var(--color-ink-muted)]">
-                <span className="w-3.5 h-3.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center text-[9px] font-bold">i</span>
-                <span>{cls}</span>
-              </li>
-            ))}
-          </ul>
+          <div className="mt-3 pt-2 border-t border-[color:var(--color-hairline)] text-[10px] text-[color:var(--color-ink-muted)]">
+            <strong className="text-blue-400">Why it's an issue:</strong> Redundant class layers add tight coupling and increase maintenance burden.
+          </div>
         </div>
 
       </div>
@@ -195,43 +309,162 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         
         {/* Card 5: Incorrect Instances */}
-        <div className="card p-5 min-h-[180px]">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="w-4 h-4 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center justify-center text-[10px] font-bold">!</span>
-            <h3 className="text-sm font-semibold text-[color:var(--color-ink)]">Incorrect Instances</h3>
-          </div>
-          <div className="space-y-4">
-            {incorrectInstances.map((item, idx) => (
-              <div key={idx} className="flex items-start gap-2.5">
-                <span className="w-4 h-4 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 shrink-0 mt-0.5 flex items-center justify-center text-[10px] font-bold">!</span>
-                <div>
-                  <div className="text-xs font-bold text-[color:var(--color-ink)]">{item.name}</div>
-                  <div className="text-[11px] text-[color:var(--color-ink-faint)] mt-0.5">{item.sub}</div>
+        <div className="card p-5 min-h-[190px] flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="w-4 h-4 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center justify-center text-[10px] font-bold">!</span>
+              <h3 className="text-sm font-semibold text-[color:var(--color-ink)]">Incorrect Instances</h3>
+            </div>
+            <div className="space-y-3">
+              {incorrectInstances.map((item, idx) => (
+                <div key={idx} className="flex items-start gap-2.5">
+                  <span className="w-4 h-4 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 shrink-0 mt-0.5 flex items-center justify-center text-[10px] font-bold">!</span>
+                  <div>
+                    <div className="text-xs font-bold text-[color:var(--color-ink)]">{item.name}</div>
+                    <div className="text-[11px] text-[color:var(--color-ink-faint)] mt-0.5">{item.sub}</div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+          <div className="mt-3 pt-2 border-t border-[color:var(--color-hairline)] text-[10px] text-[color:var(--color-ink-muted)]">
+            <strong className="text-red-400">Why it's an issue:</strong> Diverges from specification contracts, causing pytest validation failure.
           </div>
         </div>
 
         {/* Card 6: Extra Instances */}
-        <div className="card p-5 min-h-[180px]">
-          <div className="flex items-center gap-2 mb-4">
-            <AlertTriangle className="w-4 h-4 text-amber-500 fill-amber-500/20" />
-            <h3 className="text-sm font-semibold text-[color:var(--color-ink)]">Extra Instances</h3>
-          </div>
-          <div className="space-y-4">
-            {extraInstances.map((item, idx) => (
-              <div key={idx} className="flex items-start gap-2.5">
-                <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-xs font-bold text-[color:var(--color-ink)]">{item.name}</div>
-                  <div className="text-[11px] text-[color:var(--color-ink-faint)] mt-0.5">{item.sub}</div>
+        <div className="card p-5 min-h-[190px] flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <AlertTriangle className="w-4 h-4 text-amber-500 fill-amber-500/20" />
+              <h3 className="text-sm font-semibold text-[color:var(--color-ink)]">Extra Instances</h3>
+            </div>
+            <div className="space-y-3">
+              {extraInstances.map((item, idx) => (
+                <div key={idx} className="flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-xs font-bold text-[color:var(--color-ink)]">{item.name}</div>
+                    <div className="text-[11px] text-[color:var(--color-ink-faint)] mt-0.5">{item.sub}</div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+          <div className="mt-3 pt-2 border-t border-[color:var(--color-hairline)] text-[10px] text-[color:var(--color-ink-muted)]">
+            <strong className="text-amber-400">Why it's an issue:</strong> Unsolicited classes bloat complexity and expand the attack surface.
           </div>
         </div>
 
+      </div>
+
+      {/* Dedicated Section: Detected Verification Issues & Why They Matter */}
+      <div className="card p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[color:var(--color-hairline)] pb-4">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <h3 className="text-base font-bold text-[color:var(--color-ink)]">
+                Detected Issues &amp; Root Cause Diagnostics
+              </h3>
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                allVerificationIssues.length > 0
+                  ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                  : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+              }`}>
+                {allVerificationIssues.length > 0 ? `${allVerificationIssues.length} Issue(s) Diagnosed` : 'All Checks Passed'}
+              </span>
+            </div>
+            <p className="text-xs text-[color:var(--color-ink-muted)] mt-1">
+              Every identified issue is detailed below with an explanation of why it is an issue and how it threatens program execution.
+            </p>
+          </div>
+        </div>
+
+        {allVerificationIssues.length === 0 ? (
+          <div className="p-5 rounded-xl bg-emerald-500/5 border border-emerald-500/20 flex items-center gap-3 text-xs text-emerald-300">
+            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+            <div>
+              <div className="font-semibold text-emerald-200">No Blocking Verification Issues Detected</div>
+              <div className="text-[11px] text-[color:var(--color-ink-muted)] mt-0.5">
+                The synthesized Python codebase satisfies AST parsing, imports, runtime checks, and unit tests cleanly.
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3.5">
+            {allVerificationIssues.map((issue) => (
+              <div
+                key={issue.id}
+                className="p-4 rounded-xl bg-[color:var(--color-surface-1)] border border-[color:var(--color-hairline)] space-y-3 hover:border-[#7c6cff]/40 transition"
+              >
+                {/* Issue Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
+                      issue.severity === 'CRITICAL'
+                        ? 'bg-red-500/15 text-red-400 border-red-500/30'
+                        : issue.severity === 'HIGH'
+                        ? 'bg-orange-500/15 text-orange-400 border-orange-500/30'
+                        : issue.severity === 'MEDIUM'
+                        ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                        : 'bg-blue-500/15 text-blue-300 border-blue-500/30'
+                    }`}>
+                      {issue.severity}
+                    </span>
+                    <span className="font-bold text-xs text-[color:var(--color-ink)]">
+                      {issue.title}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-[11px] text-[color:var(--color-ink-muted)] font-mono">
+                    <span className="px-2 py-0.5 rounded bg-[color:var(--color-surface-2)] border border-[color:var(--color-hairline)]">
+                      {issue.source}
+                    </span>
+                    {issue.file && (
+                      <span className="text-[color:var(--color-brand-soft)]">
+                        {issue.file}{issue.line ? `:${issue.line}` : ''}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* What Happened / Message */}
+                <div className="text-xs text-[color:var(--color-ink)] font-mono bg-[#090a10] p-2.5 rounded-lg border border-[color:var(--color-hairline)] text-rose-300/90 overflow-x-auto">
+                  {issue.message}
+                </div>
+
+                {/* WHY IS THIS AN ISSUE Box */}
+                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/25 space-y-1">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-400">
+                    <HelpCircle className="w-3.5 h-3.5" />
+                    <span>Why is this an issue?</span>
+                  </div>
+                  <p className="text-xs text-[color:var(--color-ink)] leading-relaxed pl-5">
+                    {issue.whyIsThisAnIssue}
+                  </p>
+                </div>
+
+                {/* Snippet & Suggested Fix */}
+                {(issue.snippet || issue.fix) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs pt-1">
+                    {issue.snippet && (
+                      <div className="p-2.5 rounded-lg bg-[color:var(--color-surface-2)] border border-[color:var(--color-hairline)] font-mono">
+                        <div className="text-[10px] text-[color:var(--color-ink-muted)] mb-1 uppercase font-semibold">Offending Line</div>
+                        <code className="text-[11px] text-rose-300">{issue.snippet}</code>
+                      </div>
+                    )}
+                    {issue.fix && (
+                      <div className="p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/20 font-mono">
+                        <div className="text-[10px] text-emerald-400 mb-1 uppercase font-semibold">Suggested Fix</div>
+                        <code className="text-[11px] text-emerald-300">{issue.fix}</code>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Expandable Technical Details Section */}
