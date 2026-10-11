@@ -52,7 +52,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(exportPayload, null, 2));
     const a = document.createElement('a');
     a.setAttribute('href', dataStr);
-    a.setAttribute('download', `MACI_Verification_Report_${Date.now()}.json`);
+    a.setAttribute('download', `Veriflow_Verification_Report_${Date.now()}.json`);
     document.body.appendChild(a);
     a.click();
     a.remove();
