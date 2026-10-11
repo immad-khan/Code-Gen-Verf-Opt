@@ -1,4 +1,4 @@
-export type PipelineStep = 1 | 2 | 3;
+export type PipelineStep = 1 | 2 | 3 | 4;
 
 export type SeverityLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 
@@ -153,4 +153,74 @@ export interface ApiSettings {
   apiKey: string;
   model: string;
   customEndpoint?: string;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Optimization & Repair Pipeline (Dou et al.)
+// ─────────────────────────────────────────────────────────────
+
+export interface BugClassification {
+  taxonomyId: string;
+  primaryType: string;
+  secondaryType: string;
+  file: string;
+  line?: number;
+  message: string;
+  compilerFeedback: string;
+  severity: string;
+  codeSnippet?: string;
+}
+
+export interface BugTaxonomyReport {
+  bugs: BugClassification[];
+  totalBugs: number;
+  syntaxBugs: number;
+  runtimeBugs: number;
+  functionalBugs: number;
+  secondaryDistribution: Record<string, number>;
+}
+
+export interface OptimizationIteration {
+  iterationNumber: number;
+  diagnosis: BugTaxonomyReport;
+  critiquePrompt: string;
+  llmCritiqueResponse: string;
+  repairedFiles: GeneratedCodeFile[];
+  reVerification?: any;
+  bugsFixedThisIteration: number;
+  bugsRemainingAfter: number;
+  durationMs: number;
+}
+
+export interface BugEvolution {
+  fromType: string;
+  toType: string;
+  count: number;
+  iteration: number;
+}
+
+export interface OptimizationSummary {
+  totalBugsBefore: number;
+  totalBugsAfter: number;
+  totalBugsFixed: number;
+  repairSuccessRate: number;
+  iterationsPerformed: number;
+  bugsFixedIteration1: number;
+  bugsFixedIteration2: number;
+  syntaxRepairRate: number;
+  runtimeRepairRate: number;
+  functionalRepairRate: number;
+  bugEvolutions: BugEvolution[];
+  initialVerdict: string;
+  finalVerdict: string;
+  initialPassRate: number;
+  finalPassRate: number;
+}
+
+export interface OptimizationResponse {
+  iterations: OptimizationIteration[];
+  initialDiagnosis: BugTaxonomyReport;
+  finalDiagnosis: BugTaxonomyReport;
+  summary: OptimizationSummary;
+  totalDurationMs: number;
 }
