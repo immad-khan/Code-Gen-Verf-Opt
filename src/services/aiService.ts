@@ -1,6 +1,6 @@
 import { AIResultData, ApiSettings, AgentLog, GeneratedCodeFile } from '../types';
 
-const SYSTEM_PROMPT = `You are MACI, a Python code generation system used for research purposes.
+const SYSTEM_PROMPT = `You are Veriflow, a Python code generation system used for research purposes.
 
 TASK: Generate Python code based on the user's description.
 
@@ -56,7 +56,7 @@ function createEmptyResultData(prompt: string, modelUsed: string): AIResultData 
     mergeGate: {
       verdict: 'APPROVED',
       reason: 'No critical/high findings found.',
-      temperature: 0.2
+      temperature: 0.1
     },
     metrics: {
       processingTimeMs: 0,
@@ -476,7 +476,8 @@ function getProviderConfigs(): ApiSettings[] {
 export async function processPromptWithAgents(
   prompt: string,
   apiSettings: ApiSettings,
-  onProgress?: (p: number, log: AgentLog) => void
+  onProgress?: (p: number, log: AgentLog) => void,
+  temperature: number = 0.1
 ): Promise<AIResultData> {
   const startTime = Date.now();
   const ts = () => new Date().toLocaleTimeString();
@@ -518,7 +519,7 @@ export async function processPromptWithAgents(
         });
       }
 
-      const rawResponse = await callProvider(prompt, config, 0.6);
+      const rawResponse = await callProvider(prompt, config, temperature);
       console.log(`=== RAW LLM RESPONSE (${config.provider}) ===`);
       console.log(rawResponse);
 
