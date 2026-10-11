@@ -2,8 +2,8 @@ import React from 'react';
 import { AIResultData } from '../types';
 import { VerificationResponse } from '../services/verificationService';
 import {
-  ArrowLeft, Download, AlertTriangle, Info, CheckCircle2,
-  XCircle, Terminal, ShieldAlert, BarChart2, ChevronDown, ChevronUp
+  ArrowLeft, Download, AlertTriangle, Info,
+  Terminal, BarChart2, ChevronDown, ChevronUp, Sparkles
 } from 'lucide-react';
 
 interface Step3VerificationProps {
@@ -12,6 +12,7 @@ interface Step3VerificationProps {
   onBackToCode: () => void;
   onBackToPrompt: () => void;
   onExport: () => void;
+  onProceedToOptimization?: () => void;
   backendVerification: VerificationResponse | null;
   isVerifying: boolean;
 }
@@ -19,6 +20,7 @@ interface Step3VerificationProps {
 export const Step3Verification: React.FC<Step3VerificationProps> = ({
   onBackToCode,
   onExport,
+  onProceedToOptimization,
   backendVerification,
   isVerifying
 }) => {
@@ -28,11 +30,6 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
   const passRate = m ? Math.round(m.passRate) : 17;
   const passedTests = m ? m.passedTests : 1;
   const totalTests = m ? m.totalTests : 6;
-
-  // Extract lists based on backend verification data or fallback items matching the provided reference UI layout
-  const allIssues = backendVerification?.techniques.flatMap(t =>
-    t.issues.map(i => ({ ...i, techniqueName: t.name }))
-  ) || [];
 
   // Grouped items for the dashboard cards
   const missingInstances = backendVerification?.techniques.find(t => t.id === 1 || t.name.includes('Syntax'))?.issues.map(i => i.file || i.message) || [
@@ -60,11 +57,6 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
     { name: 'MemberDatabase', sub: 'Not in original requirements' }
   ];
 
-  // Semi-circle gauge calculation (SVG arc)
-  // Angle: 180 degrees total. Percentage maps 0..100% to 0..180 deg
-  const strokeDasharray = 220; // Arc length for r=70 semicircle
-  const strokeDashoffset = strokeDasharray - (strokeDasharray * (passRate / 100));
-
   return (
     <div className="flex-1 max-w-6xl w-full mx-auto px-4 md:px-8 py-6 flex flex-col gap-6 animate-fade-up">
       {/* Header Bar */}
@@ -87,10 +79,18 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
           </button>
           <button
             onClick={onExport}
-            className="btn-primary px-4 py-2 text-sm font-medium transition flex items-center gap-2 cursor-pointer"
+            className="btn-ghost px-4 py-2 text-sm font-medium transition flex items-center gap-2 cursor-pointer border border-[color:var(--color-hairline)]"
           >
             <Download className="w-4 h-4" /> Export Report
           </button>
+          {onProceedToOptimization && (
+            <button
+              onClick={onProceedToOptimization}
+              className="btn-primary px-4 py-2 text-sm font-medium transition flex items-center gap-2 cursor-pointer shadow-[0_4px_14px_rgba(124,108,255,0.4)]"
+            >
+              <Sparkles className="w-4 h-4" /> Proceed to Optimization →
+            </button>
+          )}
         </div>
       </div>
 
@@ -285,6 +285,29 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
           </div>
         )}
       </div>
+
+      {/* Step 4 Optimization Callout Banner */}
+      {onProceedToOptimization && (
+        <div className="card p-6 bg-gradient-to-r from-[#7c6cff]/10 via-[color:var(--color-surface-2)] to-[#6b57f5]/10 border border-[#7c6cff]/30 flex flex-col sm:flex-row items-center justify-between gap-5 mt-2">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#7c6cff]/20 text-[color:var(--color-brand-soft)] border border-[#7c6cff]/40">
+              <Sparkles className="w-3 h-3" /> Base Paper Methodology (Dou et al.)
+            </div>
+            <h3 className="text-base font-bold text-[color:var(--color-ink)]">
+              Phase 4: Taxonomy-Guided Iterative Repair (2 Iterations)
+            </h3>
+            <p className="text-xs text-[color:var(--color-ink-muted)] max-w-xl">
+              Feed machine-verified compiler traces and bug taxonomy classifications (A.1–C.4) into a bounded 2-iteration self-critique loop to automatically fix diagnosed failures.
+            </p>
+          </div>
+          <button
+            onClick={onProceedToOptimization}
+            className="btn-primary px-6 py-3 text-sm font-semibold whitespace-nowrap flex items-center gap-2 cursor-pointer shadow-[0_6px_20px_rgba(124,108,255,0.4)] hover:shadow-[0_8px_25px_rgba(124,108,255,0.6)] transition"
+          >
+            Start 2-Iteration Repair →
+          </button>
+        </div>
+      )}
 
     </div>
   );
