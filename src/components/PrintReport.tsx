@@ -17,7 +17,7 @@ export const PrintReport: React.FC<PrintReportProps> = ({ result, backendVerific
       <div className="border-b-4 border-indigo-600 pb-6 mb-8">
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">MACI Audit Report</h1>
+            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Veriflow Audit Report</h1>
             <p className="text-sm text-gray-500 mt-1">Multi-Agent Code Intelligence &amp; Verification Pipeline</p>
           </div>
           <div className="text-right">
