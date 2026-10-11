@@ -14,7 +14,7 @@ export const ProcessingOverlay: React.FC<ProcessingOverlayProps> = ({
   allLogs
 }) => {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b0c10]/80 backdrop-blur-md p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-4">
       <div className="card max-w-lg w-full p-6 animate-fade-up">
         <div className="flex items-center gap-3 mb-5">
           <div className="relative w-11 h-11 flex items-center justify-center shrink-0">
