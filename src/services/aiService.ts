@@ -167,7 +167,7 @@ function extractJson(text: string): any {
   let processedText = text.replace(/^(Groq|OpenAI|Anthropic|Gemini)\s+\d+:\s*/, '');
 
   // Step 2: Fix triple quotes (they mess up JSON!)
-  processedText = processedText.replace(/"content"\s*:\s*"""([\s\S]*?)"""/g, (match, content) => {
+  processedText = processedText.replace(/"content"\s*:\s*"""([\s\S]*?)"""/g, (_, content) => {
     // Escape special JSON characters in the content
     const escapedContent = content
       .replace(/\\/g, '\\\\')
