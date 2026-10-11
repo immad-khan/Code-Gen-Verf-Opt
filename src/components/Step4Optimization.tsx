@@ -21,8 +21,11 @@ import {
   GitCommit,
   Check,
   FileCode,
-  Layers
+  Layers,
+  Columns,
+  GitCompare
 } from 'lucide-react';
+import { computeLineDiff } from '../utils/diff';
 
 interface Step4OptimizationProps {
   result: AIResultData;
@@ -47,6 +50,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
   const [selectedFileIndex, setSelectedFileIndex] = useState<number>(0);
   const [showPromptDetails, setShowPromptDetails] = useState<boolean>(false);
   const [codeCopied, setCodeCopied] = useState<boolean>(false);
+  const [codeViewMode, setCodeViewMode] = useState<'split' | 'diff' | 'after'>('split');
 
   const summary = optimizationResult?.summary;
   const initialDiagnosis = optimizationResult?.initialDiagnosis;
@@ -55,6 +59,16 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
 
   const filesToDisplay = currentIteration?.repairedFiles || result.generatedCode;
   const selectedFile = filesToDisplay[selectedFileIndex] || filesToDisplay[0];
+
+  // Code before this iteration:
+  const previousIteration = iterations.find(it => it.iterationNumber === activeIterationTab - 1);
+  const beforeFiles = previousIteration ? previousIteration.repairedFiles : result.generatedCode;
+  const beforeFile = beforeFiles.find(f => (f.name && selectedFile && f.name === selectedFile.name) || (f.path && selectedFile && f.path === selectedFile.path)) || beforeFiles[selectedFileIndex] || null;
+
+  const beforeCode = beforeFile?.content || '';
+  const nowCode = selectedFile?.content || '';
+  const diffResult = computeLineDiff(beforeCode, nowCode);
+  const isFileModified = diffResult.isModified;
 
   const handleCopyCode = () => {
     if (selectedFile?.content) {
@@ -463,50 +477,250 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                   )}
                 </div>
 
-                {/* Repaired Code Viewer */}
+                {/* Code Changes Inspection (Before vs Now) */}
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-xs font-bold text-[color:var(--color-ink-muted)] uppercase tracking-wider flex items-center gap-1.5">
-                      <Code2 className="w-3.5 h-3.5" /> Repaired Codebase (Iteration {currentIteration.iterationNumber})
-                    </h4>
-                    <button
-                      onClick={handleCopyCode}
-                      className="text-xs text-[color:var(--color-brand-soft)] hover:underline flex items-center gap-1 cursor-pointer"
-                    >
-                      {codeCopied ? '✓ Copied' : 'Copy code'}
-                    </button>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                    <div>
+                      <h4 className="text-xs font-bold text-[color:var(--color-ink-muted)] uppercase tracking-wider flex items-center gap-1.5">
+                        <Code2 className="w-3.5 h-3.5" /> Code Changes Inspection (Before vs Now)
+                      </h4>
+                      <p className="text-[11px] text-[color:var(--color-ink-muted)] mt-0.5">
+                        Compare what the code was before repair against what it is now in Iteration {currentIteration.iterationNumber}.
+                      </p>
+                    </div>
+
+                    {/* View Mode Switcher + Copy Button */}
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center rounded-lg bg-[color:var(--color-surface-2)] p-0.5 border border-[color:var(--color-hairline)] text-xs">
+                        <button
+                          onClick={() => setCodeViewMode('split')}
+                          className={`px-2.5 py-1 rounded-md font-medium flex items-center gap-1.5 transition cursor-pointer ${
+                            codeViewMode === 'split'
+                              ? 'bg-[#7c6cff] text-white shadow-xs'
+                              : 'text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)]'
+                          }`}
+                          title="Side-by-side: Code before on left, code now on right"
+                        >
+                          <Columns className="w-3.5 h-3.5" />
+                          <span>Split (Before vs Now)</span>
+                        </button>
+                        <button
+                          onClick={() => setCodeViewMode('diff')}
+                          className={`px-2.5 py-1 rounded-md font-medium flex items-center gap-1.5 transition cursor-pointer ${
+                            codeViewMode === 'diff'
+                              ? 'bg-[#7c6cff] text-white shadow-xs'
+                              : 'text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)]'
+                          }`}
+                          title="Line-by-line colored diff"
+                        >
+                          <GitCompare className="w-3.5 h-3.5" />
+                          <span>Diff View</span>
+                        </button>
+                        <button
+                          onClick={() => setCodeViewMode('after')}
+                          className={`px-2.5 py-1 rounded-md font-medium flex items-center gap-1.5 transition cursor-pointer ${
+                            codeViewMode === 'after'
+                              ? 'bg-[#7c6cff] text-white shadow-xs'
+                              : 'text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)]'
+                          }`}
+                          title="Repaired code only"
+                        >
+                          <Code2 className="w-3.5 h-3.5" />
+                          <span>Repaired Only</span>
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={handleCopyCode}
+                        className="text-xs text-[color:var(--color-brand-soft)] hover:underline flex items-center gap-1 cursor-pointer px-2 py-1"
+                      >
+                        {codeCopied ? '✓ Copied' : 'Copy Now'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Change Status Banner */}
+                  <div className={`p-3 rounded-xl border mb-3 flex items-center justify-between text-xs transition-colors ${
+                    isFileModified
+                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                      : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${isFileModified ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
+                      <span className="font-semibold text-[color:var(--color-ink)]">
+                        {isFileModified ? 'File Modified in Repair Loop:' : 'File Unchanged:'}
+                      </span>
+                      <span className="font-mono font-medium text-[color:var(--color-brand-soft)]">
+                        {selectedFile?.name}
+                      </span>
+                      <span className="text-[color:var(--color-ink-muted)] hidden md:inline">
+                        {isFileModified
+                          ? `Self-critique fixed diagnosed bugs (Delta: +${diffResult.additions} lines, -${diffResult.deletions} lines)`
+                          : 'No bugs were located in this file, original code retained.'}
+                      </span>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                      isFileModified
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    }`}>
+                      {isFileModified ? `+${diffResult.additions} / -${diffResult.deletions} CHANGED` : 'IDENTICAL'}
+                    </span>
                   </div>
 
                   {/* File Selector Tabs */}
-                  <div className="flex items-center gap-2 overflow-x-auto pb-2">
-                    {filesToDisplay.map((f: GeneratedCodeFile, idx: number) => (
-                      <button
-                        key={idx}
-                        onClick={() => setSelectedFileIndex(idx)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-mono transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                          selectedFileIndex === idx
-                            ? 'bg-[#7c6cff]/20 text-[color:var(--color-brand-soft)] border border-[#7c6cff]/40 font-bold'
-                            : 'bg-[color:var(--color-surface-2)] text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)] border border-[color:var(--color-hairline)]'
-                        }`}
-                      >
-                        <FileCode className="w-3.5 h-3.5" />
-                        {f.name}
-                      </button>
-                    ))}
+                  <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-3">
+                    {filesToDisplay.map((f: GeneratedCodeFile, idx: number) => {
+                      const fileBefore = beforeFiles.find(bf => bf.name === f.name || bf.path === f.path) || beforeFiles[idx];
+                      const fileDiff = computeLineDiff(fileBefore?.content || '', f.content || '');
+                      const fileChanged = fileDiff.isModified;
+
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => setSelectedFileIndex(idx)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-mono transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+                            selectedFileIndex === idx
+                              ? 'bg-[#7c6cff]/20 text-[color:var(--color-brand-soft)] border border-[#7c6cff]/40 font-bold shadow-xs'
+                              : 'bg-[color:var(--color-surface-2)] text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)] border border-[color:var(--color-hairline)]'
+                          }`}
+                        >
+                          <FileCode className="w-3.5 h-3.5" />
+                          <span>{f.name}</span>
+                          {fileChanged ? (
+                            <span className="w-2 h-2 rounded-full bg-amber-400" title="Modified in this iteration" />
+                          ) : (
+                            <span className="w-2 h-2 rounded-full bg-emerald-400/40" title="Unchanged" />
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  {/* Code Editor Box */}
-                  <div className="rounded-xl border border-[color:var(--color-hairline)] overflow-hidden bg-[#0d0e15]">
-                    <div className="px-4 py-2 bg-[#090a10] border-b border-[color:var(--color-hairline)] flex items-center justify-between text-xs text-[color:var(--color-ink-muted)] font-mono">
-                      <span>{selectedFile?.path || selectedFile?.name}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#7c6cff]/20 text-[color:var(--color-brand-soft)]">
-                        {selectedFile?.category || 'python'}
-                      </span>
+                  {/* Mode 1: Split View (Before on Left vs Now on Right) */}
+                  {codeViewMode === 'split' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {/* Left Column: Code Before */}
+                      <div className="rounded-xl border border-rose-500/30 overflow-hidden bg-[#0d0e15] flex flex-col">
+                        <div className="px-4 py-2.5 bg-rose-950/20 border-b border-rose-500/20 flex items-center justify-between text-xs font-mono">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                              BEFORE REPAIR
+                            </span>
+                            <span className="text-[color:var(--color-ink-muted)] truncate">
+                              {activeIterationTab === 1 ? 'Initial Code' : `Iteration ${activeIterationTab - 1}`}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-rose-400 font-mono">
+                            {beforeCode.split('\n').length} lines
+                          </span>
+                        </div>
+                        <pre className="p-4 font-mono text-xs text-rose-100/90 overflow-x-auto max-h-[460px] whitespace-pre bg-[#0a0b0f] flex-1">
+                          <code>
+                            {beforeCode ? (
+                              beforeCode.split('\n').map((line, lIdx) => (
+                                <div key={lIdx} className="flex">
+                                  <span className="w-8 text-[color:var(--color-ink-faint)] select-none text-right pr-3 opacity-50">
+                                    {lIdx + 1}
+                                  </span>
+                                  <span className="flex-1">{line || ' '}</span>
+                                </div>
+                              ))
+                            ) : (
+                              '# File did not exist in previous iteration'
+                            )}
+                          </code>
+                        </pre>
+                      </div>
+
+                      {/* Right Column: Code Now */}
+                      <div className="rounded-xl border border-emerald-500/30 overflow-hidden bg-[#0d0e15] flex flex-col">
+                        <div className="px-4 py-2.5 bg-emerald-950/20 border-b border-emerald-500/20 flex items-center justify-between text-xs font-mono">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                              NOW (REPAIRED)
+                            </span>
+                            <span className="text-[color:var(--color-ink-muted)] truncate">
+                              Iteration {activeIterationTab}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-emerald-400 font-mono">
+                            {nowCode.split('\n').length} lines
+                          </span>
+                        </div>
+                        <pre className="p-4 font-mono text-xs text-emerald-100/95 overflow-x-auto max-h-[460px] whitespace-pre bg-[#0a0b0f] flex-1">
+                          <code>
+                            {nowCode ? (
+                              nowCode.split('\n').map((line, lIdx) => (
+                                <div key={lIdx} className="flex">
+                                  <span className="w-8 text-[color:var(--color-ink-faint)] select-none text-right pr-3 opacity-50">
+                                    {lIdx + 1}
+                                  </span>
+                                  <span className="flex-1">{line || ' '}</span>
+                                </div>
+                              ))
+                            ) : (
+                              '# Empty file'
+                            )}
+                          </code>
+                        </pre>
+                      </div>
                     </div>
-                    <pre className="p-4 font-mono text-xs text-white overflow-x-auto max-h-96 whitespace-pre">
-                      <code>{selectedFile?.content || '# Empty file'}</code>
-                    </pre>
-                  </div>
+                  )}
+
+                  {/* Mode 2: Unified Diff View */}
+                  {codeViewMode === 'diff' && (
+                    <div className="rounded-xl border border-[color:var(--color-hairline)] overflow-hidden bg-[#0a0b0f]">
+                      <div className="px-4 py-2 bg-[#0d0e15] border-b border-[color:var(--color-hairline)] flex items-center justify-between text-xs text-[color:var(--color-ink-muted)] font-mono">
+                        <span>{selectedFile?.path || selectedFile?.name} · Diff</span>
+                        <div className="flex items-center gap-2 text-[11px]">
+                          <span className="text-emerald-400">+{diffResult.additions} added</span>
+                          <span>·</span>
+                          <span className="text-rose-400">-{diffResult.deletions} removed</span>
+                        </div>
+                      </div>
+                      <div className="font-mono text-xs overflow-x-auto max-h-[460px]">
+                        {diffResult.lines.map((line, idx) => (
+                          <div
+                            key={idx}
+                            className={`flex px-3 py-0.5 leading-relaxed ${
+                              line.type === 'added'
+                                ? 'bg-emerald-500/15 text-emerald-200 border-l-2 border-emerald-500'
+                                : line.type === 'removed'
+                                ? 'bg-rose-500/15 text-rose-300 border-l-2 border-rose-500'
+                                : 'text-[color:var(--color-ink-muted)]'
+                            }`}
+                          >
+                            <span className="w-8 select-none text-right pr-2 opacity-40 text-[10px]">
+                              {line.oldLineNumber || ''}
+                            </span>
+                            <span className="w-8 select-none text-right pr-3 opacity-40 text-[10px]">
+                              {line.newLineNumber || ''}
+                            </span>
+                            <span className="w-4 select-none opacity-70 font-bold">
+                              {line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' '}
+                            </span>
+                            <span className="flex-1 whitespace-pre">{line.text || ' '}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Mode 3: Repaired Code Only */}
+                  {codeViewMode === 'after' && (
+                    <div className="rounded-xl border border-[color:var(--color-hairline)] overflow-hidden bg-[#0d0e15]">
+                      <div className="px-4 py-2 bg-[#090a10] border-b border-[color:var(--color-hairline)] flex items-center justify-between text-xs text-[color:var(--color-ink-muted)] font-mono">
+                        <span>{selectedFile?.path || selectedFile?.name}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#7c6cff]/20 text-[color:var(--color-brand-soft)]">
+                          {selectedFile?.category || 'python'}
+                        </span>
+                      </div>
+                      <pre className="p-4 font-mono text-xs text-white overflow-x-auto max-h-[460px] whitespace-pre">
+                        <code>{nowCode || '# Empty file'}</code>
+                      </pre>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
