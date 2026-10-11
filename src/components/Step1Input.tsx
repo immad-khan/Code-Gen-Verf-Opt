@@ -37,7 +37,7 @@ export const Step1Input: React.FC<Step1InputProps> = ({
             <span className="bg-gradient-to-r from-[#a78bfa] to-[#7c6cff] bg-clip-text text-transparent"> actually trust.</span>
           </h1>
           <p className="mt-4 text-[15px] text-[color:var(--color-ink-muted)] max-w-xl mx-auto leading-relaxed">
-            Describe your project once. MACI generates a complete Python codebase, then verifies and if issues reported optimizes it for you .
+            Describe your project once. Veriflow generates a complete Python codebase, then verifies and if issues reported optimizes it for you .
           </p>
 
           {/* Trust strip */}
