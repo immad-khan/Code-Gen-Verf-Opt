@@ -102,7 +102,7 @@ export const Step1Input: React.FC<Step1InputProps> = ({
                 className="card-quiet p-4 text-left transition-all hover:border-[#33384a] hover:-translate-y-0.5 group cursor-pointer"
               >
                 <div className="flex items-start justify-between gap-3 mb-2">
-                  <span className="font-semibold text-sm text-[color:var(--color-ink)] group-hover:text-white transition-colors">
+                  <span className="font-semibold text-sm text-[color:var(--color-ink)] group-hover:text-[color:var(--color-brand-soft)] transition-colors">
                     {preset.title}
                   </span>
                   <span className="chip text-[10px] px-2 py-0.5 shrink-0">{preset.category}</span>
