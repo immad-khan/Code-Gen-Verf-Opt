@@ -1,6 +1,6 @@
 import React from 'react';
 import { PromptPreset, PRESET_PROMPTS } from '../prompt-presets';
-import { ArrowRight, ShieldCheck, Gauge, GitBranch, Sparkles } from 'lucide-react';
+import { ArrowRight, ShieldCheck, Gauge } from 'lucide-react';
 
 interface Step1InputProps {
   prompt: string;
