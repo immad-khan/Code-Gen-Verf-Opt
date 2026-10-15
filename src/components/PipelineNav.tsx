@@ -1,6 +1,6 @@
 import React from 'react';
 import { PipelineStep } from '../types';
-import { Check, PenLine, Code2, ShieldCheck } from 'lucide-react';
+import { Check, PenLine, Code2, ShieldCheck, Sparkles } from 'lucide-react';
 
 interface PipelineNavProps {
   currentStep: PipelineStep;
@@ -16,18 +16,19 @@ export const PipelineNav: React.FC<PipelineNavProps> = ({
   const steps = [
     { number: 1 as PipelineStep, label: 'Prompt', desc: 'Describe what to build', Icon: PenLine },
     { number: 2 as PipelineStep, label: 'Generate', desc: 'Python code synthesis', Icon: Code2 },
-    { number: 3 as PipelineStep, label: 'Verification', desc: 'Security & quality report', Icon: ShieldCheck },
+    { number: 3 as PipelineStep, label: 'Verification', desc: '7 technique checks', Icon: ShieldCheck },
+    { number: 4 as PipelineStep, label: 'Optimization', desc: 'Dou et al. 2-iter repair', Icon: Sparkles },
   ];
 
   return (
     <div className="border-b border-[color:var(--color-hairline)]">
-      <div className="max-w-3xl mx-auto px-4 md:px-6 py-5">
+      <div className="max-w-4xl mx-auto px-4 md:px-6 py-5">
         <div className="flex items-center">
           {steps.map((s, idx) => {
             const isActive = currentStep === s.number;
             const isPassed = currentStep > s.number || (hasResult && s.number < currentStep);
             const isClickable = s.number === 1 || hasResult;
-            const isDone = (currentStep > s.number) || (hasResult && s.number < 3 && currentStep !== s.number);
+            const isDone = (currentStep > s.number) || (hasResult && s.number < currentStep);
 
             return (
               <React.Fragment key={s.number}>
