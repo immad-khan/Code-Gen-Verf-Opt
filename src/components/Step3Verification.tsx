@@ -3,7 +3,7 @@ import { AIResultData } from '../types';
 import { VerificationResponse } from '../services/verificationService';
 import {
   ArrowLeft, Download, AlertTriangle, Info,
-  Terminal, BarChart2, ChevronDown, ChevronUp, Sparkles, CheckCircle2, ShieldAlert, HelpCircle
+  Terminal, BarChart2, ChevronDown, ChevronUp, Sparkles, CheckCircle2, HelpCircle
 } from 'lucide-react';
 
 interface Step3VerificationProps {
