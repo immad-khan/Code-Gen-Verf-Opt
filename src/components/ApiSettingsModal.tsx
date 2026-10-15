@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ApiSettings } from '../types';
-import { X, Key, Check, Shield, AlertTriangle, Loader2, Wifi, WifiOff } from 'lucide-react';
+import { X, Key, Check, Shield, AlertTriangle, Loader2, Wifi, WifiOff, Pencil, ListFilter } from 'lucide-react';
 import { testApiKey } from '../services/aiService';
 
 export interface ApiSettingsModalProps {
@@ -60,12 +60,18 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
   });
   
   const [model, setModel] = useState(settings.model);
+  const [isCustomModel, setIsCustomModel] = useState<boolean>(() => {
+    const pMeta = PROVIDERS.find(x => x.id === settings.provider);
+    return Boolean(settings.model && pMeta && !pMeta.models.includes(settings.model));
+  });
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   useEffect(() => {
     const p = PROVIDERS.find(x => x.id === provider)!;
-    if (!p.models.includes(model)) setModel(p.models[0]);
+    if (!isCustomModel && !p.models.includes(model)) {
+      setModel(p.models[0]);
+    }
     
     // Auto-fill API key from env var when provider changes, always overwrite with env var if available
     const envKey = getEnvKey(provider);
@@ -87,6 +93,9 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
       setApiKey('');
     }
     setModel(settings.model);
+    const pMeta = PROVIDERS.find(x => x.id === settings.provider);
+    const isCustom = Boolean(settings.model && pMeta && !pMeta.models.includes(settings.model));
+    setIsCustomModel(isCustom);
     setTestResult(null);
   }, [settings]);
 
@@ -96,7 +105,8 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
   const active = apiKey.trim().length > 8;
 
   const handleSave = () => {
-    onSave({ provider, apiKey, model });
+    const finalModel = model.trim() || providerMeta.models[0];
+    onSave({ provider, apiKey: apiKey.trim(), model: finalModel });
     onClose();
   };
 
@@ -104,7 +114,8 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
     if (!apiKey.trim() || testing) return;
     setTesting(true);
     setTestResult(null);
-    const result = await testApiKey(provider, apiKey.trim(), model);
+    const finalModel = model.trim() || providerMeta.models[0];
+    const result = await testApiKey(provider, apiKey.trim(), finalModel);
     setTestResult(result);
     setTesting(false);
   };
@@ -112,13 +123,14 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
   const handleClear = () => {
     setApiKey('');
     const defaultProvider = PROVIDERS[0];
+    setIsCustomModel(false);
     onSave({ provider: defaultProvider.id, apiKey: '', model: defaultProvider.models[0] });
     setProvider(defaultProvider.id);
     setModel(defaultProvider.models[0]);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b0c10]/80 backdrop-blur-md p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-4" onClick={onClose}>
       <div className="card max-w-xl w-full p-6 relative animate-fade-up" onClick={(e) => e.stopPropagation()}>
         <button onClick={onClose} className="absolute top-4 right-4 text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-ink)] transition cursor-pointer">
           <X className="w-5 h-5" />
@@ -181,14 +193,78 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
 
         {/* Model */}
         <div className="mb-4">
-          <label className="eyebrow mb-1.5 block">Model</label>
-          <select
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            className="input-field w-full px-3 py-2.5 text-sm cursor-pointer"
-          >
-            {providerMeta.models.map((m) => <option key={m} value={m}>{m}</option>)}
-          </select>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="eyebrow">Model</label>
+            <button
+              type="button"
+              onClick={() => {
+                if (isCustomModel) {
+                  setIsCustomModel(false);
+                  setModel(providerMeta.models[0]);
+                } else {
+                  setIsCustomModel(true);
+                }
+                setTestResult(null);
+              }}
+              className="text-xs text-[color:var(--color-brand-soft)] hover:text-[#9e90ff] flex items-center gap-1.5 cursor-pointer font-medium transition"
+            >
+              {isCustomModel ? (
+                <>
+                  <ListFilter className="w-3.5 h-3.5" />
+                  <span>Choose from presets</span>
+                </>
+              ) : (
+                <>
+                  <Pencil className="w-3 h-3" />
+                  <span>Write model name yourself</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {isCustomModel ? (
+            <div className="space-y-1.5">
+              <input
+                type="text"
+                value={model}
+                onChange={(e) => {
+                  setModel(e.target.value);
+                  setTestResult(null);
+                }}
+                placeholder={`Type model name (e.g. ${providerMeta.models[0]}, deepseek-chat)`}
+                className="input-field w-full px-3 py-2.5 text-sm font-mono text-[color:var(--color-ink)]"
+                autoFocus
+              />
+              <div className="text-[11px] text-[color:var(--color-ink-muted)] flex items-center justify-between px-0.5">
+                <span>Enter any custom or new model identifier for {providerMeta.name}.</span>
+                <span className="text-[10px] text-[color:var(--color-ink-faint)] font-mono">
+                  Default: {providerMeta.models[0]}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <select
+                value={model}
+                onChange={(e) => {
+                  if (e.target.value === '__custom__') {
+                    setIsCustomModel(true);
+                  } else {
+                    setModel(e.target.value);
+                  }
+                  setTestResult(null);
+                }}
+                className="input-field w-full px-3 py-2.5 text-sm cursor-pointer"
+              >
+                {providerMeta.models.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+                <option value="__custom__">✎ Write custom model name by yourself...</option>
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Status */}
