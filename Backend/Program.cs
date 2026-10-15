@@ -21,6 +21,7 @@ builder.Services.AddCors(options =>
 // Register AI Service
 builder.Services.AddHttpClient<AiService>();
 builder.Services.AddSingleton<VerificationService>();
+builder.Services.AddScoped<OptimizationService>();
 
 var app = builder.Build();
 
