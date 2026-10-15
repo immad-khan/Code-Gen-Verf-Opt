@@ -45,24 +45,33 @@ public class AiService
 
     public async Task<List<GeneratedCodeFile>> ProcessPromptAsync(string prompt, ApiSettings settings)
     {
-        var rawResponse = await CallProviderAsync(prompt, settings, 0.6);
+        var rawResponse = await CallProviderAsync(prompt, settings, 0.1);
         var parsed = ExtractJson(rawResponse);
         return NormalizeFiles(parsed);
     }
 
-    private async Task<string> CallProviderAsync(string prompt, ApiSettings settings, double temperature)
+    public async Task<(List<GeneratedCodeFile> Files, string RawResponse)> RepairCodeAsync(string repairPrompt, ApiSettings settings, string? customSystemPrompt = null)
     {
+        var rawResponse = await CallProviderAsync(repairPrompt, settings, 0.1, customSystemPrompt);
+        var parsed = ExtractJson(rawResponse);
+        var files = NormalizeFiles(parsed);
+        return (files, rawResponse);
+    }
+
+    private async Task<string> CallProviderAsync(string prompt, ApiSettings settings, double temperature, string? customSystemPrompt = null)
+    {
+        var sys = customSystemPrompt ?? SYSTEM_PROMPT;
         return settings.Provider.ToLower() switch
         {
-            "openai" => await CallOpenAIAsync(prompt, settings.ApiKey, settings.Model, temperature),
-            "groq" => await CallGroqAsync(prompt, settings.ApiKey, settings.Model, temperature),
-            "anthropic" => await CallAnthropicAsync(prompt, settings.ApiKey, settings.Model, temperature),
-            "gemini" => await CallGeminiAsync(prompt, settings.ApiKey, settings.Model, temperature),
+            "openai" => await CallOpenAIAsync(prompt, settings.ApiKey, settings.Model, temperature, sys),
+            "groq" => await CallGroqAsync(prompt, settings.ApiKey, settings.Model, temperature, sys),
+            "anthropic" => await CallAnthropicAsync(prompt, settings.ApiKey, settings.Model, temperature, sys),
+            "gemini" => await CallGeminiAsync(prompt, settings.ApiKey, settings.Model, temperature, sys),
             _ => throw new ArgumentException("Invalid provider")
         };
     }
 
-    private async Task<string> CallOpenAIAsync(string prompt, string apiKey, string model, double temperature)
+    private async Task<string> CallOpenAIAsync(string prompt, string apiKey, string model, double temperature, string systemPrompt)
     {
         var requestBody = new
         {
@@ -71,7 +80,7 @@ public class AiService
             response_format = new { type = "json_object" },
             messages = new[]
             {
-                new { role = "system", content = SYSTEM_PROMPT },
+                new { role = "system", content = systemPrompt },
                 new { role = "user", content = prompt }
             }
         };
@@ -90,7 +99,7 @@ public class AiService
         return doc.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "";
     }
 
-    private async Task<string> CallGroqAsync(string prompt, string apiKey, string model, double temperature)
+    private async Task<string> CallGroqAsync(string prompt, string apiKey, string model, double temperature, string systemPrompt)
     {
         var requestBody = new
         {
@@ -99,7 +108,7 @@ public class AiService
             response_format = new { type = "json_object" },
             messages = new[]
             {
-                new { role = "system", content = SYSTEM_PROMPT },
+                new { role = "system", content = systemPrompt },
                 new { role = "user", content = prompt }
             }
         };
@@ -129,14 +138,14 @@ public class AiService
         }
     }
 
-    private async Task<string> CallAnthropicAsync(string prompt, string apiKey, string model, double temperature)
+    private async Task<string> CallAnthropicAsync(string prompt, string apiKey, string model, double temperature, string systemPrompt)
     {
         var requestBody = new
         {
             model,
             temperature,
             max_tokens = 8000,
-            system = SYSTEM_PROMPT,
+            system = systemPrompt,
             messages = new[] { new { role = "user", content = prompt } }
         };
 
@@ -155,12 +164,12 @@ public class AiService
         return doc.RootElement.GetProperty("content")[0].GetProperty("text").GetString() ?? "";
     }
 
-    private async Task<string> CallGeminiAsync(string prompt, string apiKey, string model, double temperature)
+    private async Task<string> CallGeminiAsync(string prompt, string apiKey, string model, double temperature, string systemPrompt)
     {
         var requestBody = new
         {
             generationConfig = new { temperature, responseMimeType = "application/json" },
-            systemInstruction = new { parts = new[] { new { text = SYSTEM_PROMPT } } },
+            systemInstruction = new { parts = new[] { new { text = systemPrompt } } },
             contents = new[] { new { role = "user", parts = new[] { new { text = prompt } } } }
         };
 
