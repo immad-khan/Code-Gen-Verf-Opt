@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { AIResultData, GeneratedCodeFile } from '../types';
 import { Code2, Check, Copy, Download, ArrowRight, ArrowLeft, RefreshCw, Server, Terminal, FolderTree } from 'lucide-react';
 import { VisualFileTree } from './VisualFileTree';
