@@ -334,11 +334,11 @@ public class OptimizationService
             TaxonomyId = taxonomyId,
             PrimaryType = def.Primary,
             SecondaryType = def.Secondary,
-            File = issue.File,
+            File = issue.File ?? "",
             Line = issue.Line,
-            Message = issue.Message,
-            CompilerFeedback = $"{technique.Name}: {issue.Message}",
-            Severity = issue.Severity,
+            Message = issue.Message ?? "",
+            CompilerFeedback = $"{technique.Name}: {issue.Message ?? ""}",
+            Severity = issue.Severity ?? "ERROR",
             CodeSnippet = snippet
         };
     }
