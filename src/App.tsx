@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import { PipelineStep, AIResultData, ApiSettings, AgentLog, PythonAuditFinding } from './types';
+import { PipelineStep, AIResultData, ApiSettings, AgentLog, PythonAuditFinding, OptimizationResponse, GeneratedCodeFile } from './types';
 import { processPromptWithAgents } from './services/aiService';
 import { analyzePythonCode } from './analyzer';
 import { runBackendVerification, VerificationResponse } from './services/verificationService';
+import { runBackendOptimization } from './services/optimizationService';
 import { Header } from './components/Header';
 import { PipelineNav } from './components/PipelineNav';
 import { Step1Input } from './components/Step1Input';
 import { Step2CodeOutput } from './components/Step2CodeOutput';
 import { Step3Verification } from './components/Step3Verification';
+import { Step4Optimization } from './components/Step4Optimization';
 import { ProcessingOverlay } from './components/ProcessingOverlay';
 import { ExportModal } from './components/ExportModal';
 import { ApiSettingsModal } from './components/ApiSettingsModal';
@@ -34,7 +36,7 @@ function createInitialResultData(): AIResultData {
     mergeGate: {
       verdict: 'APPROVED',
       reason: '',
-      temperature: 0.2
+      temperature: 0.1
     },
     metrics: {
       processingTimeMs: 0,
@@ -70,7 +72,7 @@ function createInitialResultData(): AIResultData {
 
 function loadSettings(): ApiSettings {
   // Check for API keys in environment variables (prioritize Groq first!)
-  const envKeys = {
+  const envKeys: Record<string, string | undefined> = {
     groq: import.meta.env.VITE_GROQ_API_KEY,
     gemini: import.meta.env.VITE_GEMINI_API_KEY,
     openai: import.meta.env.VITE_OPENAI_API_KEY,
@@ -126,7 +128,7 @@ export function App() {
   const [allLogs, setAllLogs] = useState<AgentLog[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const [temperature, setTemperature] = useState(0.6);
+  const temperature = 0.1;
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
@@ -135,6 +137,8 @@ export function App() {
   const [apiSettings, setApiSettings] = useState<ApiSettings>(loadSettings);
   const [backendVerification, setBackendVerification] = useState<VerificationResponse | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [optimizationResult, setOptimizationResult] = useState<OptimizationResponse | null>(null);
+  const [isOptimizing, setIsOptimizing] = useState(false);
 
   // Reset localStorage on initial load to use the latest .env keys
   useEffect(() => {
@@ -160,13 +164,14 @@ export function App() {
     setAllLogs([]);
     setCurrentLog(null);
     setErrorMessage(null);
+    setOptimizationResult(null);
 
     try {
       const data = await processPromptWithAgents(prompt, apiSettings, (pct, log) => {
         setProgress(pct);
         setCurrentLog(log);
         setAllLogs(prev => [...prev, log]);
-      });
+      }, temperature);
 
       // Check if LLM returned an error (non-code request)
       if (data.generatedCode.length === 0) {
@@ -208,7 +213,7 @@ export function App() {
             : analysis.findings.some(f => f.severity === 'HIGH')
             ? `Analyzer found HIGH-severity issues — address before merge.`
             : `Analyzer cleared all CRITICAL/HIGH checks. Safe to merge.`,
-          temperature: 0.2,
+          temperature: 0.1,
         },
         metrics: {
           ...data.metrics,
@@ -241,6 +246,33 @@ export function App() {
     }
   };
 
+  const handleRunOptimization = async () => {
+    if (!resultData?.generatedCode || resultData.generatedCode.length === 0) return;
+    setIsOptimizing(true);
+    try {
+      const res = await runBackendOptimization({
+        files: resultData.generatedCode,
+        originalPrompt: prompt,
+        apiSettings,
+        verificationResult: backendVerification,
+        maxIterations: 2,
+      });
+      setOptimizationResult(res);
+    } catch (err) {
+      console.error('Optimization error:', err);
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
+
+  const handleApplyRepairedCode = (repairedFiles: GeneratedCodeFile[]) => {
+    setResultData(prev => ({
+      ...prev,
+      generatedCode: repairedFiles,
+    }));
+    alert('Repaired codebase applied successfully!');
+  };
+
   const handleUpdateFindings = (updatedFindings: PythonAuditFinding[]) => {
     setResultData(prev => ({ ...prev, findings: updatedFindings }));
   };
@@ -249,7 +281,6 @@ export function App() {
     <div className="app-shell min-h-screen text-[color:var(--color-ink)] font-sans flex flex-col antialiased selection:bg-[#7c6cff] selection:text-white">
       <Header
         temperature={temperature}
-        onTemperatureChange={setTemperature}
         hasApiKey={hasApiKey}
         onOpenSettings={() => setIsSettingsOpen(true)}
       />
@@ -293,15 +324,32 @@ export function App() {
             onBackToCode={() => setCurrentStep(2)}
             onBackToPrompt={() => setCurrentStep(1)}
             onExport={() => setIsExportModalOpen(true)}
+            onProceedToOptimization={() => {
+              setCurrentStep(4);
+              if (!optimizationResult) {
+                handleRunOptimization();
+              }
+            }}
             backendVerification={backendVerification}
             isVerifying={isVerifying}
+          />
+        )}
+        {currentStep === 4 && (
+          <Step4Optimization
+            result={resultData}
+            backendVerification={backendVerification}
+            optimizationResult={optimizationResult}
+            isOptimizing={isOptimizing}
+            onRunOptimization={handleRunOptimization}
+            onBackToVerification={() => setCurrentStep(3)}
+            onApplyRepairedCode={handleApplyRepairedCode}
           />
         )}
       </main>
 
       <footer className="py-5 px-6 border-t border-[color:var(--color-hairline)] mt-8">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-[color:var(--color-ink-faint)]">
-          <span>© {new Date().getFullYear()} MACI — Multi-Agent Code Intelligence</span>
+          <span>© {new Date().getFullYear()} Veriflow — Multi-Agent Code Intelligence</span>
           <span className="font-mono">
             {hasApiKey ? `Using ${apiSettings.provider.toUpperCase()} · ${apiSettings.model}` : 'Please configure an API key to generate code'}
           </span>
