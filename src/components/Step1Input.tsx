@@ -7,7 +7,6 @@ interface Step1InputProps {
   onPromptChange: (newPrompt: string) => void;
   onProcess: () => void;
   isProcessing: boolean;
-  temperature: number;
 }
 
 export const Step1Input: React.FC<Step1InputProps> = ({
