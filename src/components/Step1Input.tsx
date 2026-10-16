@@ -26,7 +26,7 @@ export const Step1Input: React.FC<Step1InputProps> = ({
   return (
     <div className="flex-1 w-full">
       {/* Hero */}
-      <section className="grid-bg border-b border-[color:var(--color-hairline)]">
+      <section className="border-b border-[color:var(--color-hairline)]">
         <div className="max-w-3xl mx-auto px-4 md:px-6 pt-16 pb-10 text-center animate-fade-up">
           <div className="inline-flex items-center gap-2 chip px-3 py-1.5 text-xs mb-6">
             <span className="w-1.5 h-1.5 rounded-full bg-[#7c6cff] animate-soft-pulse" />
