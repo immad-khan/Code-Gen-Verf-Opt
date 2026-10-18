@@ -1,16 +1,12 @@
 import React from 'react';
-import { Lock, KeyRound } from 'lucide-react';
+import { KeyRound } from 'lucide-react';
 
 interface HeaderProps {
-  temperature?: number;
-  onTemperatureChange?: (val: number) => void;
   hasApiKey: boolean;
   onOpenSettings: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ hasApiKey, onOpenSettings }) => {
-  const lockedTemperature = 0.1;
-
   return (
     <header className="sticky top-0 z-30 backdrop-blur-xl bg-white/80 border-b border-[color:var(--color-hairline)] shadow-xs">
       <div className="max-w-6xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between gap-3">
@@ -33,7 +29,7 @@ export const Header: React.FC<HeaderProps> = ({ hasApiKey, onOpenSettings }) => 
           </div>
         </div>
 
-        {/* Right controls: API button + locked temperature */}
+        {/* Right controls: API button */}
         <div className="flex items-center gap-2">
           <button
             onClick={onOpenSettings}
@@ -44,39 +40,6 @@ export const Header: React.FC<HeaderProps> = ({ hasApiKey, onOpenSettings }) => 
             <span className="hidden sm:inline">{hasApiKey ? 'API connected' : 'Connect API'}</span>
             {hasApiKey && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
           </button>
-
-          {/* Locked Temperature Indicator */}
-          <div className="relative group">
-            <div 
-              title="Temperature locked at 0.1 for deterministic audit repeatability"
-              className="flex items-center gap-2.5 pl-3 pr-3 py-2 rounded-xl border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-2)] select-none cursor-default"
-            >
-              <Lock className="w-3.5 h-3.5 text-amber-400" />
-              <div className="text-left hidden sm:block">
-                <div className="text-[9px] uppercase tracking-widest text-[color:var(--color-ink-faint)] leading-none flex items-center gap-1.5">
-                  <span>Temperature</span>
-                  <span className="text-[8px] px-1 py-0.2 rounded bg-amber-400/15 text-amber-300 font-semibold tracking-wider">LOCKED</span>
-                </div>
-                <div className="text-xs font-semibold text-[color:var(--color-ink)] leading-tight mt-0.5">
-                  {lockedTemperature.toFixed(1)} · Ultra-Focused
-                </div>
-              </div>
-              <span className="sm:hidden text-xs font-mono font-semibold text-amber-300 flex items-center gap-1">
-                {lockedTemperature.toFixed(1)}
-              </span>
-            </div>
-
-            {/* Hover Tooltip */}
-            <div className="absolute right-0 top-full mt-2 w-64 card p-3 z-50 opacity-0 translate-y-1 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200 origin-top-right shadow-xl">
-              <div className="flex items-center gap-1.5 text-amber-400 text-xs font-semibold mb-1">
-                <Lock className="w-3.5 h-3.5" />
-                <span>Locked at 0.1</span>
-              </div>
-              <p className="text-[11px] text-[color:var(--color-ink-faint)] leading-relaxed">
-                Temperature is permanently locked at 0.1 (Ultra-Focused) to ensure strictly deterministic code generation and audit consistency.
-              </p>
-            </div>
-          </div>
         </div>
       </div>
     </header>
