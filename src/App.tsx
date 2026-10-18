@@ -280,7 +280,6 @@ export function App() {
   return (
     <div className="app-shell min-h-screen text-[color:var(--color-ink)] font-sans flex flex-col antialiased selection:bg-[#7c6cff] selection:text-white">
       <Header
-        temperature={temperature}
         hasApiKey={hasApiKey}
         onOpenSettings={() => setIsSettingsOpen(true)}
       />
@@ -305,7 +304,6 @@ export function App() {
               onPromptChange={setPrompt}
               onProcess={handleProcessQuery}
               isProcessing={isProcessing}
-              temperature={temperature}
             />
           </>
         )}
