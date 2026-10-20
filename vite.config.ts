@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import path from "path";
 import { fileURLToPath } from "url";
 import tailwindcss from "@tailwindcss/vite";
@@ -15,5 +16,13 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "src"),
     },
+  },
+  test: {
+    // Pure logic tests (API client, reducers, formatters) run in Node; Node 22
+    // provides fetch/AbortController globally.
+    environment: "node",
+    include: ["src/**/*.test.{ts,tsx}"],
+    restoreMocks: true,
+    unstubGlobals: true,
   },
 });
