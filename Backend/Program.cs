@@ -1,4 +1,5 @@
 using Backend.Services;
+using Backend.Services.Taxonomy;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,10 +19,19 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Register AI Service
-builder.Services.AddHttpClient<AiService>();
+// Register AI Service. The per-request timeout comes from Llm:TimeoutSeconds and is
+// enforced by AiService itself, so HttpClient's own 100 s default is disabled.
+builder.Services.Configure<LlmClientOptions>(builder.Configuration.GetSection(LlmClientOptions.SectionName));
+builder.Services.AddHttpClient<AiService>(client => client.Timeout = Timeout.InfiniteTimeSpan);
+builder.Services.AddTransient<ILlmClient>(sp => sp.GetRequiredService<AiService>());
 builder.Services.AddSingleton<VerificationService>();
 builder.Services.AddScoped<OptimizationService>();
+
+// Shared Taxonomy_Definition (Taxonomy:DefinitionPath, default shared/taxonomy.v1.json
+// under the app base directory). Loaded on first resolution; an invalid file throws
+// TaxonomyLoadException.
+builder.Services.AddSingleton<ITaxonomyProvider>(sp =>
+    TaxonomyProvider.LoadOrThrow(sp.GetRequiredService<IConfiguration>()));
 
 var app = builder.Build();
 
@@ -41,3 +51,6 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+// Exposes the entry point type to WebApplicationFactory<Program> in Backend.Tests.
+public partial class Program { }
