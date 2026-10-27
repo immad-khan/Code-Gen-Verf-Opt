@@ -10,6 +10,7 @@ import { Step1Input } from './components/Step1Input';
 import { Step2CodeOutput } from './components/Step2CodeOutput';
 import { Step3Verification } from './components/Step3Verification';
 import { Step4Optimization } from './components/Step4Optimization';
+import { Step8FinalResults } from './components/Step8FinalResults';
 import { ProcessingOverlay } from './components/ProcessingOverlay';
 import { ExportModal } from './components/ExportModal';
 import { ApiSettingsModal } from './components/ApiSettingsModal';
@@ -298,6 +299,20 @@ export function App() {
     setResultData(prev => ({ ...prev, findings: updatedFindings }));
   };
 
+  const round1Iteration = optimizationResult?.iterations.find(it => it.iterationNumber === 1);
+  const round1Verification = round1Iteration?.reVerification || null;
+
+  const round2Iteration = optimizationResult?.iterations.find(it => it.iterationNumber === 2);
+  const round2Verification = round2Iteration?.reVerification || null;
+
+  const maxUnlockedStep: PipelineStep = optimizationResult
+    ? 8
+    : backendVerification
+    ? 4
+    : hasGeneratedResult
+    ? 3
+    : 1;
+
   return (
     <div className="app-shell min-h-screen text-[color:var(--color-ink)] font-sans flex flex-col antialiased selection:bg-[#7c6cff] selection:text-white">
       <Header
@@ -308,6 +323,7 @@ export function App() {
         currentStep={currentStep}
         onSelectStep={(step) => setCurrentStep(step)}
         hasResult={hasGeneratedResult}
+        maxUnlockedStep={maxUnlockedStep}
       />
 
       <main className="flex-1 flex flex-col justify-start">
@@ -336,18 +352,23 @@ export function App() {
             onRegenerate={handleProcessQuery}
           />
         )}
+        {/* Step 3: Initial Verification (Round 0) */}
         {currentStep === 3 && (
           <Step3Verification
             result={resultData}
+            title="Initial Verification (Round 0)"
+            stepBadge="Phase 3 · Pre-Repair Diagnostics"
+            backButtonLabel="Back to Code"
+            nextButtonLabel="Proceed to Round 1 Repair →"
             onUpdateFindings={handleUpdateFindings}
             onBackToCode={() => setCurrentStep(2)}
             onBackToPrompt={() => setCurrentStep(1)}
             onExport={() => setIsExportModalOpen(true)}
-            onProceedToOptimization={() => {
-              setCurrentStep(4);
-              if (!optimizationResult) {
-                handleRunOptimization();
+            onProceedToOptimization={async () => {
+              if (!optimizationResult && !isOptimizing) {
+                await handleRunOptimization();
               }
+              setCurrentStep(4);
             }}
             backendVerification={backendVerification}
             verificationError={verificationError}
@@ -355,6 +376,7 @@ export function App() {
             onRetryVerification={handleRetryVerification}
           />
         )}
+        {/* Step 4: Optimization Round 1 (Dou et al. Iteration 1) */}
         {currentStep === 4 && (
           <Step4Optimization
             result={resultData}
@@ -362,8 +384,87 @@ export function App() {
             optimizationResult={optimizationResult}
             isOptimizing={isOptimizing}
             onRunOptimization={handleRunOptimization}
+            forcedIteration={1}
+            title="Optimization — Round 1 Repair"
+            stepBadge="Phase 4 · Dou et al. Iteration 1"
+            backButtonLabel="Back to Initial Verification"
+            nextButtonLabel="Proceed to Round 1 Verification →"
+            onProceedNext={() => setCurrentStep(5)}
             onBackToVerification={() => setCurrentStep(3)}
             onApplyRepairedCode={handleApplyRepairedCode}
+          />
+        )}
+        {/* Step 5: Round 1 Verification (Post-Iteration 1 checks) */}
+        {currentStep === 5 && (
+          <Step3Verification
+            result={{
+              ...resultData,
+              generatedCode: round1Iteration?.repairedFiles || resultData.generatedCode,
+            }}
+            title="Round 1 Verification"
+            stepBadge="Phase 5 · Post-Round 1 Checks"
+            backButtonLabel="Back to Round 1 Repair"
+            nextButtonLabel={round2Iteration ? "Proceed to Round 2 Repair →" : "Proceed to Final Results →"}
+            onUpdateFindings={handleUpdateFindings}
+            onBackToCode={() => setCurrentStep(4)}
+            onBackToPrompt={() => setCurrentStep(1)}
+            onExport={() => setIsExportModalOpen(true)}
+            onProceedToOptimization={() => setCurrentStep(round2Iteration ? 6 : 8)}
+            backendVerification={round1Verification}
+            verificationError={null}
+            isVerifying={isOptimizing}
+          />
+        )}
+        {/* Step 6: Optimization Round 2 (Dou et al. Iteration 2 with Episodic Memory) */}
+        {currentStep === 6 && (
+          <Step4Optimization
+            result={resultData}
+            backendVerification={round1Verification}
+            optimizationResult={optimizationResult}
+            isOptimizing={isOptimizing}
+            onRunOptimization={handleRunOptimization}
+            forcedIteration={2}
+            title="Optimization — Round 2 Repair"
+            stepBadge="Phase 6 · Dou et al. Iteration 2 (Episodic Memory)"
+            backButtonLabel="Back to Round 1 Verification"
+            nextButtonLabel="Proceed to Round 2 Verification →"
+            onProceedNext={() => setCurrentStep(7)}
+            onBackToVerification={() => setCurrentStep(5)}
+            onApplyRepairedCode={handleApplyRepairedCode}
+          />
+        )}
+        {/* Step 7: Round 2 Verification (Post-Iteration 2 checks) */}
+        {currentStep === 7 && (
+          <Step3Verification
+            result={{
+              ...resultData,
+              generatedCode: round2Iteration?.repairedFiles || round1Iteration?.repairedFiles || resultData.generatedCode,
+            }}
+            title="Round 2 Verification"
+            stepBadge="Phase 7 · Post-Round 2 Checks"
+            backButtonLabel="Back to Round 2 Repair"
+            nextButtonLabel="View Final Results Tab →"
+            onUpdateFindings={handleUpdateFindings}
+            onBackToCode={() => setCurrentStep(6)}
+            onBackToPrompt={() => setCurrentStep(1)}
+            onExport={() => setIsExportModalOpen(true)}
+            onProceedToOptimization={() => setCurrentStep(8)}
+            backendVerification={round2Verification || round1Verification}
+            verificationError={null}
+            isVerifying={isOptimizing}
+          />
+        )}
+        {/* Step 8: Final Results Tab */}
+        {currentStep === 8 && (
+          <Step8FinalResults
+            result={resultData}
+            initialVerification={backendVerification}
+            round1Verification={round1Verification}
+            round2Verification={round2Verification}
+            optimizationResult={optimizationResult}
+            onStartNewPrompt={() => setCurrentStep(1)}
+            onBackToVerification={() => setCurrentStep(round2Iteration ? 7 : 5)}
+            onApplyFinalCode={handleApplyRepairedCode}
           />
         )}
       </main>

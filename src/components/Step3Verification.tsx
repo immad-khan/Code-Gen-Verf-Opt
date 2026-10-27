@@ -10,13 +10,17 @@ interface Step3VerificationProps {
   result: AIResultData;
   onUpdateFindings?: (newFindings: any[]) => void;
   onBackToCode: () => void;
-  onBackToPrompt: () => void;
+  onBackToPrompt?: () => void;
   onExport?: () => void;
   onProceedToOptimization?: () => void;
   backendVerification: VerificationResponse | null;
   verificationError?: string | null;
   isVerifying: boolean;
   onRetryVerification?: () => void;
+  title?: string;
+  stepBadge?: string;
+  backButtonLabel?: string;
+  nextButtonLabel?: string;
 }
 
 export const Step3Verification: React.FC<Step3VerificationProps> = ({
@@ -27,6 +31,10 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
   verificationError,
   isVerifying,
   onRetryVerification,
+  title = 'Verification Results',
+  stepBadge,
+  backButtonLabel = 'Back to code',
+  nextButtonLabel = 'Proceed to Optimization →',
 }) => {
   const [showDetailedLogs, setShowDetailedLogs] = React.useState(false);
 
@@ -162,9 +170,16 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
             onClick={onBackToCode}
             className="inline-flex items-center gap-1.5 text-xs text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)] font-medium transition mb-1 cursor-pointer"
           >
-            <ArrowLeft className="w-3.5 h-3.5" /> Back to code
+            <ArrowLeft className="w-3.5 h-3.5" /> {backButtonLabel}
           </button>
-          <h1 className="text-2xl font-bold text-[color:var(--color-ink)] tracking-tight">Verification Results</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-bold text-[color:var(--color-ink)] tracking-tight">{title}</h1>
+            {stepBadge && (
+              <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-[#7c6cff]/15 text-[color:var(--color-brand-soft)] border border-[#7c6cff]/30">
+                {stepBadge}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-3">
           {onProceedToOptimization && (
@@ -172,7 +187,7 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
               onClick={onProceedToOptimization}
               className="btn-primary px-4 py-2 text-sm font-medium transition flex items-center gap-2 cursor-pointer shadow-[0_4px_14px_rgba(124,108,255,0.4)]"
             >
-              <Sparkles className="w-4 h-4" /> Proceed to Optimization →
+              <Sparkles className="w-4 h-4" /> {nextButtonLabel}
             </button>
           )}
         </div>

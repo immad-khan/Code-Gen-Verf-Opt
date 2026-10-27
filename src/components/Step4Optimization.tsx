@@ -34,7 +34,13 @@ interface Step4OptimizationProps {
   isOptimizing: boolean;
   onRunOptimization: () => void;
   onBackToVerification: () => void;
-  onApplyRepairedCode: (files: GeneratedCodeFile[]) => void;
+  onApplyRepairedCode?: (files: GeneratedCodeFile[]) => void;
+  forcedIteration?: number;
+  title?: string;
+  stepBadge?: string;
+  nextButtonLabel?: string;
+  backButtonLabel?: string;
+  onProceedNext?: () => void;
 }
 
 export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
@@ -45,8 +51,14 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
   onRunOptimization,
   onBackToVerification,
   onApplyRepairedCode,
+  forcedIteration,
+  title,
+  stepBadge,
+  nextButtonLabel,
+  backButtonLabel = 'Back to Verification',
+  onProceedNext,
 }) => {
-  const [activeIterationTab, setActiveIterationTab] = useState<number>(1);
+  const [activeIterationTab, setActiveIterationTab] = useState<number>(forcedIteration ?? 1);
   const [selectedFileIndex, setSelectedFileIndex] = useState<number>(0);
   const [showPromptDetails, setShowPromptDetails] = useState<boolean>(false);
   const [codeCopied, setCodeCopied] = useState<boolean>(false);
@@ -55,7 +67,8 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
   const summary = optimizationResult?.summary;
   const initialDiagnosis = optimizationResult?.initialDiagnosis;
   const iterations = optimizationResult?.iterations || [];
-  const currentIteration = iterations.find(it => it.iterationNumber === activeIterationTab) || iterations[0];
+  const activeTab = forcedIteration ?? activeIterationTab;
+  const currentIteration = iterations.find(it => it.iterationNumber === activeTab) || iterations[0];
 
   const filesToDisplay = currentIteration?.repairedFiles || result.generatedCode;
   const selectedFile = filesToDisplay[selectedFileIndex] || filesToDisplay[0];
@@ -87,18 +100,18 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
             onClick={onBackToVerification}
             className="inline-flex items-center gap-1.5 text-xs text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)] font-medium transition mb-1 cursor-pointer"
           >
-            <ArrowLeft className="w-3.5 h-3.5" /> Back to Verification
+            <ArrowLeft className="w-3.5 h-3.5" /> {backButtonLabel}
           </button>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-[color:var(--color-ink)] tracking-tight">
-              Taxonomy-Guided Iterative Repair
+              {title || 'Taxonomy-Guided Iterative Repair'}
             </h1>
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#7c6cff]/15 text-[color:var(--color-brand-soft)] border border-[#7c6cff]/30">
-              <Sparkles className="w-3 h-3" /> Dou et al. 2026 (k=2)
+              <Sparkles className="w-3 h-3" /> {stepBadge || 'Dou et al. 2026 (k=2)'}
             </span>
           </div>
           <p className="text-xs text-[color:var(--color-ink-muted)] mt-1">
-            Machine-verified evidence &amp; bug taxonomy feedback loop over 2 bounded iterations.
+            Machine-verified evidence &amp; bug taxonomy feedback loop (Iteration {activeTab} of 2).
           </p>
         </div>
 
@@ -109,10 +122,19 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
             className="btn-ghost px-4 py-2 text-sm font-medium transition flex items-center gap-2 cursor-pointer border border-[color:var(--color-hairline)]"
           >
             <RefreshCw className={`w-4 h-4 ${isOptimizing ? 'animate-spin' : ''}`} />
-            {isOptimizing ? 'Repairing...' : 'Re-run 2 Iterations'}
+            {isOptimizing ? 'Repairing...' : 'Re-run Repair'}
           </button>
 
-          {currentIteration?.repairedFiles && currentIteration.repairedFiles.length > 0 && (
+          {onProceedNext && (
+            <button
+              onClick={onProceedNext}
+              className="btn-primary px-4 py-2 text-sm font-medium transition flex items-center gap-2 cursor-pointer shadow-[0_4px_14px_rgba(124,108,255,0.4)]"
+            >
+              <Sparkles className="w-4 h-4" /> {nextButtonLabel || 'Proceed to Next Step →'}
+            </button>
+          )}
+
+          {onApplyRepairedCode && currentIteration?.repairedFiles && currentIteration.repairedFiles.length > 0 && !onProceedNext && (
             <button
               onClick={() => onApplyRepairedCode(currentIteration.repairedFiles)}
               className="btn-primary px-4 py-2 text-sm font-medium transition flex items-center gap-2 cursor-pointer shadow-[0_4px_14px_rgba(124,108,255,0.4)]"
