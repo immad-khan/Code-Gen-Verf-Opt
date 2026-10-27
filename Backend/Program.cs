@@ -39,18 +39,29 @@ builder.Services.AddHostedService<KeepAliveService>();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+// Enable Swagger in all environments so you can test endpoints from your browser
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "MACI Backend API v1");
+    c.RoutePrefix = "swagger";
+});
 
 app.UseHttpsRedirection();
 
 app.UseCors("AllowAll");
 
 app.UseAuthorization();
+
+// Root route so visiting the base URL in a browser shows online status instead of 404
+app.MapGet("/", () => Results.Ok(new
+{
+    status = "online",
+    service = "MACI Backend API",
+    time = DateTime.UtcNow.ToString("o"),
+    documentation = "/swagger",
+    health = "/api/health"
+}));
 
 app.MapControllers();
 
