@@ -74,7 +74,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
   const selectedFile = filesToDisplay[selectedFileIndex] || filesToDisplay[0];
 
   // Code before this iteration:
-  const previousIteration = iterations.find(it => it.iterationNumber === activeIterationTab - 1);
+  const previousIteration = iterations.find(it => it.iterationNumber === activeTab - 1);
   const beforeFiles = previousIteration ? previousIteration.repairedFiles : result.generatedCode;
   const beforeFile = beforeFiles.find(f => (f.name && selectedFile && f.name === selectedFile.name) || (f.path && selectedFile && f.path === selectedFile.path)) || beforeFiles[selectedFileIndex] || null;
 
@@ -630,7 +630,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                               BEFORE REPAIR
                             </span>
                             <span className="text-[color:var(--color-ink-muted)] truncate">
-                              {activeIterationTab === 1 ? 'Initial Code' : `Iteration ${activeIterationTab - 1}`}
+                              {activeTab === 1 ? 'Round 0: Initial Code' : `Round ${activeTab - 1}: Previous Repaired Code`}
                             </span>
                           </div>
                           <span className="text-[10px] text-rose-400 font-mono">
@@ -663,7 +663,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                               NOW (REPAIRED)
                             </span>
                             <span className="text-[color:var(--color-ink-muted)] truncate">
-                              Iteration {activeIterationTab}
+                              Round {activeTab}: Repaired Code
                             </span>
                           </div>
                           <span className="text-[10px] text-emerald-400 font-mono">

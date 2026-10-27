@@ -159,7 +159,7 @@ function fixTruncatedJson(text: string): string {
   return temp;
 }
 
-function extractJson(text: string): any {
+export function extractJson(text: string): any {
   console.log('=== extractJson received text ===');
   console.log(text);
 
@@ -245,7 +245,7 @@ function extractJson(text: string): any {
   return null;
 }
 
-function normalizeFiles(parsed: any): GeneratedCodeFile[] {
+export function normalizeFiles(parsed: any): GeneratedCodeFile[] {
   const files: GeneratedCodeFile[] = [];
   if (!parsed || !parsed.files || !Array.isArray(parsed.files)) return files;
 
@@ -401,7 +401,7 @@ async function callGemini(prompt: string, apiKey: string, model: string, tempera
   return data.candidates[0].content.parts[0].text ?? '';
 }
 
-async function callProvider(prompt: string, apiSettings: ApiSettings, temperature: number): Promise<string> {
+export async function callProvider(prompt: string, apiSettings: ApiSettings, temperature: number): Promise<string> {
   switch (apiSettings.provider.toLowerCase()) {
     case 'openai':
       return await callOpenAI(prompt, apiSettings.apiKey, apiSettings.model, temperature);
@@ -417,7 +417,7 @@ async function callProvider(prompt: string, apiSettings: ApiSettings, temperatur
 }
 
 // Helper to get all available provider configs in priority order
-function getProviderConfigs(): ApiSettings[] {
+export function getProviderConfigs(): ApiSettings[] {
   const providers: ApiSettings[] = [];
 
   // Priority 1: Groq Key 1

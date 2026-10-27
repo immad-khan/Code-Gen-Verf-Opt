@@ -108,7 +108,7 @@ export function classifyVerification(
   for (const technique of verification.techniques) {
     for (const issue of technique.issues || []) {
       const bug = classifySingleIssue(technique, issue, files);
-      if (bug) classifiedBugs.Add ? classifiedBugs.push(bug) : classifiedBugs.push(bug);
+      if (bug) classifiedBugs.push(bug);
     }
 
     if (technique.status === 'FAIL' && (!technique.issues || technique.issues.length === 0) && technique.details) {
