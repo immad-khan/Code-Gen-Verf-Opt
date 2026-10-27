@@ -2,7 +2,7 @@ import React from 'react';
 import { AIResultData } from '../types';
 import { VerificationResponse } from '../services/verificationService';
 import {
-  ArrowLeft, Download, AlertTriangle, Info,
+  ArrowLeft, AlertTriangle, Info,
   Terminal, BarChart2, ChevronDown, ChevronUp, Sparkles, CheckCircle2, HelpCircle, RefreshCw, XCircle
 } from 'lucide-react';
 
@@ -11,7 +11,7 @@ interface Step3VerificationProps {
   onUpdateFindings?: (newFindings: any[]) => void;
   onBackToCode: () => void;
   onBackToPrompt: () => void;
-  onExport: () => void;
+  onExport?: () => void;
   onProceedToOptimization?: () => void;
   backendVerification: VerificationResponse | null;
   verificationError?: string | null;
@@ -22,7 +22,6 @@ interface Step3VerificationProps {
 export const Step3Verification: React.FC<Step3VerificationProps> = ({
   result: _result,
   onBackToCode,
-  onExport,
   onProceedToOptimization,
   backendVerification,
   verificationError,
@@ -168,18 +167,6 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
           <h1 className="text-2xl font-bold text-[color:var(--color-ink)] tracking-tight">Verification Results</h1>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => window.print()}
-            className="btn-ghost px-4 py-2 text-sm font-medium transition cursor-pointer"
-          >
-            Print
-          </button>
-          <button
-            onClick={onExport}
-            className="btn-ghost px-4 py-2 text-sm font-medium transition flex items-center gap-2 cursor-pointer border border-[color:var(--color-hairline)]"
-          >
-            <Download className="w-4 h-4" /> Export Report
-          </button>
           {onProceedToOptimization && (
             <button
               onClick={onProceedToOptimization}
@@ -577,29 +564,6 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
           </div>
         )}
       </div>
-
-      {/* Step 4 Optimization Callout Banner */}
-      {onProceedToOptimization && (
-        <div className="card p-6 bg-gradient-to-r from-[#7c6cff]/10 via-[color:var(--color-surface-2)] to-[#6b57f5]/10 border border-[#7c6cff]/30 flex flex-col sm:flex-row items-center justify-between gap-5 mt-2">
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#7c6cff]/20 text-[color:var(--color-brand-soft)] border border-[#7c6cff]/40">
-              <Sparkles className="w-3 h-3" /> Base Paper Methodology (Dou et al.)
-            </div>
-            <h3 className="text-base font-bold text-[color:var(--color-ink)]">
-              Phase 4: Taxonomy-Guided Iterative Repair (2 Iterations)
-            </h3>
-            <p className="text-xs text-[color:var(--color-ink-muted)] max-w-xl">
-              Feed machine-verified compiler traces and bug taxonomy classifications (A.1–C.4) into a bounded 2-iteration self-critique loop to automatically fix diagnosed failures.
-            </p>
-          </div>
-          <button
-            onClick={onProceedToOptimization}
-            className="btn-primary px-6 py-3 text-sm font-semibold whitespace-nowrap flex items-center gap-2 cursor-pointer shadow-[0_6px_20px_rgba(124,108,255,0.4)] hover:shadow-[0_8px_25px_rgba(124,108,255,0.6)] transition"
-          >
-            Start 2-Iteration Repair →
-          </button>
-        </div>
-      )}
 
     </div>
   );
