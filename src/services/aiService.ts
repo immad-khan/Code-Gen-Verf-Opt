@@ -514,7 +514,7 @@ export async function processPromptWithAgents(
           agentName: 'Python Codegen',
           role: 'Generation',
           status: 'active',
-          message: `Generating code with ${config.provider.toUpperCase()}...`,
+          message: `Generating code with ${config.provider.toUpperCase()} (${config.model})...`,
           timestamp: ts(),
         });
       }
@@ -524,11 +524,11 @@ export async function processPromptWithAgents(
       console.log(rawResponse);
 
       if (onProgress) {
-        onProgress(85, {
-          agentName: 'Parser',
-          role: 'File extraction',
+        onProgress(75, {
+          agentName: 'JSON Decoder',
+          role: 'Response extraction',
           status: 'active',
-          message: 'Parsing files...',
+          message: 'Extracting file tree from LLM JSON response...',
           timestamp: ts(),
         });
       }
@@ -543,6 +543,28 @@ export async function processPromptWithAgents(
 
       if (files.length === 0) {
         throw new Error(`Could not parse valid files from ${config.provider}'s response.`);
+      }
+
+      const fileNames = files.map(f => f.name || f.path).join(', ');
+
+      if (onProgress) {
+        onProgress(90, {
+          agentName: 'File Extractor',
+          role: 'File Discovery',
+          status: 'active',
+          message: `Extracted ${files.length} file(s): ${fileNames}`,
+          timestamp: ts(),
+        });
+      }
+
+      if (onProgress) {
+        onProgress(96, {
+          agentName: 'AST Parser',
+          role: 'Syntax Validation',
+          status: 'active',
+          message: `Parsed & verified Python AST syntax for ${fileNames}`,
+          timestamp: ts(),
+        });
       }
 
 

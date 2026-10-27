@@ -224,29 +224,43 @@ export function App() {
         },
       };
 
+      const fileNames = data.generatedCode.map(f => f.name).join(', ');
+      setProgress(100);
+      const completionLog: AgentLog = {
+        agentName: 'Pipeline',
+        role: 'Complete',
+        status: 'active',
+        message: `Successfully synthesized and parsed: ${fileNames}`,
+        timestamp: new Date().toLocaleTimeString(),
+      };
+      setCurrentLog(completionLog);
+      setAllLogs(prev => [...prev, completionLog]);
+
       setResultData(enriched);
       setHasGeneratedResult(true);
       setCurrentStep(2);
+      setIsProcessing(false);
 
-      // Run real backend verification in parallel (AST, imports, pytest, runtime, mypy)
+      // Run real backend verification in background (AST, imports, pytest, runtime, mypy)
       setIsVerifying(true);
       setBackendVerification(null);
       setVerificationError(null);
-      try {
-        const verification = await runBackendVerification(data.generatedCode);
-        setBackendVerification(verification);
-        console.log('Backend verification:', verification);
-      } catch (verifyErr) {
-        const msg = verifyErr instanceof Error ? verifyErr.message : String(verifyErr);
-        console.warn('Backend verification failed:', verifyErr);
-        setVerificationError(msg);
-      } finally {
-        setIsVerifying(false);
-      }
+      runBackendVerification(data.generatedCode)
+        .then(verification => {
+          setBackendVerification(verification);
+          console.log('Backend verification succeeded:', verification);
+        })
+        .catch(verifyErr => {
+          const msg = verifyErr instanceof Error ? verifyErr.message : String(verifyErr);
+          console.warn('Backend verification failed:', verifyErr);
+          setVerificationError(msg);
+        })
+        .finally(() => {
+          setIsVerifying(false);
+        });
     } catch (err) {
       console.error('Processing failed:', err);
       setErrorMessage(err instanceof Error ? err.message : 'An unknown error occurred');
-    } finally {
       setIsProcessing(false);
     }
   };

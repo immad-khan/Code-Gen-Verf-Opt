@@ -39,7 +39,7 @@ export const ProcessingOverlay: React.FC<ProcessingOverlayProps> = ({
 
         {/* Log stream */}
         <div className="card-quiet p-3.5 text-left font-mono text-xs max-h-52 overflow-y-auto space-y-2.5">
-          {allLogs.map((log, index) => (
+          {(currentLog && progress < 100 ? allLogs.slice(0, -1) : allLogs).map((log, index) => (
             <div key={index} className="flex items-start gap-2.5 text-[color:var(--color-ink-muted)]">
               <CheckCircle2 className="w-4 h-4 text-[color:var(--color-brand-soft)] shrink-0 mt-0.5" />
               <div>
