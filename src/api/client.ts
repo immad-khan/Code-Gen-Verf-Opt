@@ -27,7 +27,8 @@ export class ApiError extends Error {
 /** Request timeouts in milliseconds: Workbench 120 s (23.1), Experiments 10 s (27.11), health 5 s (23.6). */
 export const TIMEOUTS = { workbench: 120_000, experiments: 10_000, health: 5_000 } as const;
 
-export const DEFAULT_BACKEND_URL = 'http://localhost:5000';
+export const DEFAULT_BACKEND_URL =
+  import.meta.env.PROD ? 'https://code-gen-verf-opt.onrender.com' : 'http://localhost:5000';
 
 /** Backend base URL from `VITE_BACKEND_URL`, without a trailing slash. Read per call so tests can stub it. */
 export function backendBaseUrl(): string {

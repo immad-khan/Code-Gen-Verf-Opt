@@ -1,7 +1,10 @@
 import { GeneratedCodeFile, ApiSettings, OptimizationResponse } from '../types';
 import { VerificationResponse } from './verificationService';
 
-const BACKEND_URL = 'http://localhost:5000';
+const BACKEND_URL = (
+  import.meta.env.VITE_BACKEND_URL?.trim() ||
+  (import.meta.env.PROD ? 'https://code-gen-verf-opt.onrender.com' : 'http://localhost:5000')
+).replace(/\/+$/, '');
 
 export interface RunOptimizationParams {
   files: GeneratedCodeFile[];
