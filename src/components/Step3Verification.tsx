@@ -3,7 +3,7 @@ import { AIResultData } from '../types';
 import { VerificationResponse } from '../services/verificationService';
 import {
   ArrowLeft, Download, AlertTriangle, Info,
-  Terminal, BarChart2, ChevronDown, ChevronUp, Sparkles, CheckCircle2, HelpCircle
+  Terminal, BarChart2, ChevronDown, ChevronUp, Sparkles, CheckCircle2, HelpCircle, RefreshCw, XCircle
 } from 'lucide-react';
 
 interface Step3VerificationProps {
@@ -14,23 +14,35 @@ interface Step3VerificationProps {
   onExport: () => void;
   onProceedToOptimization?: () => void;
   backendVerification: VerificationResponse | null;
+  verificationError?: string | null;
   isVerifying: boolean;
+  onRetryVerification?: () => void;
 }
 
 export const Step3Verification: React.FC<Step3VerificationProps> = ({
-  result,
+  result: _result,
   onBackToCode,
   onExport,
   onProceedToOptimization,
   backendVerification,
-  isVerifying
+  verificationError,
+  isVerifying,
+  onRetryVerification,
 }) => {
   const [showDetailedLogs, setShowDetailedLogs] = React.useState(false);
 
   const m = backendVerification?.metrics;
-  const passRate = m ? Math.round(m.passRate) : 17;
-  const passedTests = m ? m.passedTests : 1;
-  const totalTests = m ? m.totalTests : 6;
+  const hasResult = Boolean(backendVerification);
+  
+  // Real metrics calculated directly from backend verification results
+  const passRate = m?.passRate != null
+    ? Math.round(m.passRate)
+    : backendVerification
+      ? Math.round((backendVerification.totalPassed / Math.max(1, backendVerification.totalPassed + backendVerification.totalFailed)) * 100)
+      : null;
+
+  const passedTests = m?.passedTests ?? (backendVerification ? backendVerification.totalPassed : null);
+  const totalTests = m?.totalTests ?? (backendVerification ? (backendVerification.totalPassed + backendVerification.totalFailed) : null);
 
   // Helper to explain why any issue is a problem
   const getWhyItIsAnIssue = (msg: string, tech: string) => {
@@ -48,7 +60,7 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
       return 'The computed output does not match expected test assertions, indicating a functional algorithm defect or missing edge-case handling.';
     }
     if (text.includes('indexerror')) {
-      return 'Attempted to access a sequence item outside its valid bounds (e.g., accessing index 0 on an empty list), causing an unhandled runtime crash.';
+      return 'Attempted to access a sequence item outside its valid bounds, causing an unhandled runtime crash.';
     }
     if (text.includes('keyerror')) {
       return 'A dictionary key was accessed that does not exist in the collection, crashing execution without defensive .get() or membership guards.';
@@ -60,10 +72,10 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
       return 'A variable, parameter, or helper is referenced before declaration or is misspelled, triggering an immediate crash at runtime.';
     }
     if (text.includes('typeerror')) {
-      return 'An operation or function was invoked with incompatible types or the wrong number of parameters, violating the function signature contract.';
+      return 'An operation or function was invoked with incompatible types or wrong parameter count, violating the function signature contract.';
     }
     if (text.includes('attributeerror')) {
-      return 'Calling a non-existent method or property on an object (often an API misuse or hallucinated method) halts execution.';
+      return 'Calling a non-existent method or property on an object halts execution.';
     }
     if (text.includes('timeout') || text.includes('recursionerror')) {
       return 'Unbounded loops or missing recursion base cases prevent execution from terminating, causing process hang or stack overflow.';
@@ -72,12 +84,12 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
       return 'High cyclomatic complexity and low maintainability make the logic fragile, defect-prone, and difficult to test.';
     }
     if (tech.includes('Semgrep') || tech.includes('Security')) {
-      return 'Identified security or correctness flaw (e.g. injection risk, insecure regex, hardcoded secrets) that violates safe production standards.';
+      return 'Identified security or correctness flaw that violates safe production standards.';
     }
     return 'Violates correctness, security, or runtime constraints, preventing this check from passing automated quality verification.';
   };
 
-  // Compile issues from both backend verification techniques and static analysis findings
+  // Compile real issues from backend verification techniques
   const allVerificationIssues = React.useMemo(() => {
     const list: Array<{
       id: string;
@@ -92,7 +104,6 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
       fix?: string;
     }> = [];
 
-    // 1. From backend verification
     if (backendVerification) {
       backendVerification.techniques.forEach(t => {
         t.issues.forEach((iss, iIdx) => {
@@ -111,55 +122,37 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
       });
     }
 
-    // 2. From result.findings
-    if (result?.findings) {
-      result.findings.forEach((f, fIdx) => {
-        const alreadyHas = list.some(item => item.file === f.filePath && item.line === f.lineRange);
-        if (!alreadyHas) {
-          list.push({
-            id: `finding-${f.id || fIdx}`,
-            title: f.title,
-            source: f.detectionTechnique || 'Static Code Analysis',
-            severity: f.severity,
-            file: f.filePath,
-            line: f.lineRange,
-            message: f.title,
-            whyIsThisAnIssue: f.whyItMatters || getWhyItIsAnIssue(f.title, f.detectionTechnique || ''),
-            snippet: f.codeSnippet,
-            fix: f.pythonFix,
-          });
-        }
-      });
-    }
-
     return list;
-  }, [backendVerification, result]);
+  }, [backendVerification]);
 
-  // Grouped items for the dashboard cards
-  const missingInstances = backendVerification?.techniques.find(t => t.id === 1 || t.name.includes('Syntax'))?.issues.map(i => i.file || i.message) || [
-    'Profile', 'Order', 'Product', 'ShoppingCart', 'Payment'
-  ];
+  // Real issues extracted per technique
+  const syntaxTechnique = backendVerification?.techniques.find(t => t.id === 1 || t.name.includes('Syntax'));
+  const syntaxIssues = syntaxTechnique?.issues || [];
 
-  const overspecifiedClasses = [
-    'Librarian', 'Guest', 'Book', 'Administrator', 'Member'
-  ];
+  const importTechnique = backendVerification?.techniques.find(t => t.id === 2 || t.name.includes('Import'));
+  const importIssues = importTechnique?.issues || [];
 
-  const incorrectInstances = backendVerification?.techniques.find(t => t.id === 2 || t.name.includes('Import'))?.issues.map(i => ({
-    name: i.file || 'HomePage',
-    sub: i.message || 'Generic or inappropriate'
-  })) || [
-    { name: 'HomePage', sub: 'Generic or inappropriate' },
-    { name: 'Category', sub: 'Generic or inappropriate' }
-  ];
+  const runtimeTechnique = backendVerification?.techniques.find(t => t.id === 4 || t.name.includes('Runtime'));
+  const runtimeIssues = runtimeTechnique?.issues || [];
 
-  const extraInstances = backendVerification?.techniques.find(t => t.id === 4 || t.name.includes('Type'))?.issues.map(i => ({
-    name: i.file || 'LoginPage',
-    sub: i.message || 'Not in original requirements'
-  })) || [
-    { name: 'LoginPage', sub: 'Not in original requirements' },
-    { name: 'UserDetailsPage', sub: 'Not in original requirements' },
-    { name: 'MemberDatabase', sub: 'Not in original requirements' }
-  ];
+  const typeTechnique = backendVerification?.techniques.find(t => t.id === 5 || t.name.includes('Type'));
+  const typeIssues = typeTechnique?.issues || [];
+
+  const scoreColor = passRate == null
+    ? 'text-gray-400'
+    : passRate >= 80
+      ? 'text-emerald-500'
+      : passRate >= 50
+        ? 'text-amber-500'
+        : 'text-red-500';
+
+  const arcStroke = passRate == null
+    ? '#4b5563'
+    : passRate >= 80
+      ? '#10b981'
+      : passRate >= 50
+        ? '#f59e0b'
+        : '#ef4444';
 
   return (
     <div className="flex-1 max-w-6xl w-full mx-auto px-4 md:px-8 py-6 flex flex-col gap-6 animate-fade-up">
@@ -198,10 +191,36 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
         </div>
       </div>
 
+      {/* Loading Banner */}
       {isVerifying && (
         <div className="p-4 bg-[color:var(--color-surface-2)] border border-[color:var(--color-hairline)] text-[color:var(--color-ink)] rounded-xl flex items-center gap-3 text-sm animate-pulse">
           <div className="w-4 h-4 border-2 border-[color:var(--color-brand-soft)] border-t-transparent rounded-full animate-spin"></div>
-          Running backend execution verification tests...
+          Running backend execution verification tests on Render...
+        </div>
+      )}
+
+      {/* Real Error Banner: Shown when backend verification fails */}
+      {verificationError && !isVerifying && (
+        <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm text-red-200">
+          <div className="flex items-start gap-3">
+            <XCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+            <div>
+              <div className="font-bold text-red-300">Backend Execution Verification Failed</div>
+              <div className="text-xs text-red-300/80 mt-1 font-mono break-all">{verificationError}</div>
+              <div className="text-xs text-[color:var(--color-ink-muted)] mt-1.5">
+                Ensure the backend on Render is awake and healthy.
+              </div>
+            </div>
+          </div>
+          {onRetryVerification && (
+            <button
+              onClick={onRetryVerification}
+              className="btn-primary bg-red-600 hover:bg-red-500 text-white px-4 py-2 text-xs font-semibold rounded-lg shrink-0 flex items-center gap-1.5 transition self-start sm:self-center cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Retry Verification
+            </button>
+          )}
         </div>
       )}
 
@@ -214,7 +233,6 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
           
           <div className="relative flex flex-col items-center justify-center my-2">
             <svg className="w-36 h-20 overflow-visible" viewBox="0 0 160 90">
-              {/* Background Arc */}
               <path
                 d="M 15,80 A 65,65 0 0,1 145,80"
                 fill="none"
@@ -222,137 +240,186 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
                 strokeWidth="12"
                 strokeLinecap="round"
               />
-              {/* Progress Arc */}
               <path
                 d="M 15,80 A 65,65 0 0,1 145,80"
                 fill="none"
-                stroke="#ef4444"
+                stroke={arcStroke}
                 strokeWidth="12"
                 strokeLinecap="round"
                 strokeDasharray="204"
-                strokeDashoffset={204 - (204 * passRate) / 100}
+                strokeDashoffset={204 - (204 * (passRate ?? 0)) / 100}
                 className="transition-all duration-1000 ease-out"
               />
             </svg>
             <div className="absolute bottom-0 flex flex-col items-center">
-              <span className="text-2xl font-extrabold text-red-500">{passRate}%</span>
+              <span className={`text-2xl font-extrabold ${scoreColor}`}>
+                {passRate != null ? `${passRate}%` : (isVerifying ? '...' : '--%')}
+              </span>
             </div>
           </div>
 
-          <p className="text-xs text-[color:var(--color-ink-muted)] font-normal">Overall diagram-actor alignment</p>
+          <p className="text-xs text-[color:var(--color-ink-muted)] font-normal">
+            {backendVerification
+              ? `Verdict: ${backendVerification.overallVerdict}`
+              : (verificationError ? 'Verification unavailable' : 'Awaiting verification')}
+          </p>
         </div>
 
-        {/* Card 2: Coverage Statistics */}
+        {/* Card 2: Coverage / Tests Statistics */}
         <div className="card p-5 flex flex-col items-center justify-between text-center min-h-[220px]">
-          <h3 className="text-sm font-semibold text-[color:var(--color-ink)]">Coverage Statistics</h3>
+          <h3 className="text-sm font-semibold text-[color:var(--color-ink)]">Test & Execution Rate</h3>
           
           <div className="my-auto">
-            <div className="text-4xl font-extrabold text-blue-500 tracking-tight">
-              {m ? `${m.passRate.toFixed(1)}%` : '16.7%'}
+            <div className={`text-4xl font-extrabold tracking-tight ${hasResult ? 'text-blue-500' : 'text-gray-500'}`}>
+              {passRate != null ? `${passRate}%` : '--%'}
             </div>
-            <div className="text-xs font-medium text-[color:var(--color-ink-muted)] mt-2">Actor Coverage</div>
+            <div className="text-xs font-medium text-[color:var(--color-ink-muted)] mt-2">
+              {hasResult ? 'Pytest Pass Rate' : 'Execution Status'}
+            </div>
             <div className="text-xs text-[color:var(--color-ink-faint)] mt-0.5">
-              {passedTests} of {totalTests} actors present
+              {passedTests != null && totalTests != null
+                ? `${passedTests} of ${totalTests} checks passed`
+                : (isVerifying ? 'Running test runner...' : 'No test results')}
             </div>
           </div>
 
-          <div className="w-full"></div>
-        </div>
-
-        {/* Card 3: Missing Instances */}
-        <div className="card p-5 flex flex-col justify-between min-h-[220px]">
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle className="w-4 h-4 text-amber-500 fill-amber-500/20" />
-              <h3 className="text-sm font-semibold text-[color:var(--color-ink)]">Missing Instances</h3>
-            </div>
-            <ul className="space-y-2">
-              {missingInstances.slice(0, 5).map((item, idx) => (
-                <li key={idx} className="flex items-center gap-2 text-xs font-medium text-[color:var(--color-ink-muted)]">
-                  <span className="w-3.5 h-3.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center justify-center text-[9px] font-bold">!</span>
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="mt-3 pt-2 border-t border-[color:var(--color-hairline)] text-[10px] text-[color:var(--color-ink-muted)]">
-            <strong className="text-amber-400">Why it's an issue:</strong> Missing components cause unresolved NameError crashes during execution.
+          <div className="w-full text-[11px] text-[color:var(--color-ink-faint)]">
+            {backendVerification ? `${backendVerification.totalDurationMs} ms execution time` : ''}
           </div>
         </div>
 
-        {/* Card 4: Overspecified Classes */}
+        {/* Card 3: Syntax & AST Parsing */}
         <div className="card p-5 flex flex-col justify-between min-h-[220px]">
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <Info className="w-4 h-4 text-blue-500 fill-blue-500/20" />
+              {syntaxIssues.length > 0 ? (
+                <AlertTriangle className="w-4 h-4 text-amber-500 fill-amber-500/20" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              )}
               <h3 className="text-sm font-semibold text-[color:var(--color-ink)]">
-                Overspecified Classes ({overspecifiedClasses.length})
+                Syntax &amp; AST ({syntaxIssues.length})
               </h3>
             </div>
-            <ul className="space-y-2">
-              {overspecifiedClasses.map((cls, idx) => (
-                <li key={idx} className="flex items-center gap-2 text-xs font-medium text-[color:var(--color-ink-muted)]">
-                  <span className="w-3.5 h-3.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center text-[9px] font-bold">i</span>
-                  <span>{cls}</span>
-                </li>
-              ))}
-            </ul>
+            {syntaxIssues.length === 0 ? (
+              <div className="py-4 text-xs text-emerald-400/90 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{hasResult ? 'All Python files parsed cleanly without syntax errors.' : 'Waiting for syntax verification...'}</span>
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {syntaxIssues.slice(0, 4).map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-xs font-medium text-[color:var(--color-ink-muted)]">
+                    <span className="w-3.5 h-3.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">!</span>
+                    <span className="truncate">{item.file ? `${item.file}: ` : ''}{item.message}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           <div className="mt-3 pt-2 border-t border-[color:var(--color-hairline)] text-[10px] text-[color:var(--color-ink-muted)]">
-            <strong className="text-blue-400">Why it's an issue:</strong> Redundant class layers add tight coupling and increase maintenance burden.
+            <strong className="text-amber-400">Technique 1:</strong> Python AST compilation verification.
+          </div>
+        </div>
+
+        {/* Card 4: Import Hallucinations */}
+        <div className="card p-5 flex flex-col justify-between min-h-[220px]">
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              {importIssues.length > 0 ? (
+                <Info className="w-4 h-4 text-blue-500 fill-blue-500/20" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              )}
+              <h3 className="text-sm font-semibold text-[color:var(--color-ink)]">
+                Import Resolution ({importIssues.length})
+              </h3>
+            </div>
+            {importIssues.length === 0 ? (
+              <div className="py-4 text-xs text-emerald-400/90 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{hasResult ? 'All imported modules and stdlib packages resolved.' : 'Waiting for import resolution...'}</span>
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {importIssues.slice(0, 4).map((iss, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-xs font-medium text-[color:var(--color-ink-muted)]">
+                    <span className="w-3.5 h-3.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">i</span>
+                    <span className="truncate">{iss.message}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="mt-3 pt-2 border-t border-[color:var(--color-hairline)] text-[10px] text-[color:var(--color-ink-muted)]">
+            <strong className="text-blue-400">Technique 2:</strong> Detects non-existent or hallucinated module imports.
           </div>
         </div>
 
       </div>
 
-      {/* Bottom Row: 2 Detail Cards */}
+      {/* Bottom Row: 2 Detail Cards (Runtime + Types) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         
-        {/* Card 5: Incorrect Instances */}
-        <div className="card p-5 min-h-[190px] flex flex-col justify-between">
+        {/* Card 5: Runtime Errors */}
+        <div className="card p-5 min-h-[160px] flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-2 mb-3">
               <span className="w-4 h-4 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center justify-center text-[10px] font-bold">!</span>
-              <h3 className="text-sm font-semibold text-[color:var(--color-ink)]">Incorrect Instances</h3>
+              <h3 className="text-sm font-semibold text-[color:var(--color-ink)]">Runtime Errors ({runtimeIssues.length})</h3>
             </div>
-            <div className="space-y-3">
-              {incorrectInstances.map((item, idx) => (
-                <div key={idx} className="flex items-start gap-2.5">
-                  <span className="w-4 h-4 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 shrink-0 mt-0.5 flex items-center justify-center text-[10px] font-bold">!</span>
-                  <div>
-                    <div className="text-xs font-bold text-[color:var(--color-ink)]">{item.name}</div>
-                    <div className="text-[11px] text-[color:var(--color-ink-faint)] mt-0.5">{item.sub}</div>
+            {runtimeIssues.length === 0 ? (
+              <div className="text-xs text-emerald-400/90 flex items-center gap-2 py-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{hasResult ? 'No runtime crashes (NameError, TypeError, IndexError) observed.' : 'No runtime check data.'}</span>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {runtimeIssues.map((item, idx) => (
+                  <div key={idx} className="flex items-start gap-2.5">
+                    <span className="w-4 h-4 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 shrink-0 mt-0.5 flex items-center justify-center text-[10px] font-bold">!</span>
+                    <div>
+                      <div className="text-xs font-bold text-[color:var(--color-ink)]">{item.message}</div>
+                      {item.file && <div className="text-[11px] text-[color:var(--color-ink-faint)] mt-0.5">{item.file}</div>}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="mt-3 pt-2 border-t border-[color:var(--color-hairline)] text-[10px] text-[color:var(--color-ink-muted)]">
-            <strong className="text-red-400">Why it's an issue:</strong> Diverges from specification contracts, causing pytest validation failure.
+            <strong className="text-red-400">Technique 4:</strong> Isolated runtime execution crash diagnostics.
           </div>
         </div>
 
-        {/* Card 6: Extra Instances */}
-        <div className="card p-5 min-h-[190px] flex flex-col justify-between">
+        {/* Card 6: Type Checking & Static Contracts */}
+        <div className="card p-5 min-h-[160px] flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-2 mb-3">
               <AlertTriangle className="w-4 h-4 text-amber-500 fill-amber-500/20" />
-              <h3 className="text-sm font-semibold text-[color:var(--color-ink)]">Extra Instances</h3>
+              <h3 className="text-sm font-semibold text-[color:var(--color-ink)]">Type Checking (mypy) ({typeIssues.length})</h3>
             </div>
-            <div className="space-y-3">
-              {extraInstances.map((item, idx) => (
-                <div key={idx} className="flex items-start gap-2.5">
-                  <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                  <div>
-                    <div className="text-xs font-bold text-[color:var(--color-ink)]">{item.name}</div>
-                    <div className="text-[11px] text-[color:var(--color-ink-faint)] mt-0.5">{item.sub}</div>
+            {typeIssues.length === 0 ? (
+              <div className="text-xs text-emerald-400/90 flex items-center gap-2 py-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{hasResult ? 'All functions and type annotations satisfy static type contracts.' : 'No type check data.'}</span>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {typeIssues.slice(0, 4).map((item, idx) => (
+                  <div key={idx} className="flex items-start gap-2.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                    <div>
+                      <div className="text-xs font-bold text-[color:var(--color-ink)]">{item.message}</div>
+                      {item.file && <div className="text-[11px] text-[color:var(--color-ink-faint)] mt-0.5">{item.file}</div>}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="mt-3 pt-2 border-t border-[color:var(--color-hairline)] text-[10px] text-[color:var(--color-ink-muted)]">
-            <strong className="text-amber-400">Why it's an issue:</strong> Unsolicited classes bloat complexity and expand the attack surface.
+            <strong className="text-amber-400">Technique 5:</strong> Static type validation with mypy.
           </div>
         </div>
 
@@ -371,7 +438,7 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
                   ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
                   : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
               }`}>
-                {allVerificationIssues.length > 0 ? `${allVerificationIssues.length} Issue(s) Diagnosed` : 'All Checks Passed'}
+                {allVerificationIssues.length > 0 ? `${allVerificationIssues.length} Issue(s) Diagnosed` : 'All Checks Clean'}
               </span>
             </div>
             <p className="text-xs text-[color:var(--color-ink-muted)] mt-1">
@@ -384,9 +451,13 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
           <div className="p-5 rounded-xl bg-emerald-500/5 border border-emerald-500/20 flex items-center gap-3 text-xs text-emerald-300">
             <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
             <div>
-              <div className="font-semibold text-emerald-200">No Blocking Verification Issues Detected</div>
+              <div className="font-semibold text-emerald-200">
+                {hasResult ? 'No Blocking Verification Issues Detected' : 'No Verification Data Yet'}
+              </div>
               <div className="text-[11px] text-[color:var(--color-ink-muted)] mt-0.5">
-                The synthesized Python codebase satisfies AST parsing, imports, runtime checks, and unit tests cleanly.
+                {hasResult
+                  ? 'The synthesized Python codebase satisfies AST parsing, imports, runtime checks, and unit tests cleanly.'
+                  : (verificationError ? 'Backend verification encountered an error. Click Retry Verification above.' : 'Run verification to test the generated Python code.')}
               </div>
             </div>
           </div>
@@ -444,21 +515,11 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
                   </p>
                 </div>
 
-                {/* Snippet & Suggested Fix */}
-                {(issue.snippet || issue.fix) && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs pt-1">
-                    {issue.snippet && (
-                      <div className="p-2.5 rounded-lg bg-[color:var(--color-surface-2)] border border-[color:var(--color-hairline)] font-mono">
-                        <div className="text-[10px] text-[color:var(--color-ink-muted)] mb-1 uppercase font-semibold">Offending Line</div>
-                        <code className="text-[11px] text-rose-300">{issue.snippet}</code>
-                      </div>
-                    )}
-                    {issue.fix && (
-                      <div className="p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/20 font-mono">
-                        <div className="text-[10px] text-emerald-400 mb-1 uppercase font-semibold">Suggested Fix</div>
-                        <code className="text-[11px] text-emerald-300">{issue.fix}</code>
-                      </div>
-                    )}
+                {/* Snippet */}
+                {issue.snippet && (
+                  <div className="p-2.5 rounded-lg bg-[color:var(--color-surface-2)] border border-[color:var(--color-hairline)] font-mono text-xs">
+                    <div className="text-[10px] text-[color:var(--color-ink-muted)] mb-1 uppercase font-semibold">Offending Line</div>
+                    <code className="text-[11px] text-rose-300">{issue.snippet}</code>
                   </div>
                 )}
               </div>
@@ -486,7 +547,6 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
 
         {showDetailedLogs && (
           <div className="p-5 border-t border-[color:var(--color-hairline)] bg-[color:var(--color-surface-1)] space-y-5">
-            {/* Techniques Summary */}
             {backendVerification && (
               <div>
                 <h4 className="text-xs font-bold text-[color:var(--color-ink-muted)] uppercase tracking-wider mb-3">Verification Pipeline Checks</h4>
@@ -505,14 +565,13 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
               </div>
             )}
 
-            {/* Compiler / pytest Output */}
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <Terminal className="w-4 h-4 text-[color:var(--color-ink-muted)]" />
                 <h4 className="text-xs font-bold text-[color:var(--color-ink-muted)] uppercase tracking-wider">Pytest Execution Console Output</h4>
               </div>
               <pre className="p-4 rounded-lg bg-[#0a0b0f] font-mono text-xs text-[color:var(--color-ink-muted)] overflow-x-auto max-h-60 whitespace-pre-wrap border border-[color:var(--color-hairline)]">
-                {backendVerification?.techniques.find(t => t.id === 3)?.details || 'No output logs available.'}
+                {backendVerification?.techniques.find(t => t.id === 3)?.details || (verificationError ? `Verification error: ${verificationError}` : 'No execution logs available.')}
               </pre>
             </div>
           </div>
@@ -545,5 +604,3 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
     </div>
   );
 };
-
-

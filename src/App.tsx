@@ -136,6 +136,7 @@ export function App() {
   const [hasGeneratedResult, setHasGeneratedResult] = useState(false);
   const [apiSettings, setApiSettings] = useState<ApiSettings>(loadSettings);
   const [backendVerification, setBackendVerification] = useState<VerificationResponse | null>(null);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [optimizationResult, setOptimizationResult] = useState<OptimizationResponse | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
@@ -229,12 +230,15 @@ export function App() {
       // Run real backend verification in parallel (AST, imports, pytest, runtime, mypy)
       setIsVerifying(true);
       setBackendVerification(null);
+      setVerificationError(null);
       try {
         const verification = await runBackendVerification(data.generatedCode);
         setBackendVerification(verification);
         console.log('Backend verification:', verification);
       } catch (verifyErr) {
-        console.warn('Backend verification failed (backend may be offline):', verifyErr);
+        const msg = verifyErr instanceof Error ? verifyErr.message : String(verifyErr);
+        console.warn('Backend verification failed:', verifyErr);
+        setVerificationError(msg);
       } finally {
         setIsVerifying(false);
       }
@@ -243,6 +247,23 @@ export function App() {
       setErrorMessage(err instanceof Error ? err.message : 'An unknown error occurred');
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleRetryVerification = async () => {
+    if (!resultData?.generatedCode || resultData.generatedCode.length === 0) return;
+    setIsVerifying(true);
+    setVerificationError(null);
+    try {
+      const verification = await runBackendVerification(resultData.generatedCode);
+      setBackendVerification(verification);
+      console.log('Backend verification retry succeeded:', verification);
+    } catch (verifyErr) {
+      const msg = verifyErr instanceof Error ? verifyErr.message : String(verifyErr);
+      console.warn('Backend verification retry failed:', verifyErr);
+      setVerificationError(msg);
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -329,7 +350,9 @@ export function App() {
               }
             }}
             backendVerification={backendVerification}
+            verificationError={verificationError}
             isVerifying={isVerifying}
+            onRetryVerification={handleRetryVerification}
           />
         )}
         {currentStep === 4 && (
