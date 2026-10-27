@@ -1,0 +1,15 @@
+**/.git
+**/.github
+**/.vscode
+**/node_modules
+**/dist
+**/bin
+**/obj
+**/.pytest_cache
+**/.mypy_cache
+**/.hypothesis
+*.pdf
+*.png
+*.deb
+*.email
+*.txt
