@@ -1,0 +1,34 @@
+name: Keep Render Backend Alive
+
+on:
+  schedule:
+    # Runs every 10 minutes (cron runs UTC)
+    - cron: '*/10 * * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Backend
+        run: |
+          URL="${{ secrets.RENDER_BACKEND_URL || vars.RENDER_BACKEND_URL }}"
+          if [ -z "$URL" ]; then
+            echo "RENDER_BACKEND_URL is not set yet in GitHub Secrets/Variables."
+            echo "Please set RENDER_BACKEND_URL (e.g. https://your-backend.onrender.com) in your GitHub repo settings."
+            exit 0
+          fi
+          
+          # Clean trailing slash and append /api/health
+          CLEAN_URL="${URL%/}/api/health"
+          echo "Pinging: $CLEAN_URL"
+          
+          # Perform GET request with a 30s timeout
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$CLEAN_URL" || echo "000")
+          echo "HTTP Response Status: $HTTP_STATUS"
+          
+          if [ "$HTTP_STATUS" -eq 200 ]; then
+            echo "Backend is healthy and active!"
+          else
+            echo "Received status $HTTP_STATUS (waking up or waiting for response)"
+          fi

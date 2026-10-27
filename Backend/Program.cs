@@ -33,6 +33,10 @@ builder.Services.AddScoped<OptimizationService>();
 builder.Services.AddSingleton<ITaxonomyProvider>(sp =>
     TaxonomyProvider.LoadOrThrow(sp.GetRequiredService<IConfiguration>()));
 
+// Keep-alive service to prevent Render from idling
+builder.Services.AddHttpClient("KeepAliveClient");
+builder.Services.AddHostedService<KeepAliveService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
