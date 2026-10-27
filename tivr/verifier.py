@@ -210,7 +210,7 @@ def _decode(data: bytes) -> str:
         return data.decode("utf-8", errors="replace")
 
 
-# ------------------------------------------------------------ static imports ---
+
 
 def _handler_names(node: ast.expr | None) -> set[str]:
     if node is None:
