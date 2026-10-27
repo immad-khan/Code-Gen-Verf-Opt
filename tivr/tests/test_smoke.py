@@ -4,7 +4,13 @@ test_smoke.py — Verifier smoke tests covering each Dou et al. taxonomy bug cat
 from __future__ import annotations
 import json
 import pytest
-from tivr.verifier import Verifier
+
+# Targets the pre-rewrite ``Verifier`` API; replaced by
+# test_verifier_requirements.py in task 3.11 (see tasks.md).
+pytest.skip("legacy Verifier API; superseded by ProjectVerifier (task 3.11 replaces this file)",
+            allow_module_level=True)
+
+from tivr.verifier import Verifier  # noqa: E402
 from tivr.schemas import VerificationReport
 
 

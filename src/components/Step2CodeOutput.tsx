@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { AIResultData, GeneratedCodeFile } from '../types';
-import { Code2, Check, Copy, Download, ArrowRight, ArrowLeft, RefreshCw, Server, Terminal, FolderTree } from 'lucide-react';
+import { AIResultData, AgentLog, GeneratedCodeFile } from '../types';
+import { Code2, Check, Copy, Download, ArrowRight, ArrowLeft, RefreshCw, Terminal, FolderTree } from 'lucide-react';
 import { VisualFileTree } from './VisualFileTree';
-import { PythonApiHarness } from './PythonApiHarness';
 
 interface Step2CodeOutputProps {
   result: AIResultData;
@@ -11,25 +10,31 @@ interface Step2CodeOutputProps {
   onRegenerate: () => void;
 }
 
-export const Step2CodeOutput = ({
-  result,
-  onProceedToVerification,
-  onBackToPrompt,
-  onRegenerate
-}: Step2CodeOutputProps) => {
+export interface CodeFileViewerProps {
+  files: GeneratedCodeFile[];
+  /** Generation log entries; the Agent Logs tab is shown only when provided. */
+  agentLogs?: AgentLog[];
+}
+
+type ViewerTab = 'tree' | 'code' | 'logs';
+
+/** Tabbed viewer for generated files: file tree, source, and (optionally) agent logs. */
+export const CodeFileViewer = ({ files, agentLogs }: CodeFileViewerProps) => {
   const [activeFileIndex, setActiveFileIndex] = useState(0);
-  const [activeTab, setActiveTab] = useState<'tree' | 'code' | 'sandbox' | 'logs'>('tree');
+  const [activeTab, setActiveTab] = useState<ViewerTab>('tree');
   const [copied, setCopied] = useState(false);
 
-  const activeFile: GeneratedCodeFile = result.generatedCode[activeFileIndex] || result.generatedCode[0];
+  const activeFile: GeneratedCodeFile | undefined = files[activeFileIndex] || files[0];
 
   const handleCopyCode = () => {
+    if (!activeFile) return;
     navigator.clipboard.writeText(activeFile.content);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleDownloadFile = () => {
+    if (!activeFile) return;
     const blob = new Blob([activeFile.content], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -42,10 +47,119 @@ export const Step2CodeOutput = ({
   const tabs = [
     { id: 'tree' as const, label: 'File Tree', Icon: FolderTree },
     { id: 'code' as const, label: 'Source', Icon: Code2 },
-    { id: 'sandbox' as const, label: 'Sandbox', Icon: Server },
-    { id: 'logs' as const, label: 'Agent Logs', Icon: Terminal },
+    ...(agentLogs ? [{ id: 'logs' as const, label: 'Agent Logs', Icon: Terminal }] : []),
   ];
 
+  return (
+    <div className="card overflow-hidden">
+      {/* Tabs */}
+      <div className="flex items-center justify-between gap-3 px-3 py-2.5 border-b border-[color:var(--color-hairline)]">
+        <div className="flex items-center gap-1 bg-[color:var(--color-surface-2)] rounded-xl p-1">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setActiveTab(t.id)}
+              aria-label={t.label}
+              aria-pressed={activeTab === t.id}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${activeTab === t.id
+                  ? 'bg-[color:var(--color-surface-3)] text-[color:var(--color-ink)] shadow-sm'
+                  : 'text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-ink-muted)]'
+                }`}
+            >
+              <t.Icon aria-hidden="true" className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{t.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'code' && activeFile && (
+          <div className="flex items-center gap-1.5">
+            <button type="button" onClick={handleCopyCode} aria-label={copied ? 'Copied' : `Copy ${activeFile.path}`} className="btn-ghost px-2.5 py-1.5 text-xs flex items-center gap-1.5 cursor-pointer">
+              {copied ? <Check aria-hidden="true" className="w-3.5 h-3.5 text-emerald-700" /> : <Copy aria-hidden="true" className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">{copied ? 'Copied' : 'Copy'}</span>
+            </button>
+            <button type="button" onClick={handleDownloadFile} aria-label={`Download ${activeFile.path}`} className="btn-ghost px-2.5 py-1.5 text-xs flex items-center gap-1.5 cursor-pointer">
+              <Download aria-hidden="true" className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Download</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Tab: File tree */}
+      {activeTab === 'tree' && (
+        <div className="p-4 md:p-5">
+          <VisualFileTree
+            files={files}
+            activeFileIndex={activeFileIndex}
+            onSelectFile={(idx) => setActiveFileIndex(idx)}
+          />
+        </div>
+      )}
+
+      {/* Tab: Code */}
+      {activeTab === 'code' && activeFile && (
+        <div className="flex flex-col">
+          {activeFile.description && (
+            <div className="px-4 py-3 border-b border-[color:var(--color-hairline)] bg-[color:var(--color-surface-2)]/40">
+              <span className="eyebrow text-[color:var(--color-brand-soft)]">What this file does</span>
+              <p className="text-xs text-[color:var(--color-ink-muted)] mt-1 leading-relaxed">{activeFile.description}</p>
+            </div>
+          )}
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-[color:var(--color-hairline)]">
+            <span aria-hidden="true" className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
+            <span aria-hidden="true" className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
+            <span aria-hidden="true" className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
+            <span className="ml-2 text-xs font-mono text-[color:var(--color-ink-faint)]">{activeFile.path}</span>
+          </div>
+          <div className="p-4 font-mono text-xs overflow-x-auto max-h-[520px] bg-[#0a0b0f]">
+            <table className="border-collapse">
+              <tbody>
+                {activeFile.content.split('\n').map((line, idx) => (
+                  <tr key={idx} className="hover:bg-white/[0.02]">
+                    <td className="w-10 select-none text-[color:var(--color-ink-faint)]/60 text-right pr-4 py-[1px] align-top">{idx + 1}</td>
+                    <td className="pl-4 py-[1px] whitespace-pre text-[color:var(--color-ink-muted)]">{line || ' '}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Logs */}
+      {activeTab === 'logs' && agentLogs && (
+        <div className="p-4 md:p-5 space-y-2.5">
+          {agentLogs.map((log, idx) => (
+            <div key={idx} className="card-quiet p-3.5 flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="w-7 h-7 rounded-lg bg-[#7c6cff]/12 text-[color:var(--color-brand-soft)] flex items-center justify-center shrink-0 mt-0.5">
+                  <Terminal aria-hidden="true" className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-[color:var(--color-ink)]">{log.agentName}</span>
+                    <span className="chip text-[10px] px-2 py-0.5">{log.role}</span>
+                  </div>
+                  <p className="text-xs text-[color:var(--color-ink-muted)] mt-0.5">{log.message}</p>
+                </div>
+              </div>
+              <span className="text-[10px] font-mono text-[color:var(--color-ink-faint)] shrink-0">{log.timestamp}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export const Step2CodeOutput = ({
+  result,
+  onProceedToVerification,
+  onBackToPrompt,
+  onRegenerate
+}: Step2CodeOutputProps) => {
   const stats: { label: string; value: string; warn?: boolean }[] = [
     { label: 'Generation time', value: `${(result.metrics.processingTimeMs / 1000).toFixed(1)}s` },
     { label: 'Files', value: String(result.generatedCode.length) },
@@ -83,110 +197,7 @@ export const Step2CodeOutput = ({
       </div>
 
       {/* Workspace */}
-      <div className="card overflow-hidden">
-        {/* Tabs */}
-        <div className="flex items-center justify-between gap-3 px-3 py-2.5 border-b border-[color:var(--color-hairline)]">
-          <div className="flex items-center gap-1 bg-[color:var(--color-surface-2)] rounded-xl p-1">
-            {tabs.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setActiveTab(t.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${activeTab === t.id
-                    ? 'bg-[color:var(--color-surface-3)] text-[color:var(--color-ink)] shadow-sm'
-                    : 'text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-ink-muted)]'
-                  }`}
-              >
-                <t.Icon className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">{t.label}</span>
-              </button>
-            ))}
-          </div>
-
-          {activeTab === 'code' && (
-            <div className="flex items-center gap-1.5">
-              <button onClick={handleCopyCode} className="btn-ghost px-2.5 py-1.5 text-xs flex items-center gap-1.5 cursor-pointer">
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                <span className="hidden sm:inline">{copied ? 'Copied' : 'Copy'}</span>
-              </button>
-              <button onClick={handleDownloadFile} className="btn-ghost px-2.5 py-1.5 text-xs flex items-center gap-1.5 cursor-pointer">
-                <Download className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Download</span>
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Tab: File tree */}
-        {activeTab === 'tree' && (
-          <div className="p-4 md:p-5">
-            <VisualFileTree
-              files={result.generatedCode}
-              activeFileIndex={activeFileIndex}
-              onSelectFile={(idx) => setActiveFileIndex(idx)}
-            />
-          </div>
-        )}
-
-        {/* Tab: Code */}
-        {activeTab === 'code' && (
-          <div className="flex flex-col">
-            {activeFile?.description && (
-              <div className="px-4 py-3 border-b border-[color:var(--color-hairline)] bg-[color:var(--color-surface-2)]/40">
-                <span className="eyebrow text-[color:var(--color-brand-soft)]">What this file does</span>
-                <p className="text-xs text-[color:var(--color-ink-muted)] mt-1 leading-relaxed">{activeFile.description}</p>
-              </div>
-            )}
-            <div className="flex items-center gap-2 px-4 py-2 border-b border-[color:var(--color-hairline)]">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
-              <span className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
-              <span className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
-              <span className="ml-2 text-xs font-mono text-[color:var(--color-ink-faint)]">{activeFile.path}</span>
-            </div>
-            <div className="p-4 font-mono text-xs overflow-x-auto max-h-[520px] bg-[#0a0b0f]">
-              <table className="border-collapse">
-                <tbody>
-                  {activeFile.content.split('\n').map((line, idx) => (
-                    <tr key={idx} className="hover:bg-white/[0.02]">
-                      <td className="w-10 select-none text-[color:var(--color-ink-faint)]/60 text-right pr-4 py-[1px] align-top">{idx + 1}</td>
-                      <td className="pl-4 py-[1px] whitespace-pre text-[color:var(--color-ink-muted)]">{line || ' '}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* Tab: Sandbox */}
-        {activeTab === 'sandbox' && (
-          <div className="p-4 md:p-5">
-            <PythonApiHarness />
-          </div>
-        )}
-
-        {/* Tab: Logs */}
-        {activeTab === 'logs' && (
-          <div className="p-4 md:p-5 space-y-2.5">
-            {result.agentLogs.map((log, idx) => (
-              <div key={idx} className="card-quiet p-3.5 flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-7 h-7 rounded-lg bg-[#7c6cff]/12 text-[color:var(--color-brand-soft)] flex items-center justify-center shrink-0 mt-0.5">
-                    <Terminal className="w-3.5 h-3.5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-[color:var(--color-ink)]">{log.agentName}</span>
-                      <span className="chip text-[10px] px-2 py-0.5">{log.role}</span>
-                    </div>
-                    <p className="text-xs text-[color:var(--color-ink-muted)] mt-0.5">{log.message}</p>
-                  </div>
-                </div>
-                <span className="text-[10px] font-mono text-[color:var(--color-ink-faint)] shrink-0">{log.timestamp}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <CodeFileViewer files={result.generatedCode} agentLogs={result.agentLogs} />
 
       {/* Footer actions */}
       <div className="flex flex-wrap items-center justify-between gap-3">

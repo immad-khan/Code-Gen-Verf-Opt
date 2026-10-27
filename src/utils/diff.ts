@@ -12,14 +12,24 @@ export interface DiffResult {
   isModified: boolean;
 }
 
+/** Splits text into lines; the empty string has no lines. */
+export function splitLines(text: string): string[] {
+  return text === '' ? [] : text.split('\n');
+}
+
 /**
  * Computes a line-by-line diff using standard Longest Common Subsequence (LCS).
+ *
+ * Lines are compared exactly (whitespace and trailing newlines are
+ * significant), so `isModified` is false iff `oldText === newText` (26.6).
+ * Unchanged plus removed lines reproduce the old text in order, and unchanged
+ * plus added lines reproduce the new text in order (26.5).
  */
 export function computeLineDiff(oldText: string, newText: string): DiffResult {
-  const oldLines = oldText ? oldText.split('\n') : [];
-  const newLines = newText ? newText.split('\n') : [];
+  const oldLines = splitLines(oldText);
+  const newLines = splitLines(newText);
 
-  if (oldText.trim() === newText.trim()) {
+  if (oldText === newText) {
     return {
       lines: newLines.map((text, idx) => ({
         type: 'unchanged',

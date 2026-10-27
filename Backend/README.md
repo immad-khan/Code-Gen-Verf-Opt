@@ -59,6 +59,35 @@ Response:
 }
 ```
 
+### POST /api/verification
+
+Runs 7-technique real execution verification (AST parsing, Import resolution, Pytest suite, Isolated runtime, Mypy type checking, Radon complexity, Semgrep security).
+
+Request body:
+```json
+{
+  "files": [ ... ]
+}
+```
+
+### POST /api/optimization/repair
+
+Executes the Dou et al. 2026 methodology:
+1. **Taxonomy Diagnosis**: Maps verification issues to Dou et al. taxonomy (Type A: Syntax A.1–A.3, Type B: Runtime B.1–B.5, Type C: Functional C.1–C.4).
+2. **Self-Critique Repair Loop**: Carries machine-verified compiler feedback and category guidance into repair prompts.
+3. **2 Iterations Budget**: Bounded k=2 repair loop tracking bug evolution across iterations and calculating Repair Success Rate (RSR).
+
+Request body:
+```json
+{
+  "files": [ ... ],
+  "originalPrompt": "Prompt description",
+  "apiSettings": { ... },
+  "verificationResult": { ... },
+  "maxIterations": 2
+}
+```
+
 ## Swagger UI
 
 You can access the Swagger UI at `http://localhost:5000/swagger` for testing the API.

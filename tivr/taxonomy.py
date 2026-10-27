@@ -1,129 +1,142 @@
 """
-taxonomy.py — Dou et al. bug taxonomy + the verified-signal -> category mapper.
+TIVR — Taxonomy-guided Iterative Verification and Repair.
+taxonomy.py — rule-based mapper from verified findings to Dou et al.'s taxonomy
+(design.md §1 "Ordered rules", §2 "TaxonomyMapper").
 
-THIS FILE IS THE PAPER'S NOVELTY. Dou et al. ask the LLM to self-critique
-using taxonomy knowledge; TIVR instead DETERMINES the category from
-verified execution evidence and hands the model both the category and the
-proof. That directly attacks the feedback-quality bottleneck (Olausson
-et al., ICLR 2024).
+Every taxonomy value (categories, priorities, repair hints, rules) comes from
+the shared Taxonomy_Definition loaded by ``taxonomy_def.load_definition``;
+nothing is hard-coded here (Req. 7.5).
 
-Taxonomy synchronized with Dou et al. (Sci China Inf Sci 2026):
-- 3 Primary Categories (Type A: Syntax Bug, Type B: Runtime Bug, Type C: Functional Bug)
-- 10 Secondary Categories (A.1 - A.3, B.1 - B.5, C.1 - C.4)
+Semantics:
+* Only blocking (correctness) findings are evaluated. Advisory findings never
+  carry a category (Req. 20.2).
+* Rules are evaluated in definition order; the first matching rule assigns the
+  finding's single category (Req. 7.4, 8.9).
+* A blocking finding matching no rule is ``UNMAPPED`` and stays visible in the
+  report (Req. 8.8, 9.8, 20.7).
+* Diagnoses: one per assigned category, sorted by priority, ``UNMAPPED`` last.
+* ``primary_state``: ``PASS`` iff the gate passes; otherwise the primary type of
+  the highest-priority category among correctness findings; ``UNMAPPED``-only
+  failures become ``C`` flagged as an unmapped-as-C assignment (Req. 15.4).
 """
 from __future__ import annotations
-import re
-from .schemas import Finding, TaxonomyDiagnosis, VerificationReport, BLOCKING
 
-TAXONOMY: dict[str, dict] = {
-    # --- Primary: Type A: Syntax Bug ---
-    "A.1": dict(primary="Type A: Syntax Bug", secondary="A.1 Incomplete syntax structure",
-                repair_hint="Syntax error detected at line(s). Unmatched delimiters (parentheses, brackets, braces) or missing colons/quotes detected. Complete all open code structures and output a syntactically valid block."),
-    "A.2": dict(primary="Type A: Syntax Bug", secondary="A.2 Incorrect indentation",
-                repair_hint="Indentation error detected. Check block nesting (if/for/def) and ensure consistent 4-space indentation across all lines without altering code logic."),
-    "A.3": dict(primary="Type A: Syntax Bug", secondary="A.3 Library import error",
-                repair_hint="Module import failure or forbidden scope import (e.g. star import inside function). Move standard/valid imports to the top level of the file and remove non-existent modules."),
+import dataclasses
+from functools import lru_cache
 
-    # --- Primary: Type B: Runtime Bug ---
-    "B.1": dict(primary="Type B: Runtime Bug", secondary="B.1 API misuse",
-                repair_hint="AttributeError or inappropriate operation on type. Verify object types before calling methods (e.g. dict vs list methods), and replace hallucinated APIs with standard library calls."),
-    "B.2": dict(primary="Type B: Runtime Bug", secondary="B.2 Definition missing",
-                repair_hint="NameError / UnboundLocalError: a variable, parameter, or helper function is referenced before assignment or misspelled. Check scoping and ensure initialization before use."),
-    "B.3": dict(primary="Type B: Runtime Bug", secondary="B.3 Incorrect boundary condition check",
-                repair_hint="Boundary execution crash (IndexError, KeyError, ValueError, ZeroDivisionError). Add explicit guards for empty inputs, zero denominators, and index ranges before access."),
-    "B.4": dict(primary="Type B: Runtime Bug", secondary="B.4 Incorrect argument",
-                repair_hint="TypeError in function call: argument count, positional/keyword mismatch, or expected parameter types. Adjust the function call arguments to match the definition signature."),
-    "B.5": dict(primary="Type B: Runtime Bug", secondary="B.5 Minors",
-                repair_hint="Runtime exception or execution timeout (e.g. RecursionError / Infinite loop). Add base case checks or loop exit conditions to ensure timely execution."),
+from .schemas import (
+    ADVISORY,
+    BLOCKING,
+    Diagnosis,
+    Finding,
+    MappedFinding,
+    PrimaryState,
+    VerificationReport,
+)
+from .taxonomy_def import TaxonomyDefinition, load_definition
 
-    # --- Primary: Type C: Functional Bug ---
-    "C.1": dict(primary="Type C: Functional Bug", secondary="C.1 Misunderstanding and logic error",
-                repair_hint="Functional assertion failure: algorithm misinterprets the core problem specification. Re-read the task constraints, trace expected vs actual values in evidence, and fix the core algorithm logic."),
-    "C.2": dict(primary="Type C: Functional Bug", secondary="C.2 Hallucination",
-                repair_hint="Code satisfies syntax but completely strays from problem goals (hallucinated problem transformation). Re-align the algorithm strictly with the problem prompt requirements."),
-    "C.3": dict(primary="Type C: Functional Bug", secondary="C.3 Input/output format error",
-                repair_hint="Return value or data structure mismatch (e.g., returning float instead of int, list instead of tuple, or wrong string formatting). Explicitly cast the return value to match the expected return type."),
-    "C.4": dict(primary="Type C: Functional Bug", secondary="C.4 Minors",
-                repair_hint="Minor algorithmic flaw or off-by-one error causing isolated test failures. Adjust boundary constants (e.g., `<` vs `<=`, initial accumulator values)."),
-}
-
-# Strict paper severity ordering: Syntax bugs (A.1-A.3) -> Runtime bugs (B.1-B.5) -> Functional bugs (C.1-C.4)
-PRIORITY = [
-    "A.1", "A.2", "A.3",
-    "B.1", "B.2", "B.3", "B.4", "B.5",
-    "C.1", "C.2", "C.3", "C.4"
-]
+_FINDING_FIELDS = tuple(f.name for f in dataclasses.fields(Finding))
 
 
-# ---------------------------------------------------------------------
-# Mapping rules: (predicate over Finding, taxonomy_id, confidence)
-# Evaluated top-down; first match per finding wins.
-# ---------------------------------------------------------------------
-def _rules():
-    return [
-        (lambda f: f.signal == "SyntaxError:truncated",             "A.1", 0.95),
-        (lambda f: "IndentationError" in f.signal
-                   or "TabError" in f.signal,                       "A.2", 0.95),
-        (lambda f: f.technique == "syntax",                         "A.1", 0.90),
-        (lambda f: f.signal == "ModuleNotFoundError"
-                   or f.technique == "imports",                     "A.3", 0.90),
-        (lambda f: "NameError" in f.signal
-                   or "UnboundLocalError" in f.signal,              "B.2", 0.90),
-        (lambda f: "AttributeError" in f.signal
-                   or "TypeError" in f.signal,                      "B.1", 0.85),
-        (lambda f: re.search(r"(Index|Key|Value|ZeroDivision|Overflow)Error",
-                             f.signal) is not None,                 "B.3", 0.85),
-        (lambda f: f.signal == "Timeout"
-                   or "RecursionError" in f.signal,                 "B.5", 0.85),
-        (lambda f: f.signal.startswith("test_failure"),             "C.1", 0.60),
-    ]
+def _first_line(text: str) -> str:
+    return text.splitlines()[0] if text else ""
 
 
-def map_report(report: VerificationReport) -> None:
-    """Fill report.diagnoses and report.repair_priority in place."""
-    blocking = report.blocking()
-    hits: dict[str, TaxonomyDiagnosis] = {}
-    for f in blocking:
-        for pred, tid, conf in _rules():
-            if pred(f):
-                f.taxonomy_id = tid
-                d = hits.get(tid)
-                if d is None:
-                    t = TAXONOMY[tid]
-                    hits[tid] = TaxonomyDiagnosis(
-                        taxonomy_id=tid, primary=t["primary"],
-                        secondary=t["secondary"], confidence=conf,
-                        evidence_summary=f.message,
-                        repair_hint=t["repair_hint"],
-                        source_signals=[f.signal])
+class TaxonomyMapper:
+    """Evaluates the definition's ordered rules against findings."""
+
+    def __init__(self, definition: TaxonomyDefinition):
+        self.definition = definition
+
+    # ---- single finding ---------------------------------------------
+    def map_finding(self, f: Finding) -> MappedFinding:
+        """First matching rule wins; no match -> ``UNMAPPED``; advisory -> no category."""
+        base = {name: getattr(f, name) for name in _FINDING_FIELDS}
+        if f.severity == ADVISORY:
+            return MappedFinding(**base)
+        for rule in self.definition.rules:
+            if rule.matches(f.technique, f.signal, f.message):
+                return MappedFinding(**base, category=rule.category,
+                                     rule_id=rule.id, confidence=rule.confidence)
+        return MappedFinding(**base, category=self.definition.unmapped.id)
+
+    # ---- whole report -----------------------------------------------
+    def map_report(self, report: VerificationReport) -> None:
+        """Map every correctness finding in place and rebuild ``report.diagnoses``."""
+        report.correctness = [self.map_finding(f) for f in report.correctness]
+        report.diagnoses = self.diagnoses(report.correctness)
+
+    def diagnoses(self, findings: list[MappedFinding]) -> list[Diagnosis]:
+        """One diagnosis per category among blocking findings, sorted by priority."""
+        defn = self.definition
+        by_cat: dict[str, Diagnosis] = {}
+        for f in findings:
+            if f.severity != BLOCKING or f.category is None:
+                continue
+            d = by_cat.get(f.category)
+            if d is None:
+                if f.category == defn.unmapped.id:
+                    d = Diagnosis(category=f.category, primary=None, secondary=None,
+                                  priority=defn.unmapped.priority, confidence=None,
+                                  repair_hint=defn.unmapped.repair_hint)
                 else:
-                    d.source_signals.append(f.signal)
-                    d.confidence = min(0.99, d.confidence + 0.05)
-                break
-
-    # --- Functional refinement heuristics (assertion failures) ----
-    c1 = hits.get("C.1")
-    if c1 is not None:
-        total = report.metrics.get("tests_passed", 0) + \
-                report.metrics.get("tests_failed", 0)
-        failed = report.metrics.get("tests_failed", 0)
-        format_err = any(re.search(r"format|type|cast|float|int|str|precision|tuple|list",
-                                   s, re.I) for s in c1.source_signals)
-        if format_err:
-            _reclassify(hits, "C.1", "C.3", 0.75)   # Output format mismatch
-        elif total > 0 and failed / total >= 0.8:
-            _reclassify(hits, "C.1", "C.1", 0.80)
-
-    report.diagnoses = sorted(hits.values(),
-                              key=lambda d: PRIORITY.index(d.taxonomy_id))
-    report.repair_priority = [d.taxonomy_id for d in report.diagnoses]
+                    cat = defn.categories[f.category]
+                    d = Diagnosis(category=cat.id, primary=cat.primary,
+                                  secondary=cat.name, priority=cat.priority,
+                                  confidence=f.confidence,
+                                  repair_hint=cat.repair_hint)
+                d.evidence_summary = f"{f.signal}: {_first_line(f.message)}"
+                by_cat[f.category] = d
+            elif f.confidence is not None:
+                d.confidence = (f.confidence if d.confidence is None
+                                else max(d.confidence, f.confidence))
+            if f.signal not in d.signals:
+                d.signals.append(f.signal)
+            if f.rule_id is not None and f.rule_id not in d.rule_ids:
+                d.rule_ids.append(f.rule_id)
+        return sorted(by_cat.values(), key=lambda d: d.priority)
 
 
-def _reclassify(hits: dict, old: str, new: str, conf: float) -> None:
-    if old not in hits:
-        return
-    d = hits.pop(old)
-    t = TAXONOMY[new]
-    d.taxonomy_id, d.primary, d.secondary = new, t["primary"], t["secondary"]
-    d.repair_hint, d.confidence = t["repair_hint"], conf
-    hits[new] = d
+@lru_cache(maxsize=1)
+def default_mapper() -> TaxonomyMapper:
+    """Mapper over the default Taxonomy_Definition (loaded once per process)."""
+    return TaxonomyMapper(load_definition())
+
+
+def map_report(report: VerificationReport, definition: TaxonomyDefinition | None = None) -> None:
+    """Module-level convenience: map ``report`` in place."""
+    mapper = TaxonomyMapper(definition) if definition is not None else default_mapper()
+    mapper.map_report(report)
+
+
+def primary_state(report: VerificationReport,
+                  definition: TaxonomyDefinition | None = None) -> tuple[str, bool]:
+    """Return ``(state, unmapped_as_c)`` for ``report``.
+
+    ``("PASS", False)`` iff the correctness gate passes. Otherwise the primary
+    type of the highest-priority category among the correctness findings
+    (advisory findings never count, Req. 20.3). A failure with no A/B/C
+    category (UNMAPPED-only, or an incomplete verification with no findings)
+    is ``C`` with ``unmapped_as_c=True`` (Req. 15.4).
+    """
+    if report.gate_passed():
+        return PrimaryState.PASS, False
+    mapper = TaxonomyMapper(definition) if definition is not None else default_mapper()
+    defn = mapper.definition
+    best = None
+    for f in report.correctness:
+        if f.severity != BLOCKING:
+            continue
+        category = getattr(f, "category", None)
+        if category is None:
+            category = mapper.map_finding(f).category
+        if category == defn.unmapped.id:
+            continue
+        if best is None or defn.priority(category) < defn.priority(best):
+            best = category
+    if best is None:
+        return defn.unmapped.primary_state, True
+    return defn.categories[best].primary, False
+
+
+__all__ = ["TaxonomyMapper", "default_mapper", "map_report", "primary_state"]

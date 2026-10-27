@@ -1,10 +1,16 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Backend.Models;
+using Microsoft.Extensions.Options;
 
 namespace Backend.Services;
 
-public class AiService
+/// <summary>
+/// Provider calls for OpenAI, Groq, Anthropic, and Gemini: JSON-mode code generation for the
+/// current UI and plain-text completion (<see cref="ILlmClient"/>) for the repair loop.
+/// </summary>
+public class AiService : ILlmClient
 {
     private const string SYSTEM_PROMPT = """
         You are MACI, a Python code generation system used for research purposes.
@@ -24,7 +30,7 @@ public class AiService
 
         4. Always include at least one test file with pytest-compatible test functions (def test_...).
 
-        5. Return ONLY a valid JSON object with this structure — no markdown fences, no prose:
+        5. Return ONLY a valid JSON object with this structure â€” no markdown fences, no prose:
         {
           "summary": "one-line description of what was built",
           "files": [
@@ -36,156 +42,269 @@ public class AiService
         Every file's content must contain the ACTUAL FULL PYTHON CODE, not a stub or placeholder. Do not leave the content field empty.
         """;
 
-    private readonly HttpClient _httpClient;
+    // Generation (JSON file list) keeps its historical temperature.
+    private const double GenerationTemperature = 0.1;
+    private const int AnthropicMaxTokens = 8000;
+    private const int MaxErrorDetailLength = 300;
 
-    public AiService(HttpClient httpClient)
+    private readonly HttpClient _httpClient;
+    private readonly TimeSpan _timeout;
+
+    public AiService(HttpClient httpClient, IOptions<LlmClientOptions> options)
     {
         _httpClient = httpClient;
+        var seconds = options.Value.TimeoutSeconds;
+        if (!(seconds > 0) || double.IsInfinity(seconds))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(options), seconds, $"{LlmClientOptions.SectionName}:TimeoutSeconds must be a positive number.");
+        }
+        _timeout = TimeSpan.FromSeconds(seconds);
     }
 
-    public async Task<List<GeneratedCodeFile>> ProcessPromptAsync(string prompt, ApiSettings settings)
+    /// <summary>Effective per-request timeout (from <c>Llm:TimeoutSeconds</c>).</summary>
+    public TimeSpan Timeout => _timeout;
+
+    public async Task<List<GeneratedCodeFile>> ProcessPromptAsync(string prompt, ApiSettings settings, CancellationToken ct = default)
     {
-        var rawResponse = await CallProviderAsync(prompt, settings, 0.1);
+        var rawResponse = await SendAsync(prompt, SYSTEM_PROMPT, settings, GenerationTemperature, jsonMode: true, ct);
         var parsed = ExtractJson(rawResponse);
         return NormalizeFiles(parsed);
     }
 
+    // Legacy JSON-mode repair; replaced by the OptimizationService rewrite (task 12.6).
     public async Task<(List<GeneratedCodeFile> Files, string RawResponse)> RepairCodeAsync(string repairPrompt, ApiSettings settings, string? customSystemPrompt = null)
     {
-        var rawResponse = await CallProviderAsync(repairPrompt, settings, 0.1, customSystemPrompt);
+        var rawResponse = await SendAsync(repairPrompt, customSystemPrompt ?? SYSTEM_PROMPT, settings, GenerationTemperature, jsonMode: true, CancellationToken.None);
         var parsed = ExtractJson(rawResponse);
         var files = NormalizeFiles(parsed);
         return (files, rawResponse);
     }
 
-    private async Task<string> CallProviderAsync(string prompt, ApiSettings settings, double temperature, string? customSystemPrompt = null)
+    /// <inheritdoc />
+    public Task<string> CompleteTextAsync(
+        string prompt, string systemPrompt, ApiSettings settings, double temperature, CancellationToken ct = default)
+        => SendAsync(prompt, systemPrompt, settings, temperature, jsonMode: false, ct);
+
+    private async Task<string> SendAsync(
+        string prompt, string systemPrompt, ApiSettings settings, double temperature, bool jsonMode, CancellationToken ct)
     {
-        var sys = customSystemPrompt ?? SYSTEM_PROMPT;
-        return settings.Provider.ToLower() switch
+        var provider = (settings.Provider ?? "").Trim().ToLowerInvariant();
+        if (provider is not ("openai" or "groq" or "anthropic" or "gemini"))
         {
-            "openai" => await CallOpenAIAsync(prompt, settings.ApiKey, settings.Model, temperature, sys),
-            "groq" => await CallGroqAsync(prompt, settings.ApiKey, settings.Model, temperature, sys),
-            "anthropic" => await CallAnthropicAsync(prompt, settings.ApiKey, settings.Model, temperature, sys),
-            "gemini" => await CallGeminiAsync(prompt, settings.ApiKey, settings.Model, temperature, sys),
-            _ => throw new ArgumentException("Invalid provider")
-        };
-    }
+            throw new LlmRequestException(provider, $"LLM request failed: unsupported provider '{settings.Provider}'.");
+        }
 
-    private async Task<string> CallOpenAIAsync(string prompt, string apiKey, string model, double temperature, string systemPrompt)
-    {
-        var requestBody = new
+        var name = DisplayName(provider);
+        var apiKey = settings.ApiKey ?? "";
+        if (string.IsNullOrWhiteSpace(apiKey))
         {
-            model,
-            temperature,
-            response_format = new { type = "json_object" },
-            messages = new[]
-            {
-                new { role = "system", content = systemPrompt },
-                new { role = "user", content = prompt }
-            }
-        };
+            throw new LlmRequestException(provider, $"LLM request to {name} failed: no API key configured.");
+        }
 
-        var json = JsonSerializer.Serialize(requestBody);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-        _httpClient.DefaultRequestHeaders.Clear();
-        _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
-
-        var response = await _httpClient.PostAsync("https://api.openai.com/v1/chat/completions", content);
-        response.EnsureSuccessStatusCode();
-
-        var responseJson = await response.Content.ReadAsStringAsync();
-        var doc = JsonDocument.Parse(responseJson);
-        return doc.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "";
-    }
-
-    private async Task<string> CallGroqAsync(string prompt, string apiKey, string model, double temperature, string systemPrompt)
-    {
-        var requestBody = new
-        {
-            model,
-            temperature,
-            response_format = new { type = "json_object" },
-            messages = new[]
-            {
-                new { role = "system", content = systemPrompt },
-                new { role = "user", content = prompt }
-            }
-        };
-
-        var json = JsonSerializer.Serialize(requestBody);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-        _httpClient.DefaultRequestHeaders.Clear();
-        _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
+        using var request = BuildRequest(provider, prompt, systemPrompt, settings.Model ?? "", apiKey, temperature, jsonMode);
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(_timeout);
 
         try
         {
-            var response = await _httpClient.PostAsync("https://api.groq.com/openai/v1/chat/completions", content);
-            var responseJson = await response.Content.ReadAsStringAsync();
-            
+            using var response = await _httpClient.SendAsync(request, timeoutCts.Token);
+            var body = await response.Content.ReadAsStringAsync(timeoutCts.Token);
+
             if (!response.IsSuccessStatusCode)
             {
-                return $"Groq {response.StatusCode}: {responseJson}";
+                // Groq JSON mode reports invalid JSON as HTTP 400 with "failed_generation";
+                // the generation path salvages the files from it (see ExtractJson).
+                if (jsonMode && provider == "groq" && (int)response.StatusCode == 400 && body.Contains("failed_generation"))
+                {
+                    return body;
+                }
+                throw HttpError(provider, (int)response.StatusCode, response.ReasonPhrase, body, apiKey);
             }
-            
-            var doc = JsonDocument.Parse(responseJson);
-            return doc.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "";
+
+            return ParseText(provider, body);
         }
-        catch (Exception ex)
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            return $"Groq Error: {ex.Message}";
+            throw new LlmRequestException(
+                provider, $"LLM request to {name} failed: timed out after {_timeout.TotalSeconds.ToString("0.###", CultureInfo.InvariantCulture)} s.");
+        }
+        catch (HttpRequestException ex)
+        {
+            // The inner exception is not attached so nothing provider-supplied escapes unredacted.
+            throw new LlmRequestException(
+                provider,
+                $"LLM request to {name} failed: {ex.GetType().Name}: {Redact(ex.Message, apiKey)}",
+                ex.StatusCode is { } status ? (int)status : null);
         }
     }
 
-    private async Task<string> CallAnthropicAsync(string prompt, string apiKey, string model, double temperature, string systemPrompt)
+    /// <summary>
+    /// Builds the provider request. Keys travel only in headers (never in the URL), the
+    /// temperature is serialized unchanged, and JSON response mode is requested only for generation.
+    /// </summary>
+    private static HttpRequestMessage BuildRequest(
+        string provider, string prompt, string systemPrompt, string model, string apiKey, double temperature, bool jsonMode)
     {
-        var requestBody = new
+        HttpRequestMessage request;
+        object body;
+
+        switch (provider)
         {
-            model,
-            temperature,
-            max_tokens = 8000,
-            system = systemPrompt,
-            messages = new[] { new { role = "user", content = prompt } }
-        };
+            case "openai":
+            case "groq":
+            {
+                var url = provider == "openai"
+                    ? "https://api.openai.com/v1/chat/completions"
+                    : "https://api.groq.com/openai/v1/chat/completions";
+                var payload = new Dictionary<string, object>
+                {
+                    ["model"] = model,
+                    ["temperature"] = temperature,
+                    ["messages"] = new[]
+                    {
+                        new { role = "system", content = systemPrompt },
+                        new { role = "user", content = prompt },
+                    },
+                };
+                if (jsonMode)
+                {
+                    payload["response_format"] = new { type = "json_object" };
+                }
+                body = payload;
+                request = new HttpRequestMessage(HttpMethod.Post, url);
+                request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {apiKey}");
+                break;
+            }
+            case "anthropic":
+            {
+                // Anthropic has no JSON response mode; the payload is identical in both modes.
+                body = new
+                {
+                    model,
+                    temperature,
+                    max_tokens = AnthropicMaxTokens,
+                    system = systemPrompt,
+                    messages = new[] { new { role = "user", content = prompt } },
+                };
+                request = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
+                request.Headers.TryAddWithoutValidation("x-api-key", apiKey);
+                request.Headers.TryAddWithoutValidation("anthropic-version", "2023-06-01");
+                break;
+            }
+            default: // gemini
+            {
+                var generationConfig = new Dictionary<string, object> { ["temperature"] = temperature };
+                if (jsonMode)
+                {
+                    generationConfig["responseMimeType"] = "application/json";
+                }
+                body = new
+                {
+                    generationConfig,
+                    systemInstruction = new { parts = new[] { new { text = systemPrompt } } },
+                    contents = new[] { new { role = "user", parts = new[] { new { text = prompt } } } },
+                };
+                var url = $"https://generativelanguage.googleapis.com/v1beta/models/{Uri.EscapeDataString(model)}:generateContent";
+                request = new HttpRequestMessage(HttpMethod.Post, url);
+                request.Headers.TryAddWithoutValidation("x-goog-api-key", apiKey);
+                break;
+            }
+        }
 
-        var json = JsonSerializer.Serialize(requestBody);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-        _httpClient.DefaultRequestHeaders.Clear();
-        _httpClient.DefaultRequestHeaders.Add("x-api-key", apiKey);
-        _httpClient.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
-
-        var response = await _httpClient.PostAsync("https://api.anthropic.com/v1/messages", content);
-        response.EnsureSuccessStatusCode();
-
-        var responseJson = await response.Content.ReadAsStringAsync();
-        var doc = JsonDocument.Parse(responseJson);
-        return doc.RootElement.GetProperty("content")[0].GetProperty("text").GetString() ?? "";
+        request.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
+        return request;
     }
 
-    private async Task<string> CallGeminiAsync(string prompt, string apiKey, string model, double temperature, string systemPrompt)
+    private static string ParseText(string provider, string responseJson)
     {
-        var requestBody = new
+        try
         {
-            generationConfig = new { temperature, responseMimeType = "application/json" },
-            systemInstruction = new { parts = new[] { new { text = systemPrompt } } },
-            contents = new[] { new { role = "user", parts = new[] { new { text = prompt } } } }
-        };
-
-        var json = JsonSerializer.Serialize(requestBody);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-        var response = await _httpClient.PostAsync(
-            $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={Uri.EscapeDataString(apiKey)}", 
-            content
-        );
-        response.EnsureSuccessStatusCode();
-
-        var responseJson = await response.Content.ReadAsStringAsync();
-        var doc = JsonDocument.Parse(responseJson);
-        return doc.RootElement.GetProperty("candidates")[0].GetProperty("content").GetProperty("parts")[0].GetProperty("text").GetString() ?? "";
+            using var doc = JsonDocument.Parse(responseJson);
+            var root = doc.RootElement;
+            switch (provider)
+            {
+                case "openai":
+                case "groq":
+                    return root.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "";
+                case "anthropic":
+                {
+                    var sb = new StringBuilder();
+                    foreach (var block in root.GetProperty("content").EnumerateArray())
+                    {
+                        if (block.TryGetProperty("type", out var type) && type.GetString() != "text") continue;
+                        if (block.TryGetProperty("text", out var text)) sb.Append(text.GetString());
+                    }
+                    return sb.ToString();
+                }
+                default: // gemini
+                {
+                    var sb = new StringBuilder();
+                    foreach (var part in root.GetProperty("candidates")[0].GetProperty("content").GetProperty("parts").EnumerateArray())
+                    {
+                        if (part.TryGetProperty("text", out var text)) sb.Append(text.GetString());
+                    }
+                    return sb.ToString();
+                }
+            }
+        }
+        catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException or IndexOutOfRangeException)
+        {
+            throw new LlmRequestException(provider, $"LLM request to {DisplayName(provider)} failed: unexpected response format.");
+        }
     }
+
+    private static LlmRequestException HttpError(string provider, int status, string? reason, string body, string apiKey)
+    {
+        var detail = Redact(ErrorDetail(body), apiKey);
+        detail = string.Join(' ', detail.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        if (detail.Length > MaxErrorDetailLength) detail = detail[..MaxErrorDetailLength] + "...";
+
+        var message = $"LLM request to {DisplayName(provider)} failed: HTTP {status}"
+            + (string.IsNullOrWhiteSpace(reason) ? "" : $" {reason}")
+            + (detail.Length == 0 ? "." : $": {detail}");
+        return new LlmRequestException(provider, message, status);
+    }
+
+    /// <summary>Provider error text: <c>error.message</c> when present, else the raw body.</summary>
+    private static string ErrorDetail(string body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.ValueKind == JsonValueKind.Object &&
+                doc.RootElement.TryGetProperty("error", out var error))
+            {
+                if (error.ValueKind == JsonValueKind.Object &&
+                    error.TryGetProperty("message", out var msg) && msg.ValueKind == JsonValueKind.String)
+                {
+                    return msg.GetString() ?? "";
+                }
+                if (error.ValueKind == JsonValueKind.String) return error.GetString() ?? "";
+            }
+        }
+        catch (JsonException)
+        {
+            // Not JSON; fall back to the raw body.
+        }
+        return body;
+    }
+
+    private static string Redact(string text, string apiKey)
+    {
+        if (string.IsNullOrEmpty(text) || apiKey.Length < 4) return text;
+        return text.Replace(apiKey, "[redacted]", StringComparison.Ordinal)
+                   .Replace(apiKey.Trim(), "[redacted]", StringComparison.Ordinal);
+    }
+
+    private static string DisplayName(string provider) => provider switch
+    {
+        "openai" => "OpenAI",
+        "groq" => "Groq",
+        "anthropic" => "Anthropic",
+        "gemini" => "Gemini",
+        _ => provider,
+    };
 
     private JsonElement? ExtractJson(string text)
     {

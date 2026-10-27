@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ApiSettings } from '../types';
 import { X, Key, Check, Shield, AlertTriangle, Loader2, Wifi, WifiOff, Pencil, ListFilter } from 'lucide-react';
 import { testApiKey } from '../services/aiService';
+import { FOCUS_RING } from './common/asyncStateModel';
 
 export interface ApiSettingsModalProps {
   isOpen: boolean;
@@ -67,6 +68,65 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
+  // Accessibility refs
+  const modalRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const firstProviderButtonRef = useRef<HTMLButtonElement>(null);
+  const openerElementRef = useRef<HTMLElement | null>(null);
+
+  // Store which element opened the modal for focus return
+  useEffect(() => {
+    if (isOpen && !openerElementRef.current) {
+      openerElementRef.current = document.activeElement as HTMLElement;
+    } else if (!isOpen && openerElementRef.current) {
+      // Focus returns to the element that opened the modal
+      openerElementRef.current?.focus();
+      openerElementRef.current = null;
+    }
+  }, [isOpen]);
+
+  // Focus management
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+      
+      // Trap focus within modal
+      if (e.key === 'Tab' && modalRef.current) {
+        const focusableElements = modalRef.current.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        const firstElement = focusableElements[0] as HTMLElement;
+        const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+
+        if (e.shiftKey && document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        } else if (!e.shiftKey && document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    
+    // Focus the first focusable element when modal opens
+    setTimeout(() => {
+      if (closeButtonRef.current) {
+        closeButtonRef.current.focus();
+      }
+    }, 10);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
   useEffect(() => {
     const p = PROVIDERS.find(x => x.id === provider)!;
     if (!isCustomModel && !p.models.includes(model)) {
@@ -130,34 +190,58 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-4" onClick={onClose}>
-      <div className="card max-w-xl w-full p-6 relative animate-fade-up" onClick={(e) => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-4 right-4 text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-ink)] transition cursor-pointer">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-4" 
+      onClick={onClose}
+      role="none"
+    >
+      <div 
+        ref={modalRef}
+        className="card max-w-xl w-full p-6 relative animate-fade-up" 
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-modal-title"
+        aria-describedby="settings-modal-description"
+      >
+        <button 
+          ref={closeButtonRef}
+          onClick={onClose}
+          className={`absolute top-4 right-4 text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-ink)] transition cursor-pointer rounded ${FOCUS_RING}`}
+          aria-label="Close settings dialog"
+        >
           <X className="w-5 h-5" />
+          <span className="sr-only">Close settings dialog</span>
         </button>
 
         {/* Header */}
         <div className="flex items-start gap-3 mb-6 pr-6">
-          <div className="w-10 h-10 rounded-xl bg-[#7c6cff]/12 text-[color:var(--color-brand-soft)] flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-[#7c6cff]/12 text-[color:var(--color-brand-soft)] flex items-center justify-center" aria-hidden="true">
             <Key className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="font-semibold text-[color:var(--color-ink)] text-base">Connect your AI provider</h3>
-            <p className="text-xs text-[color:var(--color-ink-muted)] mt-0.5">
+            <h3 id="settings-modal-title" className="font-semibold text-[color:var(--color-ink)] text-base">
+              Connect your AI provider
+            </h3>
+            <p id="settings-modal-description" className="text-xs text-[color:var(--color-ink-muted)] mt-0.5">
               Your API key stays in your browser's localStorage. Nothing leaves your device except the actual API call.
             </p>
           </div>
         </div>
 
         {/* Provider grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-5">
-          {PROVIDERS.map((p) => (
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-5" role="radiogroup" aria-label="AI provider selection">
+          {PROVIDERS.map((p, index) => (
             <button
               key={p.id}
+              ref={index === 0 ? firstProviderButtonRef : undefined}
               onClick={() => setProvider(p.id)}
-              className={`card-quiet p-3 text-center transition cursor-pointer ${
+              className={`card-quiet p-3 text-center transition cursor-pointer ${FOCUS_RING} ${
                 provider === p.id ? 'border-[#7c6cff]/50 bg-[#7c6cff]/10' : 'hover:border-[#33384a]'
               }`}
+              role="radio"
+              aria-checked={provider === p.id}
+              aria-label={`${p.name} provider`}
             >
               <div className={`text-xs font-semibold ${provider === p.id ? 'text-[color:var(--color-ink)]' : 'text-[color:var(--color-ink-muted)]'}`}>{p.name}</div>
             </button>
@@ -166,27 +250,30 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
 
         {/* API key */}
         <div className="mb-4">
-          <label className="eyebrow mb-1.5 block">API Key</label>
+          <label htmlFor="api-key-input" className="eyebrow mb-1.5 block">API Key</label>
           <div className="relative">
-            <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[color:var(--color-ink-faint)]" />
+            <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[color:var(--color-ink-faint)]" aria-hidden="true" />
             <input
+              id="api-key-input"
               type="password"
               value={apiKey}
               onChange={(e) => { setApiKey(e.target.value); setTestResult(null); }}
               placeholder={`${providerMeta.envVar} — paste your key here or set VITE_${providerMeta.envVar} in .env`}
-              className="input-field w-full pl-10 pr-28 py-2.5 text-sm font-mono"
+              className={`input-field w-full pl-10 pr-28 py-2.5 text-sm font-mono ${FOCUS_RING}`}
               autoComplete="off"
+              aria-describedby="api-key-description"
             />
             <button
               onClick={handleTest}
               disabled={!apiKey.trim() || apiKey.trim().length <= 8 || testing}
-              className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 text-xs font-semibold rounded-lg bg-[#7c6cff]/20 text-[color:var(--color-brand-soft)] hover:bg-[#7c6cff]/40 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1.5 cursor-pointer"
+              className={`absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 text-xs font-semibold rounded-lg bg-[#7c6cff]/20 text-[color:var(--color-brand-soft)] hover:bg-[#7c6cff]/40 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1.5 cursor-pointer ${FOCUS_RING}`}
+              aria-label={testing ? "Testing API key connection" : "Test API key connection"}
             >
-              {testing ? <><Loader2 className="w-3 h-3 animate-spin" /> Testing…</> : <>Test</>}
+              {testing ? <><Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" /> Testing…</> : <>Test</>}
             </button>
           </div>
-          <p className="text-[10px] text-[color:var(--color-ink-faint)] mt-1.5 flex items-center gap-1">
-            <Shield className="w-3 h-3" />
+          <p id="api-key-description" className="text-[10px] text-[color:var(--color-ink-faint)] mt-1.5 flex items-center gap-1">
+            <Shield className="w-3 h-3" aria-hidden="true" />
             Stored locally · Sent only to {providerMeta.name}
           </p>
         </div>
@@ -194,7 +281,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
         {/* Model */}
         <div className="mb-4">
           <div className="flex items-center justify-between mb-1.5">
-            <label className="eyebrow">Model</label>
+            <label htmlFor="model-select" className="eyebrow">Model</label>
             <button
               type="button"
               onClick={() => {
@@ -206,16 +293,17 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
                 }
                 setTestResult(null);
               }}
-              className="text-xs text-[color:var(--color-brand-soft)] hover:text-[#9e90ff] flex items-center gap-1.5 cursor-pointer font-medium transition"
+              className={`text-xs text-[color:var(--color-brand-soft)] hover:text-[#9e90ff] flex items-center gap-1.5 cursor-pointer font-medium transition rounded ${FOCUS_RING}`}
+              aria-label={isCustomModel ? "Switch to preset model list" : "Switch to custom model input"}
             >
               {isCustomModel ? (
                 <>
-                  <ListFilter className="w-3.5 h-3.5" />
+                  <ListFilter className="w-3.5 h-3.5" aria-hidden="true" />
                   <span>Choose from presets</span>
                 </>
               ) : (
                 <>
-                  <Pencil className="w-3 h-3" />
+                  <Pencil className="w-3 h-3" aria-hidden="true" />
                   <span>Write model name yourself</span>
                 </>
               )}
@@ -225,6 +313,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
           {isCustomModel ? (
             <div className="space-y-1.5">
               <input
+                id="custom-model-input"
                 type="text"
                 value={model}
                 onChange={(e) => {
@@ -232,10 +321,11 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
                   setTestResult(null);
                 }}
                 placeholder={`Type model name (e.g. ${providerMeta.models[0]}, deepseek-chat)`}
-                className="input-field w-full px-3 py-2.5 text-sm font-mono text-[color:var(--color-ink)]"
+                className={`input-field w-full px-3 py-2.5 text-sm font-mono text-[color:var(--color-ink)] ${FOCUS_RING}`}
                 autoFocus
+                aria-describedby="custom-model-description"
               />
-              <div className="text-[11px] text-[color:var(--color-ink-muted)] flex items-center justify-between px-0.5">
+              <div id="custom-model-description" className="text-[11px] text-[color:var(--color-ink-muted)] flex items-center justify-between px-0.5">
                 <span>Enter any custom or new model identifier for {providerMeta.name}.</span>
                 <span className="text-[10px] text-[color:var(--color-ink-faint)] font-mono">
                   Default: {providerMeta.models[0]}
@@ -245,6 +335,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
           ) : (
             <div className="space-y-1.5">
               <select
+                id="model-select"
                 value={model}
                 onChange={(e) => {
                   if (e.target.value === '__custom__') {
@@ -254,7 +345,8 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
                   }
                   setTestResult(null);
                 }}
-                className="input-field w-full px-3 py-2.5 text-sm cursor-pointer"
+                className={`input-field w-full px-3 py-2.5 text-sm cursor-pointer ${FOCUS_RING}`}
+                aria-label="Select model from preset list"
               >
                 {providerMeta.models.map((m) => (
                   <option key={m} value={m}>
@@ -268,29 +360,67 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
         </div>
 
         {/* Status */}
-        <div className={`card-quiet p-3 flex items-center gap-2.5 mb-5 transition-colors ${
-          testResult
-            ? testResult.ok ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-rose-500/40 bg-rose-500/5'
-            : active ? 'border-emerald-500/25' : 'border-amber-500/25'
-        }`}>
+        <div 
+          role="status"
+          aria-live="polite"
+          className={`card-quiet p-3 flex items-center gap-2.5 mb-5 transition-colors ${
+            testResult
+              ? testResult.ok ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-rose-500/40 bg-rose-500/5'
+              : active ? 'border-emerald-500/25' : 'border-amber-500/25'
+          }`}
+        >
           {testResult ? (
             testResult.ok
-              ? <><Wifi className="w-4 h-4 text-emerald-400" /><span className="text-xs text-emerald-300">{testResult.message}</span></>
-              : <><WifiOff className="w-4 h-4 text-rose-400" /><span className="text-xs text-rose-300">{testResult.message}</span></>
+              ? (
+                <>
+                  <Wifi className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+                  <span className="text-xs text-emerald-300">{testResult.message}</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="w-4 h-4 text-rose-400" aria-hidden="true" />
+                  <span className="text-xs text-rose-300">{testResult.message}</span>
+                </>
+              )
           ) : active
-            ? <><Check className="w-4 h-4 text-emerald-400" /><span className="text-xs text-emerald-300">Key entered — click Test to verify</span></>
-            : <><AlertTriangle className="w-4 h-4 text-amber-400" /><span className="text-xs text-amber-300">Enter a key to enable live generation</span></>
+            ? (
+              <>
+                <Check className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+                <span className="text-xs text-emerald-300">Key entered — click Test to verify</span>
+              </>
+            ) : (
+              <>
+                <AlertTriangle className="w-4 h-4 text-amber-400" aria-hidden="true" />
+                <span className="text-xs text-amber-300">Enter a key to enable live generation</span>
+              </>
+            )
           }
         </div>
 
         {/* Actions */}
         <div className="flex items-center justify-between gap-2 border-t border-[color:var(--color-hairline)] pt-4">
-          <button onClick={handleClear} className="text-xs text-[color:var(--color-ink-faint)] hover:text-rose-400 transition cursor-pointer">
+          <button 
+            onClick={handleClear} 
+            className={`text-xs text-[color:var(--color-ink-faint)] hover:text-rose-400 transition cursor-pointer rounded ${FOCUS_RING}`}
+            aria-label="Clear saved API key"
+          >
             Clear saved key
           </button>
           <div className="flex gap-2 ml-auto">
-            <button onClick={onClose} className="btn-ghost px-3.5 py-2 text-sm cursor-pointer">Cancel</button>
-            <button onClick={handleSave} className="btn-primary px-4 py-2 text-sm">Save</button>
+            <button 
+              onClick={onClose} 
+              className={`btn-ghost px-3.5 py-2 text-sm cursor-pointer ${FOCUS_RING}`}
+              aria-label="Cancel and close dialog"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={handleSave} 
+              className={`btn-primary px-4 py-2 text-sm ${FOCUS_RING}`}
+              aria-label="Save settings and close dialog"
+            >
+              Save
+            </button>
           </div>
         </div>
       </div>

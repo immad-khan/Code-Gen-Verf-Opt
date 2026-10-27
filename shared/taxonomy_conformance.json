@@ -1,0 +1,884 @@
+{
+  "schema": "maci.taxonomy-conformance",
+  "taxonomy_version": "1.0.0",
+  "mapper_cases": [
+    {
+      "id": "A1-paren-never-closed",
+      "covers": [
+        "8.1"
+      ],
+      "rule": "R04",
+      "finding": {
+        "technique": "syntax",
+        "severity": "blocking",
+        "signal": "syntax:SyntaxError",
+        "message": "'(' was never closed",
+        "evidence": "  File \"solution.py\", line 2\n    return (x + 1\n           ^\nSyntaxError: '(' was never closed"
+      },
+      "expected": "A.1"
+    },
+    {
+      "id": "A1-bracket-never-closed",
+      "covers": [
+        "8.1"
+      ],
+      "rule": "R04",
+      "finding": {
+        "technique": "syntax",
+        "severity": "blocking",
+        "signal": "syntax:SyntaxError",
+        "message": "'[' was never closed",
+        "evidence": "  File \"solution.py\", line 2\n    return [x * 2 for x in xs\n           ^\nSyntaxError: '[' was never closed"
+      },
+      "expected": "A.1"
+    },
+    {
+      "id": "A1-unterminated-string",
+      "covers": [
+        "8.1"
+      ],
+      "rule": "R04",
+      "finding": {
+        "technique": "syntax",
+        "severity": "blocking",
+        "signal": "syntax:SyntaxError",
+        "message": "unterminated string literal (detected at line 2)",
+        "evidence": "  File \"solution.py\", line 2\n    return 'abc\n           ^\nSyntaxError: unterminated string literal (detected at line 2)"
+      },
+      "expected": "A.1"
+    },
+    {
+      "id": "A1-unterminated-triple-quoted",
+      "covers": [
+        "8.1"
+      ],
+      "rule": "R04",
+      "finding": {
+        "technique": "syntax",
+        "severity": "blocking",
+        "signal": "syntax:SyntaxError",
+        "message": "unterminated triple-quoted string literal (detected at line 3)",
+        "evidence": "  File \"solution.py\", line 2\n    \"\"\"Return x.\n    ^\nSyntaxError: unterminated triple-quoted string literal (detected at line 3)"
+      },
+      "expected": "A.1"
+    },
+    {
+      "id": "A1-expected-colon",
+      "covers": [
+        "8.1"
+      ],
+      "rule": "R04",
+      "finding": {
+        "technique": "syntax",
+        "severity": "blocking",
+        "signal": "syntax:SyntaxError",
+        "message": "expected ':'",
+        "evidence": "  File \"solution.py\", line 1\n    def f(x)\n            ^\nSyntaxError: expected ':'"
+      },
+      "expected": "A.1"
+    },
+    {
+      "id": "A2-unexpected-indent",
+      "covers": [
+        "8.2"
+      ],
+      "rule": "R02",
+      "finding": {
+        "technique": "syntax",
+        "severity": "blocking",
+        "signal": "syntax:IndentationError",
+        "message": "unexpected indent",
+        "evidence": "  File \"solution.py\", line 3\n    return y\nIndentationError: unexpected indent"
+      },
+      "expected": "A.2"
+    },
+    {
+      "id": "A2-expected-indented-block",
+      "covers": [
+        "8.2"
+      ],
+      "rule": "R02",
+      "finding": {
+        "technique": "syntax",
+        "severity": "blocking",
+        "signal": "syntax:IndentationError",
+        "message": "expected an indented block after function definition on line 1",
+        "evidence": "  File \"solution.py\", line 2\n    return x\n    ^^^^^^\nIndentationError: expected an indented block after function definition on line 1"
+      },
+      "expected": "A.2"
+    },
+    {
+      "id": "A2-unindent-mismatch",
+      "covers": [
+        "8.2"
+      ],
+      "rule": "R02",
+      "finding": {
+        "technique": "syntax",
+        "severity": "blocking",
+        "signal": "syntax:IndentationError",
+        "message": "unindent does not match any outer indentation level",
+        "evidence": "  File \"solution.py\", line 4\n    return y\n            ^\nIndentationError: unindent does not match any outer indentation level"
+      },
+      "expected": "A.2"
+    },
+    {
+      "id": "A2-tab-error",
+      "covers": [
+        "8.2"
+      ],
+      "rule": "R02",
+      "finding": {
+        "technique": "syntax",
+        "severity": "blocking",
+        "signal": "syntax:TabError",
+        "message": "inconsistent use of tabs and spaces in indentation",
+        "evidence": "  File \"solution.py\", line 3\n    \ty = 1\n    ^\nTabError: inconsistent use of tabs and spaces in indentation"
+      },
+      "expected": "A.2"
+    },
+    {
+      "id": "A3-import-star-in-function",
+      "covers": [
+        "8.3"
+      ],
+      "rule": "R03",
+      "finding": {
+        "technique": "syntax",
+        "severity": "blocking",
+        "signal": "syntax:SyntaxError",
+        "message": "import * only allowed at module level",
+        "evidence": "  File \"solution.py\", line 2\nSyntaxError: import * only allowed at module level"
+      },
+      "expected": "A.3"
+    },
+    {
+      "id": "UNMAPPED-syntax-invalid-syntax",
+      "covers": [
+        "8.8"
+      ],
+      "rule": null,
+      "finding": {
+        "technique": "syntax",
+        "severity": "blocking",
+        "signal": "syntax:SyntaxError",
+        "message": "invalid syntax",
+        "evidence": "  File \"solution.py\", line 2\n    return x +* 2\n              ^\nSyntaxError: invalid syntax"
+      },
+      "expected": "UNMAPPED"
+    },
+    {
+      "id": "UNMAPPED-syntax-cannot-assign",
+      "covers": [
+        "8.8"
+      ],
+      "rule": null,
+      "finding": {
+        "technique": "syntax",
+        "severity": "blocking",
+        "signal": "syntax:SyntaxError",
+        "message": "cannot assign to expression here. Maybe you meant '==' instead of '='?",
+        "evidence": "  File \"solution.py\", line 2\n    x + 1 = 2\n    ^^^^^\nSyntaxError: cannot assign to expression here. Maybe you meant '==' instead of '='?"
+      },
+      "expected": "UNMAPPED"
+    },
+    {
+      "id": "A1-no-code-output",
+      "covers": [
+        "8.6"
+      ],
+      "rule": "R01",
+      "finding": {
+        "technique": "syntax",
+        "severity": "blocking",
+        "signal": "no_code_output",
+        "message": "the response contained no code",
+        "evidence": "SyntaxError: the response contained no code"
+      },
+      "expected": "A.1"
+    },
+    {
+      "id": "A3-import-module-not-found",
+      "covers": [
+        "8.4"
+      ],
+      "rule": "R06",
+      "finding": {
+        "technique": "imports",
+        "severity": "blocking",
+        "signal": "import:ModuleNotFoundError",
+        "message": "No module named 'numpyy'",
+        "evidence": "import numpyy as np\nModuleNotFoundError: No module named 'numpyy'"
+      },
+      "expected": "A.3"
+    },
+    {
+      "id": "A1-collection-never-closed",
+      "covers": [
+        "8.7",
+        "8.1"
+      ],
+      "rule": "R04",
+      "finding": {
+        "technique": "tests",
+        "severity": "blocking",
+        "signal": "collection:SyntaxError",
+        "message": "'(' was never closed (solution.py, line 2)",
+        "evidence": "SyntaxError: '(' was never closed (solution.py, line 2)\n/usr/lib/python3.13/site-packages/_pytest/python.py:493: in importtestmodule\n    mod = import_path(\n/usr/lib/python3.13/site-packages/_pytest/pathlib.py:587: in import_path\n    importlib.import_module(module_name)\n/usr/lib/python3.13/importlib/__init__.py:88: in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\n<frozen importlib._bootstrap>:1395: in _gcd_import\n    ???\n<frozen importlib._bootstrap>:1360: in _find_and_load\n    ???\n<frozen importlib._bootstrap>:1331: in _find_and_load_unlocked\n    ???\n<frozen importlib._bootstrap>:935: in _load_unlocked\n    ???\n/usr/lib/python3.13/site-packages/_pytest/assertion/rewrite.py:185: in exec_module\n    exec(co, module.__dict__)\ntest_solution.py:1: in <module>\n    from solution import f\nE     File \"/work/run/solution.py\", line 2\nE       return (x + 1\nE              ^\nE   SyntaxError: '(' was never closed"
+      },
+      "expected": "A.1"
+    },
+    {
+      "id": "A2-collection-indentation",
+      "covers": [
+        "8.7",
+        "8.2"
+      ],
+      "rule": "R02",
+      "finding": {
+        "technique": "tests",
+        "severity": "blocking",
+        "signal": "collection:IndentationError",
+        "message": "unexpected indent (solution.py, line 3)",
+        "evidence": "IndentationError: unexpected indent (solution.py, line 3)\n/usr/lib/python3.13/site-packages/_pytest/python.py:493: in importtestmodule\n    mod = import_path(\n/usr/lib/python3.13/site-packages/_pytest/pathlib.py:587: in import_path\n    importlib.import_module(module_name)\n/usr/lib/python3.13/importlib/__init__.py:88: in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\n<frozen importlib._bootstrap>:1395: in _gcd_import\n    ???\n<frozen importlib._bootstrap>:1360: in _find_and_load\n    ???\n<frozen importlib._bootstrap>:1331: in _find_and_load_unlocked\n    ???\n<frozen importlib._bootstrap>:935: in _load_unlocked\n    ???\n/usr/lib/python3.13/site-packages/_pytest/assertion/rewrite.py:185: in exec_module\n    exec(co, module.__dict__)\ntest_solution.py:1: in <module>\n    from solution import f\nE     File \"/work/run/solution.py\", line 3\nE       return y\nE   IndentationError: unexpected indent"
+      },
+      "expected": "A.2"
+    },
+    {
+      "id": "A3-collection-module-not-found",
+      "covers": [
+        "8.7",
+        "8.4"
+      ],
+      "rule": "R06",
+      "finding": {
+        "technique": "tests",
+        "severity": "blocking",
+        "signal": "collection:ModuleNotFoundError",
+        "message": "No module named 'numpyy'",
+        "evidence": "ModuleNotFoundError: No module named 'numpyy'\nImportError while importing test module '/work/run/test_solution.py'.\nHint: make sure your test modules/packages have valid Python names.\nTraceback:\n/usr/lib/python3.13/importlib/__init__.py:88: in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\ntest_solution.py:1: in <module>\n    from solution import f\nsolution.py:1: in <module>\n    import numpyy as np\nE   ModuleNotFoundError: No module named 'numpyy'"
+      },
+      "expected": "A.3"
+    },
+    {
+      "id": "A3-collection-import-error-external",
+      "covers": [
+        "8.7",
+        "8.4"
+      ],
+      "rule": "R07",
+      "finding": {
+        "technique": "tests",
+        "severity": "blocking",
+        "signal": "collection:ImportError:external",
+        "message": "cannot import name 'sqroot' from 'math' (unknown location)",
+        "evidence": "ImportError: cannot import name 'sqroot' from 'math' (unknown location)\nImportError while importing test module '/work/run/test_solution.py'.\nHint: make sure your test modules/packages have valid Python names.\nTraceback:\n/usr/lib/python3.13/importlib/__init__.py:88: in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\ntest_solution.py:1: in <module>\n    from solution import f\nsolution.py:1: in <module>\n    from math import sqroot\nE   ImportError: cannot import name 'sqroot' from 'math' (unknown location). Did you mean: 'sqrt'?"
+      },
+      "expected": "A.3"
+    },
+    {
+      "id": "B2-collection-missing-entry-point",
+      "covers": [
+        "8.7"
+      ],
+      "rule": "R08",
+      "finding": {
+        "technique": "tests",
+        "severity": "blocking",
+        "signal": "collection:ImportError:candidate",
+        "message": "cannot import name 'f' from 'solution' (/work/run/solution.py)",
+        "evidence": "ImportError: cannot import name 'f' from 'solution' (/work/run/solution.py)\nImportError while importing test module '/work/run/test_solution.py'.\nHint: make sure your test modules/packages have valid Python names.\nTraceback:\n/usr/lib/python3.13/importlib/__init__.py:88: in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\ntest_solution.py:1: in <module>\n    from solution import f\nE   ImportError: cannot import name 'f' from 'solution' (/work/run/solution.py)"
+      },
+      "expected": "B.2"
+    },
+    {
+      "id": "A3-collection-stdlib-unbound",
+      "covers": [
+        "8.7",
+        "8.5"
+      ],
+      "rule": "R09",
+      "finding": {
+        "technique": "tests",
+        "severity": "blocking",
+        "signal": "collection:NameError:stdlib_unbound",
+        "message": "name 'math' is not defined",
+        "evidence": "NameError: name 'math' is not defined\ntest_solution.py:1: in <module>\n    from solution import f\nsolution.py:1: in <module>\n    LIMIT = math.inf\nE   NameError: name 'math' is not defined. Did you forget to import 'math'?"
+      },
+      "expected": "A.3"
+    },
+    {
+      "id": "B5-collection-llm-defined",
+      "covers": [
+        "8.7",
+        "9.7"
+      ],
+      "rule": "R05",
+      "finding": {
+        "technique": "tests",
+        "severity": "blocking",
+        "signal": "collection:ConfigError:llm_defined",
+        "message": "missing table",
+        "evidence": "ConfigError: missing table\ntest_solution.py:1: in <module>\n    from solution import f\nsolution.py:5: in <module>\n    raise ConfigError('missing table')\nE   solution.ConfigError: missing table"
+      },
+      "expected": "B.5"
+    },
+    {
+      "id": "UNMAPPED-collection-unknown",
+      "covers": [
+        "8.8",
+        "8.7"
+      ],
+      "rule": null,
+      "finding": {
+        "technique": "tests",
+        "severity": "blocking",
+        "signal": "collection:unknown",
+        "message": "ERROR: found no collectors for /work/run/test_solution.py::test_f",
+        "evidence": "ERROR: found no collectors for /work/run/test_solution.py::test_f"
+      },
+      "expected": "UNMAPPED"
+    },
+    {
+      "id": "B4-too-many-positional",
+      "covers": [
+        "9.1"
+      ],
+      "rule": "R11",
+      "finding": {
+        "technique": "runtime",
+        "severity": "blocking",
+        "signal": "runtime:TypeError",
+        "message": "helper() takes 1 positional argument but 2 were given",
+        "evidence": "TypeError: helper() takes 1 positional argument but 2 were given\ntest_solution.py:5: in test_f\n    assert f(1) == 1\nsolution.py:6: in f\n    return helper(x, 1)\nE   TypeError: helper() takes 1 positional argument but 2 were given"
+      },
+      "expected": "B.4"
+    },
+    {
+      "id": "B4-missing-positional",
+      "covers": [
+        "9.1"
+      ],
+      "rule": "R11",
+      "finding": {
+        "technique": "runtime",
+        "severity": "blocking",
+        "signal": "runtime:TypeError",
+        "message": "helper() missing 1 required positional argument: 'y'",
+        "evidence": "TypeError: helper() missing 1 required positional argument: 'y'\ntest_solution.py:5: in test_f\n    assert f(1) == 1\nsolution.py:6: in f\n    return helper(x)\nE   TypeError: helper() missing 1 required positional argument: 'y'"
+      },
+      "expected": "B.4"
+    },
+    {
+      "id": "B4-missing-keyword-only",
+      "covers": [
+        "9.1"
+      ],
+      "rule": "R11",
+      "finding": {
+        "technique": "runtime",
+        "severity": "blocking",
+        "signal": "runtime:TypeError",
+        "message": "helper() missing 1 required keyword-only argument: 'scale'",
+        "evidence": "TypeError: helper() missing 1 required keyword-only argument: 'scale'\ntest_solution.py:5: in test_f\n    assert f(1) == 1\nsolution.py:6: in f\n    return helper(x)\nE   TypeError: helper() missing 1 required keyword-only argument: 'scale'"
+      },
+      "expected": "B.4"
+    },
+    {
+      "id": "B4-unexpected-keyword",
+      "covers": [
+        "9.1"
+      ],
+      "rule": "R11",
+      "finding": {
+        "technique": "runtime",
+        "severity": "blocking",
+        "signal": "runtime:TypeError",
+        "message": "helper() got an unexpected keyword argument 'y'",
+        "evidence": "TypeError: helper() got an unexpected keyword argument 'y'\ntest_solution.py:5: in test_f\n    assert f(1) == 1\nsolution.py:6: in f\n    return helper(x, y=2)\nE   TypeError: helper() got an unexpected keyword argument 'y'"
+      },
+      "expected": "B.4"
+    },
+    {
+      "id": "B4-multiple-values",
+      "covers": [
+        "9.1"
+      ],
+      "rule": "R11",
+      "finding": {
+        "technique": "runtime",
+        "severity": "blocking",
+        "signal": "runtime:TypeError",
+        "message": "helper() got multiple values for argument 'x'",
+        "evidence": "TypeError: helper() got multiple values for argument 'x'\ntest_solution.py:5: in test_f\n    assert f(1) == 1\nsolution.py:6: in f\n    return helper(1, x=x)\nE   TypeError: helper() got multiple values for argument 'x'"
+      },
+      "expected": "B.4"
+    },
+    {
+      "id": "B4-suite-call-wrong-arity",
+      "covers": [
+        "9.1"
+      ],
+      "rule": "R11",
+      "finding": {
+        "technique": "runtime",
+        "severity": "blocking",
+        "signal": "runtime:TypeError",
+        "message": "f() missing 1 required positional argument: 'y'",
+        "evidence": "TypeError: f() missing 1 required positional argument: 'y'\ntest_solution.py:5: in test_f\n    assert f(1) == 1\nE   TypeError: f() missing 1 required positional argument: 'y'"
+      },
+      "expected": "B.4"
+    },
+    {
+      "id": "B1-unsupported-operand",
+      "covers": [
+        "9.2"
+      ],
+      "rule": "R12",
+      "finding": {
+        "technique": "runtime",
+        "severity": "blocking",
+        "signal": "runtime:TypeError",
+        "message": "unsupported operand type(s) for +: 'int' and 'str'",
+        "evidence": "TypeError: unsupported operand type(s) for +: 'int' and 'str'\ntest_solution.py:5: in test_f\n    assert f(1) == 1\nsolution.py:2: in f\n    return x + 'a'\nE   TypeError: unsupported operand type(s) for +: 'int' and 'str'"
+      },
+      "expected": "B.1"
+    },
+    {
+      "id": "B1-not-subscriptable",
+      "covers": [
+        "9.2"
+      ],
+      "rule": "R12",
+      "finding": {
+        "technique": "runtime",
+        "severity": "blocking",
+        "signal": "runtime:TypeError",
+        "message": "'NoneType' object is not subscriptable",
+        "evidence": "TypeError: 'NoneType' object is not subscriptable\ntest_solution.py:5: in test_f\n    assert f(1) == 1\nsolution.py:3: in f\n    return result[0]\nE   TypeError: 'NoneType' object is not subscriptable"
+      },
+      "expected": "B.1"
+    },
+    {
+      "id": "B1-attribute-error",
+      "covers": [
+        "9.3"
+      ],
+      "rule": "R13",
+      "finding": {
+        "technique": "runtime",
+        "severity": "blocking",
+        "signal": "runtime:AttributeError",
+        "message": "'list' object has no attribute 'push'",
+        "evidence": "AttributeError: 'list' object has no attribute 'push'\ntest_solution.py:5: in test_f\n    assert f(1) == 1\nsolution.py:3: in f\n    items.push(x)\nE   AttributeError: 'list' object has no attribute 'push'"
+      },
+      "expected": "B.1"
+    },
+    {
+      "id": "B2-name-error",
+      "covers": [
+        "9.4",
+        "8.5"
+      ],
+      "rule": "R10",
+      "finding": {
+        "technique": "runtime",
+        "severity": "blocking",
+        "signal": "runtime:NameError",
+        "message": "name 'undefined_helper' is not defined",
+        "evidence": "NameError: name 'undefined_helper' is not defined\ntest_solution.py:5: in test_f\n    assert f(1) == 1\nsolution.py:2: in f\n    return undefined_helper(x)\nE   NameError: name 'undefined_helper' is not defined"
+      },
+      "expected": "B.2"
+    },
+    {
+      "id": "B2-unbound-local",
+      "covers": [
+        "9.4"
+      ],
+      "rule": "R10",
+      "finding": {
+        "technique": "runtime",
+        "severity": "blocking",
+        "signal": "runtime:UnboundLocalError",
+        "message": "cannot access local variable 'total' where it is not associated with a value",
+        "evidence": "UnboundLocalError: cannot access local variable 'total' where it is not associated with a value\ntest_solution.py:5: in test_f\n    assert f(1) == 1\nsolution.py:5: in f\n    total += x\nE   UnboundLocalError: cannot access local variable 'total' where it is not associated with a value"
+      },
+      "expected": "B.2"
+    },
+    {
+      "id": "A3-runtime-stdlib-unbound",
+      "covers": [
+        "8.5"
+      ],
+      "rule": "R09",
+      "finding": {
+        "technique": "runtime",
+        "severity": "blocking",
+        "signal": "runtime:NameError:stdlib_unbound",
+        "message": "name 'math' is not defined",
+        "evidence": "NameError: name 'math' is not defined\ntest_solution.py:5: in test_f\n    assert f(1) == 1\nsolution.py:2: in f\n    return math.floor(x)\nE   NameError: name 'math' is not defined. Did you forget to import 'math'?"
+      },
+      "expected": "A.3"
+    },
+    {
+      "id": "A3-runtime-stdlib-member-unbound",
+      "covers": [
+        "8.5"
+      ],
+      "rule": "R09",
+      "finding": {
+        "technique": "runtime",
+        "severity": "blocking",
+        "signal": "runtime:NameError:stdlib_unbound",
+        "message": "name 'sqrt' is not defined",
+        "evidence": "NameError: name 'sqrt' is not defined\ntest_solution.py:5: in test_f\n    assert f(1) == 1\nsolution.py:5: in f\n    return sqrt(x) ** 2\nE   NameError: name 'sqrt' is not defined"
+      },
+      "expected": "A.3"
+    },
+    {
+      "id": "B3-index-error",
+      "covers": [
+        "9.5"
+      ],
+      "rule": "R14",
+      "finding": {
+        "technique": "runtime",
+        "severity": "blocking",
+        "signal": "runtime:IndexError",
+        "message": "list index out of range",
+        "evidence": "IndexError: list index out of range\ntest_solution.py:5: in test_f\n    assert f(1) == 1\nsolution.py:3: in f\n    return xs[x]\nE   IndexError: list index out of range"
+      },
+      "expected": "B.3"
+    },
+    {
+      "id": "B3-key-error",
+      "covers": [
+        "9.5"
+      ],
+      "rule": "R14",
+      "finding": {
+        "technique": "runtime",
+        "severity": "blocking",
+        "signal": "runtime:KeyError",
+        "message": "'a'",
+        "evidence": "KeyError: 'a'\ntest_solution.py:5: in test_f\n    assert f(1) == 1\nsolution.py:3: in f\n    return counts['a']\nE   KeyError: 'a'"
+      },
+      "expected": "B.3"
+    },
+    {
+      "id": "B3-value-error",
+      "covers": [
+        "9.5"
+      ],
+      "rule": "R14",
+      "finding": {
+        "technique": "runtime",
+        "severity": "blocking",
+        "signal": "runtime:ValueError",
+        "message": "invalid literal for int() with base 10: 'abc'",
+        "evidence": "ValueError: invalid literal for int() with base 10: 'abc'\ntest_solution.py:5: in test_f\n    assert f(1) == 1\nsolution.py:2: in f\n    return int('abc')\nE   ValueError: invalid literal for int() with base 10: 'abc'"
+      },
+      "expected": "B.3"
+    },
+    {
+      "id": "B3-zero-division",
+      "covers": [
+        "9.5"
+      ],
+      "rule": "R14",
+      "finding": {
+        "technique": "runtime",
+        "severity": "blocking",
+        "signal": "runtime:ZeroDivisionError",
+        "message": "integer division or modulo by zero",
+        "evidence": "ZeroDivisionError: integer division or modulo by zero\ntest_solution.py:5: in test_f\n    assert f(1) == 1\nsolution.py:2: in f\n    return x // 0\nE   ZeroDivisionError: integer division or modulo by zero"
+      },
+      "expected": "B.3"
+    },
+    {
+      "id": "B3-overflow",
+      "covers": [
+        "9.5"
+      ],
+      "rule": "R14",
+      "finding": {
+        "technique": "runtime",
+        "severity": "blocking",
+        "signal": "runtime:OverflowError",
+        "message": "(34, 'Result too large')",
+        "evidence": "OverflowError: (34, 'Result too large')\ntest_solution.py:5: in test_f\n    assert f(1) == 1\nsolution.py:2: in f\n    return 10.0 ** 1000\nE   OverflowError: (34, 'Result too large')"
+      },
+      "expected": "B.3"
+    },
+    {
+      "id": "B5-recursion-error",
+      "covers": [
+        "9.6"
+      ],
+      "rule": "R16",
+      "finding": {
+        "technique": "runtime",
+        "severity": "blocking",
+        "signal": "runtime:RecursionError",
+        "message": "maximum recursion depth exceeded",
+        "evidence": "RecursionError: maximum recursion depth exceeded\ntest_solution.py:5: in test_f\n    assert f(1) == 1\nsolution.py:2: in f\n... [trimmed] ...\nsolution.py:2: in f\n    return f(x + 1)\nsolution.py:2: in f\n    return f(x + 1)\nsolution.py:2: in f\n    return f(x + 1)\nsolution.py:2: in f\n    return f(x + 1)\nsolution.py:2: in f\n    return f(x + 1)\nsolution.py:2: in f\n    return f(x + 1)\nsolution.py:2: in f\n    return f(x + 1)\nsolution.py:2: in f\n    return f(x + 1)\nsolution.py:2: in f\n    return f(x + 1)\nsolution.py:2: in f\n    return f(x + 1)\nsolution.py:2: in f\n    return f(x + 1)\nsolution.py:2: in f\n    return f(x + 1)\nsolution.py:2: in f\n    return f(x + 1)\nsolution.py:2: in f\n    return f(x + 1)\nsolution.py:2: in f\n    return f(x + 1)\nsolution.py:2: in f\n    return f(x + 1)\nsolution.py:2: in f\n    retur\n... [truncated]"
+      },
+      "expected": "B.5"
+    },
+    {
+      "id": "B5-timeout",
+      "covers": [
+        "9.6"
+      ],
+      "rule": "R15",
+      "finding": {
+        "technique": "tests",
+        "severity": "blocking",
+        "signal": "timeout",
+        "message": "test execution exceeded the 60 s time limit",
+        "evidence": "test subprocess killed after 60 s (possible infinite loop or excessive complexity)"
+      },
+      "expected": "B.5"
+    },
+    {
+      "id": "B5-llm-defined-exception",
+      "covers": [
+        "9.7"
+      ],
+      "rule": "R05",
+      "finding": {
+        "technique": "runtime",
+        "severity": "blocking",
+        "signal": "runtime:BadInput:llm_defined",
+        "message": "unsupported value: 1",
+        "evidence": "BadInput: unsupported value: 1\ntest_solution.py:5: in test_f\n    assert f(1) == 1\nsolution.py:6: in f\n    raise BadInput(f'unsupported value: {x}')\nE   solution.BadInput: unsupported value: 1"
+      },
+      "expected": "B.5"
+    },
+    {
+      "id": "B5-llm-defined-builtin-subclass",
+      "covers": [
+        "9.7"
+      ],
+      "rule": "R05",
+      "finding": {
+        "technique": "runtime",
+        "severity": "blocking",
+        "signal": "runtime:InvalidRange:llm_defined",
+        "message": "x must be >= 5",
+        "evidence": "InvalidRange: x must be >= 5\ntest_solution.py:5: in test_f\n    assert f(1) == 1\nsolution.py:7: in f\n    raise InvalidRange('x must be >= 5')\nE   solution.InvalidRange: x must be >= 5"
+      },
+      "expected": "B.5"
+    },
+    {
+      "id": "UNMAPPED-runtime-unicode-decode",
+      "covers": [
+        "9.8",
+        "8.8"
+      ],
+      "rule": null,
+      "finding": {
+        "technique": "runtime",
+        "severity": "blocking",
+        "signal": "runtime:UnicodeDecodeError",
+        "message": "'utf-8' codec can't decode byte 0xff in position 0: invalid start byte",
+        "evidence": "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte\ntest_solution.py:5: in test_f\n    assert f(1) == 1\nsolution.py:2: in f\n    return b'\\xff'.decode('utf-8')\nE   UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte"
+      },
+      "expected": "UNMAPPED"
+    },
+    {
+      "id": "UNMAPPED-runtime-chained-outermost",
+      "covers": [
+        "9.8",
+        "8.8"
+      ],
+      "rule": null,
+      "finding": {
+        "technique": "runtime",
+        "severity": "blocking",
+        "signal": "runtime:RuntimeError",
+        "message": "lookup failed",
+        "evidence": "RuntimeError: lookup failed\nsolution.py:3: in f\n    return {}['k']\nE   KeyError: 'k'\n\nThe above exception was the direct cause of the following exception:\ntest_solution.py:5: in test_f\n    assert f(1) == 1\nsolution.py:5: in f\n    raise RuntimeError('lookup failed') from exc\nE   RuntimeError: lookup failed"
+      },
+      "expected": "UNMAPPED"
+    },
+    {
+      "id": "C1-suite-assertion-not-runtime",
+      "covers": [
+        "9.9",
+        "10.4"
+      ],
+      "rule": "R18",
+      "finding": {
+        "technique": "tests",
+        "severity": "blocking",
+        "signal": "functional:logic",
+        "message": "1 failing suite assertion; first: assert 2 == 1",
+        "evidence": "test_solution.py::test_f: AssertionError: assert 2 == 1\n  actual:   2\n  expected: 1"
+      },
+      "expected": "C.1"
+    },
+    {
+      "id": "UNMAPPED-candidate-assertion",
+      "covers": [
+        "9.9",
+        "9.8"
+      ],
+      "rule": null,
+      "finding": {
+        "technique": "runtime",
+        "severity": "blocking",
+        "signal": "runtime:AssertionError",
+        "message": "x too small",
+        "evidence": "AssertionError: x too small\ntest_solution.py:5: in test_f\n    assert f(1) == 1\nsolution.py:2: in f\n    assert x > 1, 'x too small'\nE   AssertionError: x too small"
+      },
+      "expected": "UNMAPPED"
+    },
+    {
+      "id": "C3-type-normalization-list-tuple",
+      "covers": [
+        "10.9",
+        "10.2"
+      ],
+      "rule": "R17",
+      "finding": {
+        "technique": "tests",
+        "severity": "blocking",
+        "signal": "functional:format",
+        "message": "1 failing suite assertion; first: assert [1, 2] == (1, 2)",
+        "evidence": "test_solution.py::test_f: AssertionError: assert [1, 2] == (1, 2)\n  actual:   [1, 2]\n  expected: (1, 2)"
+      },
+      "expected": "C.3"
+    },
+    {
+      "id": "C3-type-normalization-str-number",
+      "covers": [
+        "10.9",
+        "10.2"
+      ],
+      "rule": "R17",
+      "finding": {
+        "technique": "tests",
+        "severity": "blocking",
+        "signal": "functional:format",
+        "message": "1 failing suite assertion; first: assert '4' == 4",
+        "evidence": "test_solution.py::test_f: AssertionError: assert '4' == 4\n  actual:   '4'\n  expected: 4"
+      },
+      "expected": "C.3"
+    },
+    {
+      "id": "C3-reordering",
+      "covers": [
+        "10.9",
+        "10.2"
+      ],
+      "rule": "R17",
+      "finding": {
+        "technique": "tests",
+        "severity": "blocking",
+        "signal": "functional:format",
+        "message": "1 failing suite assertion; first: assert [3, 1, 2] == [1, 2, 3]",
+        "evidence": "test_solution.py::test_f: AssertionError: assert [3, 1, 2] == [1, 2, 3]\n  actual:   [3, 1, 2]\n  expected: [1, 2, 3]"
+      },
+      "expected": "C.3"
+    },
+    {
+      "id": "C3-rounding-precision",
+      "covers": [
+        "10.9",
+        "10.3"
+      ],
+      "rule": "R17",
+      "finding": {
+        "technique": "tests",
+        "severity": "blocking",
+        "signal": "functional:format",
+        "message": "1 failing suite assertion; first: assert 3.14159 == 3.14",
+        "evidence": "test_solution.py::test_f: AssertionError: assert 3.14159 == 3.14\n  actual:   3.14159\n  expected: 3.14"
+      },
+      "expected": "C.3"
+    },
+    {
+      "id": "C1-mixed-assertions",
+      "covers": [
+        "10.9",
+        "10.4"
+      ],
+      "rule": "R18",
+      "finding": {
+        "technique": "tests",
+        "severity": "blocking",
+        "signal": "functional:logic",
+        "message": "2 failing suite assertions; first: assert [1, 2] == (1, 2)",
+        "evidence": "test_solution.py::test_pair: AssertionError: assert [1, 2] == (1, 2)\n  actual:   [1, 2]\n  expected: (1, 2)\ntest_solution.py::test_scalar: AssertionError: assert 6 == 5\n  actual:   6\n  expected: 5"
+      },
+      "expected": "C.1"
+    },
+    {
+      "id": "C1-format-name-irrelevant",
+      "covers": [
+        "10.5",
+        "10.4"
+      ],
+      "rule": "R18",
+      "finding": {
+        "technique": "tests",
+        "severity": "blocking",
+        "signal": "functional:logic",
+        "message": "1 failing suite assertion; first: wrong output format",
+        "evidence": "test_solution.py::test_output_format_is_list: AssertionError: wrong output format\n  actual:   6\n  expected: 5"
+      },
+      "expected": "C.1"
+    },
+    {
+      "id": "C1-unextractable",
+      "covers": [
+        "10.9",
+        "10.6"
+      ],
+      "rule": "R18",
+      "finding": {
+        "technique": "tests",
+        "severity": "blocking",
+        "signal": "functional:unextractable",
+        "message": "1 failing suite assertion; first: assert 1 > 3",
+        "evidence": "test_solution.py::test_f: AssertionError: assert 1 > 3\n  actual:   <not extractable>\n  expected: <not extractable>"
+      },
+      "expected": "C.1"
+    },
+    {
+      "id": "ADV-mypy-arg-type",
+      "covers": [
+        "7.8",
+        "20.2"
+      ],
+      "rule": null,
+      "finding": {
+        "technique": "types",
+        "severity": "advisory",
+        "signal": "mypy:arg-type",
+        "message": "Argument 1 to \"f\" has incompatible type \"str\"; expected \"int\"",
+        "evidence": "solution.py:7: error: Argument 1 to \"f\" has incompatible type \"str\"; expected \"int\"  [arg-type]"
+      },
+      "expected": null
+    },
+    {
+      "id": "ADV-rule-like-signal",
+      "covers": [
+        "7.8",
+        "20.2"
+      ],
+      "rule": null,
+      "finding": {
+        "technique": "quality",
+        "severity": "advisory",
+        "signal": "runtime:TypeError",
+        "message": "f() takes 1 positional argument but 2 were given",
+        "evidence": "TypeError: f() takes 1 positional argument but 2 were given"
+      },
+      "expected": null
+    }
+  ],
+  "prompt_cases": [],
+  "enrichment_cases": []
+}

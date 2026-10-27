@@ -10,4 +10,9 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
   </ItemGroup>
 
+  <!-- Single source of truth for the taxonomy and conformance fixtures (Requirement 7.6). -->
+  <ItemGroup>
+    <None Include="..\shared\**\*.json" LinkBase="shared" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

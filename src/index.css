@@ -19,14 +19,35 @@
   --color-surface-3: #f1f5f9;
   --color-hairline: #e2e8f0;
 
-  /* Text - readable dark slate with purple tint hints */
+  /* Text (28.11): every text token is ≥ 4.5:1 on canvas, surface-2 and surface-3.
+     ink        #0f172a  ≈ 17.9:1 on #ffffff, 16.3:1 on #f1f5f9
+     ink-muted  #475569  ≈  7.6:1 on #ffffff,  6.9:1 on #f1f5f9
+     ink-faint  #5b6676  ≈  5.8:1 on #ffffff,  5.3:1 on #f1f5f9 */
   --color-ink: #0f172a;
-  --color-ink-muted: #64748b;
-  --color-ink-faint: #94a3b8;
+  --color-ink-muted: #475569;
+  --color-ink-faint: #5b6676;
+
+  /* Form control boundaries (28.11): #6b7280 ≈ 4.8:1 on #ffffff (≥ 3:1). */
+  --color-control-border: #6b7280;
+
+  /* Focus indicator (28.8): #5b46e5 ≈ 6.1:1 on #ffffff, 5.8:1 on #f8fafc, 5.5:1 on #f1f5f9 (≥ 3:1). */
+  --color-focus-ring: #5b46e5;
 
   /* Brand accent — indigo→violet */
   --color-brand: #7c6cff;
   --color-brand-soft: #8b7bff;
+}
+
+/* Global keyboard focus indicator (28.8): 3 px outline with a 2 px offset so it
+   sits on the surrounding surface. Unlayered, so it wins over utility classes
+   such as `focus:outline-none`. */
+:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+/* Programmatic focus targets (skip-link destination, section containers). */
+[tabindex="-1"]:focus-visible {
+  outline: none;
 }
 
 html {
@@ -114,15 +135,15 @@ body {
 
 .input-field {
   background: var(--color-surface);
-  border: 1px solid var(--color-hairline);
+  border: 1px solid var(--color-control-border);
   border-radius: 12px;
   color: var(--color-ink);
   transition: border-color .15s ease, box-shadow .15s ease;
 }
 .input-field::placeholder { color: var(--color-ink-faint); }
+/* Keyboard focus keeps the global :focus-visible outline; this adds a border cue. */
 .input-field:focus {
-  outline: none;
-  border-color: #7c6cff;
+  border-color: var(--color-focus-ring);
   box-shadow: 0 0 0 4px rgba(124,108,255,0.12);
 }
 
