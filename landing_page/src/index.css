@@ -431,8 +431,89 @@ h1, h2, h3 {
 }
 .bar-indeterminate { animation: slideBar 1.1s ease-in-out infinite; }
 
+/* brand panel: slow orbit and terminal lines */
+@keyframes orbitSpin {
+  to { transform: rotate(360deg); }
+}
+.orbit { animation: orbitSpin 60s linear infinite; }
+
+@keyframes logIn {
+  from { opacity: 0; transform: translate3d(0, 6px, 0); }
+  to { opacity: 1; transform: none; }
+}
+.log-in { animation: logIn 0.36s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* ambient glow drift for the brand panel */
+@keyframes auroraDrift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(36px, -28px, 0) scale(1.12); }
+}
+.aurora { animation: auroraDrift 11s ease-in-out infinite; will-change: transform; }
+.aurora-slow { animation: auroraDrift 16s ease-in-out infinite reverse; will-change: transform; }
+
+/* pulsing ring on the active loop node */
+@keyframes stagePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(167, 139, 250, 0.55); }
+  50% { box-shadow: 0 0 0 9px rgba(167, 139, 250, 0); }
+}
+.stage-active { animation: stagePulse 1.6s ease-out infinite; }
+
 /* ---------- reduced motion ---------- */
+/* ---------- footer ---------- */
+@keyframes marqueeScroll {
+  to { transform: translate3d(-50%, 0, 0); }
+}
+.marquee-track {
+  animation: marqueeScroll 44s linear infinite;
+  will-change: transform;
+}
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+@keyframes wordmarkSheen {
+  0% { background-position: 130% 0, 0 0; }
+  55%, 100% { background-position: -30% 0, 0 0; }
+}
+.wordmark {
+  background-image:
+    linear-gradient(105deg, transparent 42%, rgba(255, 255, 255, 0.9) 50%, transparent 58%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, rgba(196, 181, 253, 0.08) 100%);
+  background-size: 260% 100%, 100% 100%;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: wordmarkSheen 7s ease-in-out infinite;
+}
+
+@keyframes nodeIn {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
+}
+.pipe-node {
+  animation: nodeIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes lineIn {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.pipe-line-h {
+  transform-origin: left;
+  animation: lineIn 0.4s ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .marquee-track,
+  .wordmark,
+  .pipe-node,
+  .pipe-line-h {
+    animation: none !important;
+  }
+  .wordmark {
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, rgba(196, 181, 253, 0.08) 100%) !important;
+  }
+
   .reveal {
     opacity: 1 !important;
     transform: none !important;
@@ -444,6 +525,11 @@ h1, h2, h3 {
   .blob-a,
   .blob-b,
   .chip-bob,
+  .aurora,
+  .aurora-slow,
+  .stage-active,
+  .orbit,
+  .log-in,
   .glow-pulse,
   .confetti { animation: none !important; }
   .confetti { display: none; }
