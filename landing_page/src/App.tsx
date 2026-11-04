@@ -6,7 +6,8 @@ import { Techniques } from "./components/Techniques";
 import { Workflow } from "./components/Workflow";
 import { Pipeline } from "./components/Pipeline";
 import { Results } from "./components/Results";
-import { CTA, Footer } from "./components/Footer";
+import { CTA } from "./components/CTA";
+import { Footer } from "./components/Footer";
 import { AuthPage } from "./components/AuthPage";
 
 type Route = "landing" | "auth" | "verified";
