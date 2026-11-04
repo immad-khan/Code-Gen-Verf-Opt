@@ -1,88 +1,303 @@
-import type { CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { Logo } from "../Header";
-import { ShieldIcon } from "./icons";
 
-const chips = ["G₀", "V₀", "R₁", "V₁", "R₂", "V₂"];
-const d = (ms: number): CSSProperties => ({ animationDelay: `${ms}ms` });
+type Kind = "gen" | "verify" | "repair";
+type Tone = "cmd" | "info" | "ok" | "warn" | "err";
+
+const RING: { id: string; kind: Kind; name: string }[] = [
+  { id: "G₀", kind: "gen", name: "generate" },
+  { id: "V₀", kind: "verify", name: "verify · initial" },
+  { id: "R₁", kind: "repair", name: "repair · round 1" },
+  { id: "V₁", kind: "verify", name: "verify · round 1" },
+  { id: "R₂", kind: "repair", name: "repair · round 2" },
+  { id: "V₂", kind: "verify", name: "verify · final" },
+];
+
+// tests passing once each node has run
+const PASSED = [0, 8, 8, 11, 11, 12];
+
+const LOG: { t: string; tone: Tone }[][] = [
+  [{ t: "llm ▸ generated avg.py · 24 LOC", tone: "cmd" }],
+  [
+    { t: "ast.parse ✗ expected ':' · A.1", tone: "err" },
+    { t: "importlib ✗ pyquickmath · A.3", tone: "err" },
+    { t: "pytest 8/12 · ZeroDivisionError · B.5", tone: "warn" },
+  ],
+  [{ t: "repair ▸ self-critique built from V₀ traces", tone: "cmd" }],
+  [
+    { t: "pytest 11/12 · empty-edge case · C.2", tone: "warn" },
+    { t: "findings 10 → 2", tone: "ok" },
+  ],
+  [{ t: "repair ▸ episodic memory of V₀ + V₁", tone: "cmd" }],
+  [
+    { t: "pytest 12/12 ✓", tone: "ok" },
+    { t: "findings 2 → 0 · bugs eradicated", tone: "ok" },
+  ],
+];
+
+const TONE: Record<Tone, string> = {
+  cmd: "text-brand-300",
+  info: "text-slate-300",
+  ok: "text-emerald-300",
+  warn: "text-amber-300",
+  err: "text-rose-300",
+};
+
+const NODE_STYLE: Record<Kind, string> = {
+  gen: "bg-white/10 text-brand-100 ring-1 ring-white/20",
+  verify: "bg-brand-500 text-white shadow-[0_10px_24px_-8px_rgba(139,92,246,0.9)]",
+  repair: "bg-white text-brand-900 shadow-[0_10px_24px_-10px_rgba(255,255,255,0.55)]",
+};
+
+const TAXONOMY = ["A.1 Syntax", "A.2 Indent", "A.3 Imports", "B.1–B.5 Runtime", "C.1–C.4 Functional"];
+
+const SIZE = 264;
+const CENTER = SIZE / 2;
+const R = 106; // orbit radius for nodes
+const R_INNER = 78; // radius of the pass-rate ring
+const NODE = 40;
+const ease = (on: boolean) => (on ? "stroke-dasharray 0.9s cubic-bezier(0.22, 1, 0.36, 1)" : "none");
+
+function Dial({ step }: { step: number }) {
+  const passed = PASSED[step];
+  const pct = passed / 12;
+  const outerLen = 2 * Math.PI * R;
+  const innerLen = 2 * Math.PI * R_INNER;
+  const animate = step !== 0; // snap back to zero when the loop restarts
+
+  return (
+    <div className="relative mx-auto shrink-0" style={{ width: SIZE, height: SIZE }}>
+      <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="absolute inset-0" aria-hidden>
+        <defs>
+          <linearGradient id="vf-ring" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#c4b5fd" />
+            <stop offset="100%" stopColor="#e879f9" />
+          </linearGradient>
+        </defs>
+
+        {/* slow-turning dotted orbit */}
+        <circle
+          cx={CENTER}
+          cy={CENTER}
+          r={R}
+          fill="none"
+          stroke="rgba(255,255,255,0.16)"
+          strokeWidth="1"
+          strokeDasharray="1.5 6"
+          className="orbit"
+          style={{ transformOrigin: `${CENTER}px ${CENTER}px` }}
+        />
+        {/* loop progress along the orbit */}
+        <circle
+          cx={CENTER}
+          cy={CENTER}
+          r={R}
+          fill="none"
+          stroke="url(#vf-ring)"
+          strokeWidth="3"
+          transform={`rotate(-90 ${CENTER} ${CENTER})`}
+          strokeDasharray={`${(outerLen * step) / 6} ${outerLen}`}
+          style={{ transition: ease(animate) }}
+        />
+
+        {/* pass-rate ring */}
+        <circle cx={CENTER} cy={CENTER} r={R_INNER} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="8" />
+        <circle
+          cx={CENTER}
+          cy={CENTER}
+          r={R_INNER}
+          fill="none"
+          stroke="url(#vf-ring)"
+          strokeWidth="8"
+          strokeLinecap="round"
+          transform={`rotate(-90 ${CENTER} ${CENTER})`}
+          strokeDasharray={`${innerLen * pct} ${innerLen}`}
+          style={{ transition: ease(animate) }}
+        />
+      </svg>
+
+      {RING.map((n, i) => {
+        const a = (-90 + i * 60) * (Math.PI / 180);
+        const x = CENTER + R * Math.cos(a) - NODE / 2;
+        const y = CENTER + R * Math.sin(a) - NODE / 2;
+        const active = i === step;
+        return (
+          <span
+            key={n.id}
+            className={`absolute grid place-items-center rounded-2xl font-mono text-[12px] font-bold transition-all duration-500 ${NODE_STYLE[n.kind]} ${
+              active ? "stage-active scale-125 opacity-100" : "opacity-70"
+            }`}
+            style={{ left: x, top: y, width: NODE, height: NODE }}
+          >
+            {n.id}
+          </span>
+        );
+      })}
+
+      <div className="absolute inset-0 grid place-items-center">
+        <div className="text-center">
+          <div className="text-[46px] font-extrabold leading-none tracking-tight tabular-nums">
+            <span key={passed} className="pop-in inline-block">
+              {passed}
+            </span>
+            <span className="text-[20px] font-bold text-white/35">/12</span>
+          </div>
+          <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.2em] text-brand-200/65">tests passing</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Terminal({ step, cycle }: { step: number; cycle: number }) {
+  const lines = LOG.slice(0, step + 1).flatMap((group, gi) =>
+    group.map((line, li) => ({ ...line, key: `${cycle}-${gi}-${li}` }))
+  );
+  const shown = lines.slice(-4);
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0b0418]/60 shadow-[0_30px_60px_-30px_rgba(0,0,0,0.6)] backdrop-blur-md">
+      <div className="flex items-center gap-1.5 border-b border-white/10 px-3.5 py-2.5">
+        <span className="h-2 w-2 rounded-full bg-rose-400/80" />
+        <span className="h-2 w-2 rounded-full bg-amber-300/80" />
+        <span className="h-2 w-2 rounded-full bg-emerald-400/80" />
+        <span className="ml-2 min-w-0 truncate font-mono text-[11px] text-white/45">veriflow run · {RING[step].name}</span>
+      </div>
+      <div className="min-h-[124px] space-y-1.5 px-4 py-3.5 font-mono text-[12px] leading-relaxed">
+        {shown.map((l) => (
+          <p key={l.key} className={`log-in flex gap-2 ${TONE[l.tone]}`}>
+            <span className="select-none text-white/25">›</span>
+            <span className="min-w-0">{l.t}</span>
+          </p>
+        ))}
+        <span className="inline-block h-3.5 w-1.5 animate-pulse bg-brand-300 align-middle" />
+      </div>
+    </div>
+  );
+}
 
 export function BrandPanel() {
+  const asideRef = useRef<HTMLElement>(null);
+  const frame = useRef(0);
+  const [tick, setTick] = useState(0);
+
+  // the loop advances on its own; respects reduced-motion by staying on the first frame
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const id = window.setInterval(() => setTick((t) => t + 1), 1800);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => () => cancelAnimationFrame(frame.current), []);
+
+  // cursor spotlight, updated once per frame
+  const onMove = (e: ReactPointerEvent<HTMLElement>) => {
+    const el = asideRef.current;
+    if (!el) return;
+    const { clientX, clientY } = e;
+    cancelAnimationFrame(frame.current);
+    frame.current = requestAnimationFrame(() => {
+      const r = el.getBoundingClientRect();
+      el.style.setProperty("--mx", `${clientX - r.left}px`);
+      el.style.setProperty("--my", `${clientY - r.top}px`);
+    });
+  };
+
+  const step = tick % 6;
+  const cycle = Math.floor(tick / 6);
+  const d = (ms: number): CSSProperties => ({ animationDelay: `${ms}ms` });
+
   return (
-    <aside className="relative hidden overflow-hidden bg-[#1e0a3c] lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-[46%] lg:shrink-0 lg:flex-col lg:justify-between lg:self-start lg:p-12">
-      <div className="cta-grid absolute inset-0 opacity-60" />
-      {/* gradient blobs: transform-only animation, no blur filters, so they stay cheap */}
+    <aside
+      ref={asideRef}
+      onPointerMove={onMove}
+      className="relative hidden min-h-screen overflow-hidden bg-[#140830] text-white lg:flex lg:w-[46%] lg:flex-col lg:justify-between lg:px-12 lg:py-10 xl:px-14"
+    >
+      {/* background layers */}
       <div
-        className="blob-a absolute -left-32 top-0 h-[460px] w-[460px] rounded-full"
-        style={{ background: "radial-gradient(circle, rgba(124,58,237,0.55) 0%, rgba(124,58,237,0) 68%)" }}
+        className="absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(900px circle at 0% 0%, rgba(124,58,237,0.45), transparent 55%), radial-gradient(700px circle at 100% 100%, rgba(192,38,211,0.28), transparent 55%)",
+        }}
       />
       <div
-        className="blob-b absolute -bottom-32 -right-24 h-[520px] w-[520px] rounded-full"
-        style={{ background: "radial-gradient(circle, rgba(192,38,211,0.34) 0%, rgba(192,38,211,0) 68%)" }}
+        className="absolute inset-0"
+        style={{ background: "radial-gradient(520px circle at var(--mx, 35%) var(--my, 20%), rgba(196,181,253,0.16), transparent 60%)" }}
       />
+      <div
+        className="cta-grid absolute inset-0 opacity-[0.3]"
+        style={{ maskImage: "radial-gradient(ellipse at top, black, transparent 75%)", WebkitMaskImage: "radial-gradient(ellipse at top, black, transparent 75%)" }}
+      />
+      <div
+        className="absolute inset-0 opacity-[0.07] mix-blend-overlay"
+        style={{ backgroundImage: "var(--noise)", backgroundSize: "180px 180px" }}
+      />
+      <div className="aurora absolute -left-24 top-1/3 h-72 w-72 rounded-full bg-brand-600/30 blur-3xl" />
+      <div className="aurora-slow absolute -right-24 bottom-10 h-80 w-80 rounded-full bg-fuchsia-600/20 blur-3xl" />
 
-      <div className="auth-in relative" style={d(40)}>
-        <Logo dark />
+      {/* header */}
+      <div className="relative flex items-center justify-between">
+        <div className="auth-in" style={d(40)}>
+          <Logo dark />
+        </div>
+        <span
+          className="auth-in hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold text-brand-100/80 xl:inline-flex"
+          style={d(120)}
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
+          Preview build
+        </span>
       </div>
 
-      <div className="relative">
-        <p className="auth-in text-[12px] font-extrabold uppercase tracking-[0.22em] text-brand-300" style={d(80)}>
-          The optimization loop
-        </p>
-        <h2 className="auth-in mt-4 max-w-md text-[2.3rem] font-extrabold leading-[1.12] text-white" style={d(130)}>
-          Ship LLM code you can actually trust.
-        </h2>
-        <p className="auth-in mt-4 max-w-md text-[15.5px] leading-relaxed text-brand-100/70" style={d(180)}>
-          Seven verification techniques, two bounded repair rounds, and a comparison report that proves what changed.
-        </p>
-
-        <div className="auth-in mt-8 flex items-center gap-2" style={d(230)}>
-          {chips.map((c, i) => (
-            <div key={c} className="flex items-center gap-2">
-              <span
-                className={`chip-bob grid h-11 w-11 place-items-center rounded-xl font-mono text-[13px] font-semibold ${
-                  c.startsWith("V")
-                    ? "bg-brand-500 text-white"
-                    : c.startsWith("R")
-                      ? "bg-white text-brand-900"
-                      : "bg-white/10 text-brand-200 ring-1 ring-white/20"
-                }`}
-                style={{ animationDelay: `${i * 0.3}s` }}
-              >
-                {c}
-              </span>
-              {i < chips.length - 1 && <span className="h-px w-3 bg-white/25" />}
-            </div>
-          ))}
-        </div>
-
-        <div className="auth-in mt-9 flex max-w-md items-start gap-3.5 rounded-2xl bg-white/[0.06] p-4 ring-1 ring-white/10" style={d(280)}>
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-500/25 text-brand-200">
-            <ShieldIcon />
+      {/* hero */}
+      <div className="relative mt-10">
+        <span
+          className="auth-in inline-flex items-center gap-2 rounded-full border border-brand-400/25 bg-brand-500/10 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.18em] text-brand-200"
+          style={d(120)}
+        >
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-300 opacity-70" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand-300" />
           </span>
-          <div>
-            <p className="text-[14px] font-extrabold text-white">Every account is verified</p>
-            <p className="mt-0.5 text-[13px] leading-relaxed text-brand-100/60">
-              Confirm with a one-time code by SMS or email, or connect your GitHub or Google account.
-            </p>
-          </div>
-        </div>
+          Verify · Repair · Verify
+        </span>
+        <h2 className="auth-in mt-5 text-[2.5rem] font-extrabold leading-[1.04] tracking-[-0.03em] xl:text-[3rem]" style={d(180)}>
+          Ship LLM code you can{" "}
+          <span className="bg-gradient-to-r from-[#ede4ff] via-[#c4b5fd] to-[#f0abfc] bg-clip-text text-transparent">actually trust.</span>
+        </h2>
+        <p className="auth-in mt-4 max-w-md text-[15px] leading-relaxed text-brand-100/65" style={d(240)}>
+          Seven real checks, two bounded repair rounds, and a report that proves what changed.
+        </p>
+      </div>
 
-        <div className="auth-in mt-4 grid max-w-md grid-cols-3 gap-3" style={d(330)}>
-          {[
-            ["7", "real checks per round"],
-            ["2", "bounded repairs"],
-            ["100%", "sample RSR after V₂"],
-          ].map(([a, b]) => (
-            <div key={b} className="rounded-2xl bg-white/[0.06] p-4 ring-1 ring-white/10">
-              <div className="text-[22px] font-extrabold text-white">{a}</div>
-              <div className="mt-1 text-[11.5px] leading-snug text-brand-100/60">{b}</div>
-            </div>
-          ))}
+      {/* live loop */}
+      <div className="relative mt-10 flex flex-col items-center gap-7 xl:flex-row xl:gap-8">
+        <div className="auth-in shrink-0" style={d(300)}>
+          <Dial step={step} />
+        </div>
+        <div className="auth-in min-w-0 w-full flex-1" style={d(380)}>
+          <Terminal step={step} cycle={cycle} />
         </div>
       </div>
 
-      <p className="auth-in relative text-[12.5px] text-brand-100/50" style={d(380)}>
-        Methodology grounded in the Dou et al. LLM-code verification study · categories A.1 – C.4
-      </p>
+      {/* footer */}
+      <div className="relative mt-10">
+        <div className="auth-in flex flex-wrap gap-2" style={d(440)}>
+          {TAXONOMY.map((t) => (
+            <span key={t} className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 font-mono text-[11px] text-brand-100/70">
+              {t}
+            </span>
+          ))}
+        </div>
+        <p
+          className="auth-in mt-6 flex items-center justify-between gap-3 border-t border-white/10 pt-5 text-[12px] text-brand-100/45"
+          style={d(500)}
+        >
+          <span>Based on the Dou et al. LLM-code verification study</span>
+          <span className="shrink-0 font-mono">A.1 – C.4</span>
+        </p>
+      </div>
     </aside>
   );
 }
