@@ -16,8 +16,8 @@ import { ExportModal } from './components/ExportModal';
 import { ApiSettingsModal } from './components/ApiSettingsModal';
 import { PrintReport } from './components/PrintReport';
 import { LeftNavbar } from './components/LeftNavbar';
-import { HistoryModal, type HistoryItem } from './components/HistoryModal';
-import { ProfileModal } from './components/ProfileModal';
+import { HistoryPage, type HistoryItem } from './components/HistoryPage';
+import { ProfilePage } from './components/ProfilePage';
 import LandingPage from '../landing_page/src/App';
 import { clearSession, getSession, type SessionUser } from '../landing_page/src/auth';
 import '../landing_page/src/index.css';
@@ -147,8 +147,8 @@ export function App() {
   const temperature = 0.1;
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  type ActiveView = 'pipeline' | 'history' | 'profile';
+  const [activeView, setActiveView] = useState<ActiveView>('pipeline');
   const [historyItems, setHistoryItems] = useState<HistoryItem[]>(() => {
     try {
       const raw = localStorage.getItem('veriflow_history');
@@ -161,7 +161,7 @@ export function App() {
   const handleSelectHistoryPrompt = (selectedPrompt: string) => {
     setPrompt(selectedPrompt);
     setCurrentStep(1);
-    setIsHistoryOpen(false);
+    setActiveView('pipeline');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -170,6 +170,20 @@ export function App() {
     try {
       localStorage.removeItem('veriflow_history');
     } catch {}
+  };
+
+  const handleDeleteHistoryItem = (id: string) => {
+    setHistoryItems(prev => {
+      const next = prev.filter(item => item.id !== id);
+      try {
+        localStorage.setItem('veriflow_history', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleUserUpdated = (updatedUser: SessionUser) => {
+    setCurrentUser(updatedUser);
   };
 
   const [resultData, setResultData] = useState<AIResultData>(createInitialResultData());
@@ -443,19 +457,26 @@ export function App() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onSignOut={handleSignOut}
         onGoToLanding={() => {
-          setShowLanding(true);
-          window.location.hash = '';
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+          if (activeView !== 'pipeline') {
+            setActiveView('pipeline');
+          } else {
+            setShowLanding(true);
+            window.location.hash = '';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
         }}
       />
-      <PipelineNav
-        currentStep={currentStep}
-        onSelectStep={(step) => setCurrentStep(step)}
-        hasResult={hasGeneratedResult}
-        maxUnlockedStep={maxUnlockedStep}
-      />
+      {activeView === 'pipeline' && (
+        <PipelineNav
+          currentStep={currentStep}
+          onSelectStep={(step) => setCurrentStep(step)}
+          hasResult={hasGeneratedResult}
+          maxUnlockedStep={maxUnlockedStep}
+        />
+      )}
 
-      <main className="flex-1 flex flex-col justify-start">
+      {activeView === 'pipeline' && (
+        <main className="flex-1 flex flex-col justify-start">
         {currentStep === 1 && (
           <>
             {errorMessage && (
@@ -597,6 +618,28 @@ export function App() {
           />
         )}
       </main>
+      )}
+
+      {activeView === 'history' && (
+        <HistoryPage
+          history={historyItems}
+          onSelectPrompt={handleSelectHistoryPrompt}
+          onClearHistory={handleClearHistory}
+          onDeleteHistoryItem={handleDeleteHistoryItem}
+          onBackToPipeline={() => setActiveView('pipeline')}
+        />
+      )}
+
+      {activeView === 'profile' && (
+        <ProfilePage
+          user={currentUser}
+          apiSettings={apiSettings}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onSignOut={handleSignOut}
+          onBackToPipeline={() => setActiveView('pipeline')}
+          onUserUpdated={handleUserUpdated}
+        />
+      )}
 
       <footer className="py-5 px-6 border-t border-[color:var(--color-hairline)] mt-8">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-[color:var(--color-ink-faint)]">
@@ -609,29 +652,8 @@ export function App() {
 
       {/* Floating Left Navbar */}
       <LeftNavbar
-        onOpenHistory={() => setIsHistoryOpen(true)}
-        onOpenProfile={() => setIsProfileOpen(true)}
-        isHistoryOpen={isHistoryOpen}
-        isProfileOpen={isProfileOpen}
-      />
-
-      {/* History Modal */}
-      <HistoryModal
-        isOpen={isHistoryOpen}
-        onClose={() => setIsHistoryOpen(false)}
-        history={historyItems}
-        onSelectPrompt={handleSelectHistoryPrompt}
-        onClearHistory={handleClearHistory}
-      />
-
-      {/* Profile Modal */}
-      <ProfileModal
-        isOpen={isProfileOpen}
-        onClose={() => setIsProfileOpen(false)}
-        user={currentUser}
-        apiSettings={apiSettings}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        onSignOut={handleSignOut}
+        activeView={activeView}
+        onNavigate={setActiveView}
       />
 
       {isProcessing && <ProcessingOverlay progress={progress} currentLog={currentLog} allLogs={allLogs} />}
