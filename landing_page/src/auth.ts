@@ -377,6 +377,90 @@ export function clearSession() {
   localStorage.removeItem(SESSION_KEY);
 }
 
+export function updateUserPhone(phone: string): { ok: boolean; user?: SessionUser; error?: string } {
+  const current = getSession();
+  if (!current) {
+    return { ok: false, error: "No active session found" };
+  }
+  const cleanPhone = phone.trim();
+  const updatedUser: SessionUser = { ...current, phone: cleanPhone };
+
+  // Update in session
+  const remember = !!localStorage.getItem(SESSION_KEY);
+  setSession(updatedUser, remember);
+
+  // Update in users database
+  const users = readUsers();
+  const idx = users.findIndex((u) => u.email.toLowerCase() === current.email.toLowerCase());
+  if (idx !== -1) {
+    users[idx] = { ...users[idx], phone: cleanPhone };
+    writeUsers(users);
+  }
+
+  // Sync to backend if available
+  syncUserToBackend({
+    name: updatedUser.name,
+    email: updatedUser.email,
+    phone: cleanPhone,
+  });
+
+  return { ok: true, user: updatedUser };
+}
+
+export async function resetPasswordWithOtp(
+  target: string,
+  newPassword: string
+): Promise<{ ok: boolean; error?: string }> {
+  if (!newPassword || newPassword.length < 8) {
+    return { ok: false, error: "Password must be at least 8 characters long." };
+  }
+  const normalized = target.trim().toLowerCase();
+  const users = readUsers();
+  const user = users.find(
+    (u) =>
+      u.email.toLowerCase() === normalized ||
+      (u.phone && u.phone.replace(/\D/g, "") === normalized.replace(/\D/g, ""))
+  );
+
+  const hash = await hashPassword(newPassword);
+
+  if (user) {
+    user.hash = hash;
+    writeUsers(users);
+    syncUserToBackend({
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      password: newPassword,
+    });
+    return { ok: true };
+  } else {
+    // If user is not yet in readUsers (e.g. guest or oauth), update current session
+    const current = getSession();
+    if (
+      current &&
+      (current.email.toLowerCase() === normalized ||
+        (current.phone && current.phone.replace(/\D/g, "") === normalized.replace(/\D/g, "")))
+    ) {
+      const newUser: StoredUser = {
+        ...current,
+        hash,
+        createdAt: Date.now(),
+      };
+      users.push(newUser);
+      writeUsers(users);
+      syncUserToBackend({
+        name: current.name,
+        email: current.email,
+        phone: current.phone,
+        password: newPassword,
+      });
+      return { ok: true };
+    }
+    return { ok: false, error: "Account not found for that email or phone number." };
+  }
+}
+
 export function subscribeNewsletter(email: string): { ok: boolean; message: string } {
   const key = "vf.subscribers";
   const normalized = email.trim().toLowerCase();
