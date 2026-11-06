@@ -13,8 +13,6 @@ namespace Backend.Services;
 public class AiService : ILlmClient
 {
     private const string SYSTEM_PROMPT = """
-        You are MACI, a Python code generation system used for research purposes.
-
         TASK: Generate Python code based on the user's description.
 
         IMPORTANT RULES:
@@ -26,8 +24,6 @@ public class AiService : ILlmClient
            - For COMPLEX tasks (REST API, management system, multi-component app): Generate multiple files with proper folder structure (routers, models, services, tests, config).
            - Never over-engineer. Match the complexity of the output to the complexity of the request.
 
-        3. Generate CLEAN, production-quality Python code. Write the code exactly as a skilled developer would.
-
         4. Always include at least one test file with pytest-compatible test functions (def test_...).
 
         5. Return ONLY a valid JSON object with this structure â€” no markdown fences, no prose:
@@ -37,9 +33,6 @@ public class AiService : ILlmClient
             { "name": "filename.py", "path": "relative/path/filename.py", "category": "router|service|model|schema|data|test|config|utils|other", "description": "Plain-English purpose", "content": "# Write the ACTUAL complete Python code here. Do not leave empty! Do not use placeholders." }
           ]
         }
-
-        category must be one of: router | service | model | schema | data | test | config | utils | other.
-        Every file's content must contain the ACTUAL FULL PYTHON CODE, not a stub or placeholder. Do not leave the content field empty.
         """;
 
     // Generation (JSON file list) keeps its historical temperature.
