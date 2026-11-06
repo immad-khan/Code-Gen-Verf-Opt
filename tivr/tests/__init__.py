@@ -1,3 +1,0 @@
-"""
-TIVR tests subpackage.
-"""
