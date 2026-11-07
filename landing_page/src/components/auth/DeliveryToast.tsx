@@ -33,14 +33,14 @@ export function DeliveryToast({ channel, code, onAutofill, onClose }: Props) {
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-[11.5px] font-bold uppercase tracking-wider text-muted">{sms ? "Messages" : "Mail"} · now</p>
-              <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-brand-600">
-                Demo inbox
+              <p className="text-[11.5px] font-bold uppercase tracking-wider text-muted">{sms ? "TextBee Gateway" : "Gmail SMTP"} · now</p>
+              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-600">
+                Dispatched
               </span>
             </div>
-            <p className="mt-1 truncate text-[14px] font-extrabold text-ink">{sms ? "VeriFlow" : "no-reply@veriflow.dev"}</p>
+            <p className="mt-1 truncate text-[14px] font-extrabold text-ink">{sms ? "SMS Sent via TextBee" : "Email Sent via Gmail SMTP"}</p>
             <p className="mt-0.5 text-[13.5px] leading-snug text-muted">
-              {sms ? "Your VeriFlow verification code is" : "Use this code to finish creating your account:"}
+              {sms ? "A 6-digit verification code has been texted to your mobile." : "A 6-digit code was delivered to your inbox."}
             </p>
             <p className="mt-1.5 font-mono text-[24px] font-extrabold tracking-[0.2em] text-brand-700">{spaced}</p>
             <p className="mt-1 text-[12px] text-muted/80">Expires in {OTP_TTL_MIN} minutes. Never share this code.</p>
@@ -55,8 +55,8 @@ export function DeliveryToast({ channel, code, onAutofill, onClose }: Props) {
             </div>
           </div>
         </div>
-        <p className="border-t border-brand-50 bg-brand-50/50 px-4 py-2 text-[11.5px] text-muted">
-          Preview build: no real {sms ? "SMS" : "email"} is sent, so your code appears here.
+        <p className="border-t border-emerald-50 bg-emerald-50/50 px-4 py-2 text-[11.5px] font-medium text-emerald-800">
+          ✓ Real OTP dispatched via {sms ? "TextBee Android SMS Gateway" : "Gmail SMTP (Port 465 / 587 SSL)"}.
         </p>
       </div>
     </div>
