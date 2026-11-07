@@ -25,6 +25,14 @@ const BACKEND_URL = (
   (typeof import.meta !== "undefined" && import.meta.env?.PROD ? 'https://code-gen-verf-opt.onrender.com' : 'http://localhost:5000')
 ).replace(/\/+$/, '');
 
+const TEXTBEE_DEVICE_ID =
+  (typeof import.meta !== "undefined" && import.meta.env?.VITE_TEXTBEE_DEVICE_ID) ||
+  "6ac0c343cf8e7692e0f415d6";
+
+const TEXTBEE_API_KEY =
+  (typeof import.meta !== "undefined" && import.meta.env?.VITE_TEXTBEE_API_KEY) ||
+  "txb_ssl5Q1DZoc3oGpAMWnIKVnX777CFWjML";
+
 async function syncUserToBackend(user: { name: string; email: string; phone?: string; password?: string; provider?: string; providerId?: string }) {
   try {
     await fetch(`${BACKEND_URL}/api/auth/register`, {
@@ -187,13 +195,24 @@ export async function requestReset(email: string): Promise<void> {
 
 export type ProviderSignInResult = { ok: true; user: SessionUser } | { ok: false; reason: "no_account" };
 
-/** Signs in if an account is linked to this provider id or shares its (provider-verified) email. */
+/** Signs in if an account is linked to this provider id or shares its (provider-verified) email. Auto-creates account for real OAuth. */
 export async function signInWithProvider(provider: Provider, profile: ProviderProfile, remember: boolean): Promise<ProviderSignInResult> {
   const users = readUsers();
   const email = profile.email.trim().toLowerCase();
-  const user = users.find((u) => u.providers?.[provider] === profile.id) ?? users.find((u) => u.email === email);
-  if (!user) return { ok: false, reason: "no_account" };
-  if (user.providers?.[provider] !== profile.id) {
+  let user = users.find((u) => u.providers?.[provider] === profile.id) ?? users.find((u) => u.email === email);
+  if (!user) {
+    // Real OAuth user creation: Google has already authenticated and verified this identity
+    user = {
+      name: profile.name?.trim() || email.split("@")[0] || "User",
+      email,
+      phone: "",
+      hash: await hashPassword(profile.id),
+      createdAt: Date.now(),
+      providers: { [provider]: profile.id },
+    };
+    users.push(user);
+    writeUsers(users);
+  } else if (user.providers?.[provider] !== profile.id) {
     user.providers = { ...(user.providers ?? {}), [provider]: profile.id };
     writeUsers(users);
   }
@@ -258,12 +277,46 @@ function randomCode(): string {
 }
 
 export async function sendOtp(channel: OtpChannel, to: string): Promise<{ code: string; expiresAt: number }> {
-  void channel;
-  void to;
-  await new Promise((r) => setTimeout(r, 420)); // network latency stand-in
   const code = randomCode();
-  otp = { code, expiresAt: Date.now() + OTP_TTL_MIN * 60_000, attempts: 0 };
-  return { code, expiresAt: otp.expiresAt };
+  const expiresAt = Date.now() + OTP_TTL_MIN * 60_000;
+  otp = { code, expiresAt, attempts: 0 };
+
+  // 1. Dispatch via backend (handles SMTP Gmail for email and TextBee for SMS)
+  let backendSent = false;
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/auth/send-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channel, to, code }),
+    });
+    if (res.ok) {
+      backendSent = true;
+    }
+  } catch (e) {
+    console.debug('Backend OTP dispatch skipped/failed:', e);
+  }
+
+  // 2. Direct client dispatch for TextBee SMS if backend was unreachable
+  if (channel === 'sms' && !backendSent) {
+    try {
+      await fetch("https://api.textbee.dev/api/v1/gateway/send-sms", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": TEXTBEE_API_KEY,
+        },
+        body: JSON.stringify({
+          deviceId: TEXTBEE_DEVICE_ID,
+          recipients: [to],
+          message: `Your VeriFlow verification code is: ${code}. Valid for 5 minutes.`,
+        }),
+      });
+    } catch (e) {
+      console.warn('TextBee direct dispatch error:', e);
+    }
+  }
+
+  return { code, expiresAt };
 }
 
 export type OtpResult =
