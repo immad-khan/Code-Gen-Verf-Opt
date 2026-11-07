@@ -15,6 +15,7 @@ import {
 } from "../auth";
 import { Logo } from "./Header";
 import { BrandPanel } from "./auth/BrandPanel";
+import { signInWithGoogle } from "./auth/googleAuth";
 import { DeliveryToast } from "./auth/DeliveryToast";
 import { DetailsStep } from "./auth/DetailsStep";
 import { ForgotStep } from "./auth/ForgotStep";
@@ -164,8 +165,19 @@ export function AuthPage({ session, justVerified, onAuthed, onSignOut }: Props) 
   };
 
   /* ---- GitHub / Google ---- */
-  const openProvider = (p: Provider) => {
+  const openProvider = async (p: Provider) => {
     setNotice(null);
+    if (p === "google") {
+      try {
+        const profile = await signInWithGoogle();
+        await handleProviderSuccess("google", profile);
+        return;
+      } catch (err) {
+        console.warn("Google Sign-In popup closed or origin not added in Google Cloud Console, falling back to selection modal:", err);
+        setProviderModal("google");
+        return;
+      }
+    }
     setProviderModal(p);
   };
 
