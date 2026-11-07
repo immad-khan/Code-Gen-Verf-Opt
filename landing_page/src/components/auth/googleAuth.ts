@@ -1,8 +1,7 @@
 import type { ProviderProfile } from "../../auth";
 
 export const GOOGLE_CLIENT_ID =
-  (typeof import.meta !== "undefined" && import.meta.env?.VITE_GOOGLE_CLIENT_ID) ||
-  "724059477347-hp80qu61crf53g63alvpn4gu5vlsn4cf.apps.googleusercontent.com";
+  (typeof import.meta !== "undefined" && import.meta.env?.VITE_GOOGLE_CLIENT_ID) || "";
 
 declare global {
   interface Window {

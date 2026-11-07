@@ -1,5 +1,8 @@
+using Backend.Data;
 using Backend.Services;
 using Backend.Services.Taxonomy;
+using Backend.Services.Verification.Pipeline;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,6 +10,24 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Configure Neon PostgreSQL Database
+var connectionString = DatabaseConfiguration.ResolveConnectionString(builder.Configuration);
+if (!string.IsNullOrEmpty(connectionString))
+{
+    builder.Services.AddDbContext<AppDbContext>(options =>
+    {
+        options.UseNpgsql(connectionString);
+    });
+}
+else
+{
+    // Fallback in-memory or empty context registration if connection string is missing
+    builder.Services.AddDbContext<AppDbContext>(options =>
+    {
+        options.UseNpgsql("Host=localhost;Database=neondb;Username=postgres;Password=postgres");
+    });
+}
 
 // Add CORS
 builder.Services.AddCors(options =>
@@ -24,6 +45,7 @@ builder.Services.AddCors(options =>
 builder.Services.Configure<LlmClientOptions>(builder.Configuration.GetSection(LlmClientOptions.SectionName));
 builder.Services.AddHttpClient<AiService>(client => client.Timeout = Timeout.InfiniteTimeSpan);
 builder.Services.AddTransient<ILlmClient>(sp => sp.GetRequiredService<AiService>());
+builder.Services.AddSingleton<IVerificationPipeline, VerificationPipeline>();
 builder.Services.AddSingleton<VerificationService>();
 builder.Services.AddScoped<OptimizationService>();
 
@@ -38,6 +60,21 @@ builder.Services.AddHttpClient("KeepAliveClient");
 builder.Services.AddHostedService<KeepAliveService>();
 
 var app = builder.Build();
+
+// Automatically ensure PostgreSQL tables exist
+using (var scope = app.Services.CreateScope())
+{
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.EnsureCreatedAsync();
+        app.Logger.LogInformation("Neon PostgreSQL database initialized successfully.");
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Could not initialize PostgreSQL database at startup.");
+    }
+}
 
 // Enable Swagger in all environments so you can test endpoints from your browser
 app.UseSwagger();
@@ -58,6 +95,7 @@ app.MapGet("/", () => Results.Ok(new
 {
     status = "online",
     service = "MACI Backend API",
+    database = "Neon PostgreSQL",
     time = DateTime.UtcNow.ToString("o"),
     documentation = "/swagger",
     health = "/api/health"
