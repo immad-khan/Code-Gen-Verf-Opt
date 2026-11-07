@@ -15,8 +15,8 @@ import { ProcessingOverlay } from './components/ProcessingOverlay';
 import { ExportModal } from './components/ExportModal';
 import { ApiSettingsModal } from './components/ApiSettingsModal';
 import { PrintReport } from './components/PrintReport';
-import LandingPage from '../landing-page/src/App';
-import '../landing-page/src/index.css';
+import LandingPage from '../landing_page/src/App';
+import '../landing_page/src/index.css';
 
 const DEFAULT_PROMPT = '';
 
@@ -147,13 +147,17 @@ export function App() {
   const [optimizationResult, setOptimizationResult] = useState<OptimizationResponse | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
 
-  // Intercept clicking "Try it out" anywhere inside the landing page
+  // Intercept navigation to the app from the landing page
   const handleLandingClick = (e: React.MouseEvent) => {
     const target = (e.target as HTMLElement).closest('a, button');
     if (target) {
       const href = target.getAttribute('href') || '';
       const text = target.textContent?.toLowerCase() || '';
-      if (href === '#try' || href.includes('try') || text.includes('try it out')) {
+      if (
+        href === '#app' ||
+        text.includes('open veriflow') ||
+        text.includes('continue to veriflow')
+      ) {
         e.preventDefault();
         setShowLanding(false);
         window.location.hash = '#app';
@@ -164,10 +168,15 @@ export function App() {
 
   useEffect(() => {
     const onHashChange = () => {
-      if (window.location.hash === '#app' || window.location.hash === '#try') {
+      if (window.location.hash === '#app' || window.location.hash === '#pipeline') {
         setShowLanding(false);
         window.scrollTo({ top: 0, behavior: 'smooth' });
-      } else if (window.location.hash === '#landing' || !window.location.hash) {
+      } else if (
+        window.location.hash === '#landing' ||
+        window.location.hash === '#auth' ||
+        window.location.hash === '#verified' ||
+        !window.location.hash
+      ) {
         setShowLanding(true);
       }
     };
