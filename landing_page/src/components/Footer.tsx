@@ -47,8 +47,8 @@ const LEGAL: Record<"terms" | "privacy", { title: string; body: string[] }> = {
   privacy: {
     title: "Privacy policy",
     body: [
-      "This preview keeps accounts, sessions, and newsletter sign-ups in your browser. They are not transmitted to a server.",
-      "Passwords are stored only as SHA-256 hashes. One-time codes and GitHub/Google sign-in are simulated in this preview; no SMS or email is sent and no provider request is made.",
+      "Accounts, sessions, and preferences are synchronized with the Neon PostgreSQL database and secure local session cache.",
+      "Passwords are encrypted with SHA-256 cryptographic hashing. Google authentication is powered by the official Google Identity Services OAuth 2.0 flow.",
       "You can erase local data by clearing this site's storage in your browser settings.",
     ],
   },
