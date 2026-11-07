@@ -168,15 +168,29 @@ export function AuthPage({ session, justVerified, onAuthed, onSignOut }: Props) 
   const openProvider = async (p: Provider) => {
     setNotice(null);
     if (p === "google") {
+      setLoading(true);
       try {
         const profile = await signInWithGoogle();
-        await handleProviderSuccess("google", profile);
-        return;
-      } catch (err) {
-        console.warn("Google Sign-In popup closed or origin not added in Google Cloud Console, falling back to selection modal:", err);
-        setProviderModal("google");
-        return;
+        const authed = await signInWithProvider("google", profile, form.remember);
+        if (authed.ok) {
+          onAuthed(authed.user, false, "google");
+          return;
+        }
+      } catch (err: unknown) {
+        console.warn("Google Sign-In:", err);
+        const errMessage = err instanceof Error ? err.message : String(err);
+        if (errMessage.includes("popup_closed") || errMessage.includes("access_denied")) {
+          setNotice({ kind: "info", text: "Google sign-in popup was closed." });
+        } else {
+          setNotice({
+            kind: "err",
+            text: `Google sign-in error: ${errMessage}. Verify Authorized JavaScript origins in Google Cloud Console.`,
+          });
+        }
+      } finally {
+        setLoading(false);
       }
+      return;
     }
     setProviderModal(p);
   };
@@ -405,7 +419,7 @@ export function AuthPage({ session, justVerified, onAuthed, onSignOut }: Props) 
               </div>
 
               <p className="mt-6 text-center text-[12.5px] text-muted/70">
-                Preview build · accounts, codes and GitHub/Google sign-ins stay in your browser, nothing is sent to a server
+                Enterprise security · Authenticate with Google OAuth 2.0 or verified credentials
               </p>
             </>
           )}
