@@ -1,7 +1,8 @@
 import type { ProviderProfile } from "../../auth";
 
 export const GOOGLE_CLIENT_ID =
-  (typeof import.meta !== "undefined" && import.meta.env?.VITE_GOOGLE_CLIENT_ID) || "";
+  (typeof import.meta !== "undefined" && import.meta.env?.VITE_GOOGLE_CLIENT_ID) ||
+  "724059477347-65enihkadmge4a1ieuq4k0v4dqcupi0t.apps.googleusercontent.com";
 
 declare global {
   interface Window {
@@ -66,7 +67,7 @@ export async function signInWithGoogle(): Promise<ProviderProfile> {
         scope: "email profile openid",
         callback: async (tokenResponse) => {
           if (tokenResponse.error) {
-            return reject(new Error(tokenResponse.error));
+            return reject(new Error(tokenResponse.error_description || tokenResponse.error));
           }
 
           if (!tokenResponse.access_token) {
