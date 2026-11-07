@@ -20,6 +20,46 @@ const SESSION_KEY = "vf.session";
 const PROVIDER_ACCOUNTS_KEY = "vf.providerAccounts";
 const LEGACY_DEMO_EMAIL = "demo@veriflow.dev"; // seeded by an earlier build, now purged
 
+const BACKEND_URL = (
+  (typeof import.meta !== "undefined" && import.meta.env?.VITE_BACKEND_URL?.trim()) ||
+  (typeof import.meta !== "undefined" && import.meta.env?.PROD ? 'https://code-gen-verf-opt.onrender.com' : 'http://localhost:5000')
+).replace(/\/+$/, '');
+
+async function syncUserToBackend(user: { name: string; email: string; phone?: string; password?: string; provider?: string; providerId?: string }) {
+  try {
+    await fetch(`${BACKEND_URL}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: user.name,
+        email: user.email,
+        phone: user.phone || null,
+        password: user.password || 'OAuthUser!2026',
+        provider: user.provider || 'local',
+        providerId: user.providerId || null,
+      }),
+    });
+  } catch (e) {
+    console.debug('Backend auth sync skipped:', e);
+  }
+}
+
+async function syncGoogleUserToBackend(profile: ProviderProfile) {
+  try {
+    await fetch(`${BACKEND_URL}/api/auth/google`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: profile.email,
+        name: profile.name,
+        providerId: profile.id,
+      }),
+    });
+  } catch (e) {
+    console.debug('Backend Google auth sync skipped:', e);
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* local user store                                                    */
 /* ------------------------------------------------------------------ */
@@ -103,6 +143,14 @@ export async function createAccount(
   writeUsers(users);
   const session = toSession(user);
   setSession(session, remember);
+  void syncUserToBackend({
+    name: input.name,
+    email,
+    phone: input.phone,
+    password: input.password,
+    provider: input.provider?.name,
+    providerId: input.provider?.id,
+  });
   return { ok: true, user: session };
 }
 
@@ -117,6 +165,9 @@ export async function signIn(email: string, password: string, remember: boolean)
   }
   const session = toSession(user);
   setSession(session, remember);
+  if (provider === "google") {
+    void syncGoogleUserToBackend(profile);
+  }
   return { ok: true, user: session };
 }
 
@@ -148,6 +199,9 @@ export async function signInWithProvider(provider: Provider, profile: ProviderPr
   }
   const session = toSession(user);
   setSession(session, remember);
+  if (provider === "google") {
+    void syncGoogleUserToBackend(profile);
+  }
   return { ok: true, user: session };
 }
 
