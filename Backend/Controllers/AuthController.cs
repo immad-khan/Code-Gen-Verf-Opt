@@ -27,6 +27,7 @@ public class AuthController : ControllerBase
     public record RegisterRequest(string Name, string Email, string? Phone, string Password, string? Provider, string? ProviderId);
     public record LoginRequest(string Email, string Password);
     public record GoogleAuthRequest(string Email, string Name, string? ProviderId);
+    public record GitHubAuthRequest(string Code, string? RedirectUri);
     public record SendOtpRequest(string Channel, string To, string? Code);
     public record VerifyOtpRequest(string To, string Code);
 
@@ -85,7 +86,6 @@ public class AuthController : ControllerBase
             return Unauthorized(new { ok = false, error = "No account found with this email." });
 
         var hash = ComputeHash(req.Password);
-        // Also allow comparing if frontend already hashed it
         if (user.PasswordHash != hash && user.PasswordHash != req.Password)
             return Unauthorized(new { ok = false, error = "Incorrect password." });
 
@@ -146,6 +146,158 @@ public class AuthController : ControllerBase
                 phone = user.Phone
             }
         });
+    }
+
+    [HttpPost("github")]
+    public async Task<IActionResult> GitHubAuth([FromBody] GitHubAuthRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.Code))
+            return BadRequest(new { ok = false, error = "Authorization code is required." });
+
+        var clientId = Environment.GetEnvironmentVariable("GITHUB_CLIENT_ID") ?? "Ov23libA6ZxKhurjAojQ";
+        var clientSecret = Environment.GetEnvironmentVariable("GITHUB_CLIENT_SECRET") ?? "9c7897fa1022ec278e2aa4ccf9c41d88ca075aa0";
+
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            http.DefaultRequestHeaders.Add("User-Agent", "VeriFlow-Auth/1.0");
+
+            // 1. Exchange authorization code for access token
+            var tokenPayload = new Dictionary<string, string>
+            {
+                { "client_id", clientId },
+                { "client_secret", clientSecret },
+                { "code", req.Code.Trim() }
+            };
+            if (!string.IsNullOrEmpty(req.RedirectUri))
+                tokenPayload["redirect_uri"] = req.RedirectUri;
+
+            var tokenReq = new HttpRequestMessage(HttpMethod.Post, "https://github.com/login/oauth/access_token")
+            {
+                Content = new FormUrlEncodedContent(tokenPayload)
+            };
+            tokenReq.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+
+            var tokenRes = await http.SendAsync(tokenReq);
+            if (!tokenRes.IsSuccessStatusCode)
+            {
+                var errContent = await tokenRes.Content.ReadAsStringAsync();
+                return StatusCode((int)tokenRes.StatusCode, new { ok = false, error = $"GitHub token exchange failed: {errContent}" });
+            }
+
+            var tokenJson = await tokenRes.Content.ReadAsStringAsync();
+            using var tokenDoc = JsonDocument.Parse(tokenJson);
+            if (!tokenDoc.RootElement.TryGetProperty("access_token", out var tokenProp))
+            {
+                var errMsg = tokenDoc.RootElement.TryGetProperty("error_description", out var ed)
+                    ? ed.GetString()
+                    : "No access token in response";
+                return BadRequest(new { ok = false, error = errMsg });
+            }
+
+            var accessToken = tokenProp.GetString();
+
+            // 2. Fetch GitHub User profile
+            var userReq = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/user");
+            userReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+            var userRes = await http.SendAsync(userReq);
+            if (!userRes.IsSuccessStatusCode)
+                return StatusCode((int)userRes.StatusCode, new { ok = false, error = "Failed to fetch GitHub profile." });
+
+            var userJson = await userRes.Content.ReadAsStringAsync();
+            using var userDoc = JsonDocument.Parse(userJson);
+            var root = userDoc.RootElement;
+
+            var githubId = root.GetProperty("id").ToString();
+            var login = root.TryGetProperty("login", out var lProp) ? lProp.GetString() : "github_user";
+            var name = root.TryGetProperty("name", out var nProp) && !string.IsNullOrWhiteSpace(nProp.GetString())
+                ? nProp.GetString()
+                : login;
+            var email = root.TryGetProperty("email", out var eProp) ? eProp.GetString() : null;
+
+            // 3. If primary email is private or null, query /user/emails
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                try
+                {
+                    var emailsReq = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/user/emails");
+                    emailsReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+                    var emailsRes = await http.SendAsync(emailsReq);
+                    if (emailsRes.IsSuccessStatusCode)
+                    {
+                        var emailsJson = await emailsRes.Content.ReadAsStringAsync();
+                        using var emailsDoc = JsonDocument.Parse(emailsJson);
+                        foreach (var el in emailsDoc.RootElement.EnumerateArray())
+                        {
+                            var isPrimary = el.TryGetProperty("primary", out var p) && p.GetBoolean();
+                            var isVerified = el.TryGetProperty("verified", out var v) && v.GetBoolean();
+                            if (isPrimary && isVerified && el.TryGetProperty("email", out var em))
+                            {
+                                email = em.GetString();
+                                break;
+                            }
+                            if (string.IsNullOrEmpty(email) && el.TryGetProperty("email", out var firstEm))
+                            {
+                                email = firstEm.GetString();
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to fetch GitHub user emails");
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                email = $"{login}@users.noreply.github.com";
+            }
+
+            var normalizedEmail = email.Trim().ToLowerInvariant();
+
+            // 4. Upsert into Neon PostgreSQL
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail || (u.Provider == "github" && u.ProviderId == githubId));
+            if (user == null)
+            {
+                user = new UserEntity
+                {
+                    Name = name ?? "GitHub User",
+                    Email = normalizedEmail,
+                    PasswordHash = ComputeHash(Guid.NewGuid().ToString("N")),
+                    Provider = "github",
+                    ProviderId = githubId,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _db.Users.Add(user);
+                await _db.SaveChangesAsync();
+            }
+            else
+            {
+                user.Provider = "github";
+                user.ProviderId = githubId;
+                user.UpdatedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync();
+            }
+
+            return Ok(new
+            {
+                ok = true,
+                user = new
+                {
+                    id = user.Id,
+                    name = user.Name,
+                    email = user.Email,
+                    phone = user.Phone
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GitHub authentication error");
+            return StatusCode(500, new { ok = false, error = ex.Message });
+        }
     }
 
     [HttpGet("users")]

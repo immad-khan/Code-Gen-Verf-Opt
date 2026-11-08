@@ -16,6 +16,7 @@ import {
 import { Logo } from "./Header";
 import { BrandPanel } from "./auth/BrandPanel";
 import { signInWithGoogle } from "./auth/googleAuth";
+import { signInWithGitHub } from "./auth/githubAuth";
 import { DeliveryToast } from "./auth/DeliveryToast";
 import { DetailsStep } from "./auth/DetailsStep";
 import { ForgotStep } from "./auth/ForgotStep";
@@ -93,6 +94,42 @@ export function AuthPage({ session, justVerified, onAuthed, onSignOut }: Props) 
     },
     []
   );
+
+  useEffect(() => {
+    // Check if redirected from GitHub with ?code=
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    if (code) {
+      window.history.replaceState({}, document.title, window.location.pathname + (window.location.hash || "#auth"));
+      const backendUrl = (
+        (typeof import.meta !== "undefined" && import.meta.env?.VITE_BACKEND_URL?.trim()) ||
+        (typeof import.meta !== "undefined" && import.meta.env?.PROD ? "https://code-gen-verf-opt.onrender.com" : "http://localhost:5000")
+      ).replace(/\/+$/, "");
+
+      setLoading(true);
+      fetch(`${backendUrl}/api/auth/github`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, redirectUri: window.location.origin }),
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.ok && data.user) {
+            return signInWithProvider("github", { id: String(data.user.id), name: data.user.name, email: data.user.email }, true);
+          }
+          throw new Error(data.error || "GitHub authentication failed");
+        })
+        .then((authed) => {
+          if (authed && authed.ok) {
+            onAuthed(authed.user, false, "github");
+          }
+        })
+        .catch((err) => {
+          setNotice({ kind: "err", text: `GitHub authentication error: ${err.message}` });
+        })
+        .finally(() => setLoading(false));
+    }
+  }, []);
 
   const go = (next: Step, d: "fwd" | "back") => {
     setDir(d);
@@ -192,6 +229,33 @@ export function AuthPage({ session, justVerified, onAuthed, onSignOut }: Props) 
       }
       return;
     }
+
+    if (p === "github") {
+      setLoading(true);
+      try {
+        const profile = await signInWithGitHub();
+        const authed = await signInWithProvider("github", profile, form.remember);
+        if (authed.ok) {
+          onAuthed(authed.user, false, "github");
+          return;
+        }
+      } catch (err: unknown) {
+        console.warn("GitHub Sign-In:", err);
+        const errMessage = err instanceof Error ? err.message : String(err);
+        if (errMessage.includes("popup closed") || errMessage.includes("access_denied")) {
+          setNotice({ kind: "info", text: "GitHub authorization popup was closed." });
+        } else {
+          setNotice({
+            kind: "err",
+            text: `GitHub sign-in error: ${errMessage}. Verify that the callback URL is registered in GitHub Developer Settings.`,
+          });
+        }
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     setProviderModal(p);
   };
 
