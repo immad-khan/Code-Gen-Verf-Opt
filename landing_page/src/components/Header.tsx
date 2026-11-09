@@ -58,7 +58,7 @@ const NAV = [
   ["Results", "results"],
 ] as const;
 
-export function Header({ user }: { user: SessionUser | null }) {
+export function Header({ user, onSignOut }: { user: SessionUser | null; onSignOut?: () => void }) {
   const [active, setActive] = useState<string>("");
 
   useEffect(() => {
@@ -101,6 +101,16 @@ export function Header({ user }: { user: SessionUser | null }) {
           ))}
         </nav>
         <div className="flex items-center gap-3">
+          {user && onSignOut && (
+            <button
+              type="button"
+              onClick={onSignOut}
+              className="px-3 py-2 text-[13px] font-semibold text-[#64748b] hover:text-rose-600 transition cursor-pointer"
+              title="Log out"
+            >
+              Log out
+            </button>
+          )}
           <a href={user ? APP_URL || "#verified" : TRY_URL} className="btn btn-primary px-5 py-2.5 text-[14px]">
             {user ? "Open VeriFlow" : "Try it out"}
           </a>
