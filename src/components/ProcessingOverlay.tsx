@@ -19,20 +19,20 @@ export const ProcessingOverlay: React.FC<ProcessingOverlayProps> = ({
         <div className="flex items-center gap-3 mb-5">
           <div className="relative w-11 h-11 flex items-center justify-center shrink-0">
             <span className="absolute inset-0 rounded-xl border-2 border-[color:var(--color-hairline)]" />
-            <span className="absolute inset-0 rounded-xl border-2 border-[#7c6cff] border-t-transparent animate-spin" />
-            <span className="w-4 h-4 rounded-md bg-gradient-to-br from-[#8b7bff] to-[#6b57f5]" />
+            <span className="absolute inset-0 rounded-xl border-2 border-[#7c3aed] border-t-transparent animate-spin" />
+            <span className="w-4 h-4 rounded-md bg-gradient-to-br from-[#8b5cf6] to-[#6d28d9]" />
           </div>
           <div>
             <h2 className="text-base font-bold text-[color:var(--color-ink)]">Running the pipeline</h2>
             <p className="text-xs text-[color:var(--color-ink-muted)]">Generating Python, then auditing every line.</p>
           </div>
-          <span className="ml-auto text-sm font-mono font-bold text-[color:var(--color-brand-soft)] tabular-nums">{progress}%</span>
+          <span className="ml-auto text-sm font-mono font-bold text-[#7c3aed] tabular-nums">{progress}%</span>
         </div>
 
         {/* Progress Bar */}
         <div className="w-full bg-[color:var(--color-surface-2)] h-1.5 rounded-full overflow-hidden mb-5">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-[#8b7bff] to-[#6b57f5] transition-all duration-300 ease-out"
+            className="h-full rounded-full bg-gradient-to-r from-[#8b5cf6] to-[#6d28d9] transition-all duration-300 ease-out"
             style={{ width: `${progress}%` }}
           />
         </div>
