@@ -5,13 +5,14 @@ interface HeaderProps {
   hasApiKey: boolean;
   onOpenSettings: () => void;
   onGoToLanding?: () => void;
+  user?: { name: string; email: string; phone?: string } | null;
   /** Top-level section navigation (AppShell passes SectionNav). */
   nav?: React.ReactNode;
   /** Global status area, e.g. the backend offline indicator (23.7). */
   status?: React.ReactNode;
 }
 
-export const Header: React.FC<HeaderProps> = ({ hasApiKey, onOpenSettings, onGoToLanding, nav, status }) => {
+export const Header: React.FC<HeaderProps> = ({ hasApiKey, onOpenSettings, onGoToLanding, user, nav, status }) => {
   // Starts with the visible text so the accessible name matches the label (WCAG 2.5.3).
   const settingsLabel = hasApiKey ? 'API connected, change API settings' : 'Connect API provider';
   return (
@@ -45,30 +46,41 @@ export const Header: React.FC<HeaderProps> = ({ hasApiKey, onOpenSettings, onGoT
 
         {nav}
 
-        {/* Right controls: Landing Page link + global status + API button */}
-        <div className="flex items-center gap-2">
-          {onGoToLanding && (
-            <button
-              type="button"
-              onClick={onGoToLanding}
-              className="btn-ghost px-3 py-2 text-xs flex items-center gap-1.5 cursor-pointer text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)]"
-              title="Return to Landing Page"
-            >
-              <span>← Landing Page</span>
-            </button>
-          )}
+        {/* Right controls: user profile + global status + API button */}
+        <div className="flex items-center gap-2.5">
           {status}
+
           <button
             type="button"
             onClick={onOpenSettings}
             aria-label={settingsLabel}
             title={hasApiKey ? 'API connected — click to change' : 'Connect an AI provider'}
-            className={`btn-ghost px-3 py-2 text-xs flex items-center gap-2 cursor-pointer ${hasApiKey ? 'border-emerald-600/40 text-emerald-800' : ''}`}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-xl flex items-center gap-2 cursor-pointer transition-all shadow-xs ${
+              hasApiKey
+                ? 'border border-emerald-500/30 bg-emerald-50/90 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-500/50'
+                : 'border border-[#7c6cff]/40 bg-gradient-to-r from-[#7c6cff]/10 to-[#9333ea]/10 text-[#6b57f5] hover:bg-[#7c6cff]/20 hover:border-[#7c6cff]/60'
+            }`}
           >
-            <KeyRound className="w-4 h-4" aria-hidden="true" />
-            <span className="hidden sm:inline" aria-hidden="true">{hasApiKey ? 'API connected' : 'Connect API'}</span>
-            {hasApiKey && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" aria-hidden="true" />}
+            <KeyRound className="w-3.5 h-3.5 shrink-0 text-current" aria-hidden="true" />
+            <span className="font-semibold text-current">{hasApiKey ? 'API connected' : 'Connect API'}</span>
+            {hasApiKey ? (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0" aria-hidden="true" />
+            ) : (
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" aria-hidden="true" />
+            )}
           </button>
+
+          {user && (
+            <div
+              className="flex items-center gap-2 rounded-full border border-purple-200/80 bg-purple-50/80 py-1 pl-1 pr-3 text-[12.5px] font-semibold text-purple-900 shadow-xs"
+              title={`Logged in as ${user.name}${user.email ? ` (${user.email})` : ''}`}
+            >
+              <span className="grid h-6 w-6 place-items-center rounded-full bg-gradient-to-br from-[#8b7bff] to-[#6b57f5] text-[11px] font-extrabold text-white shadow-xs">
+                {user.name.trim().charAt(0).toUpperCase() || "U"}
+              </span>
+              <span className="truncate max-w-[120px]">{user.name.split(" ")[0]}</span>
+            </div>
+          )}
         </div>
       </div>
     </header>
