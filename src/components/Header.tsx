@@ -16,10 +16,24 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ hasApiKey, onOpenSettings, onGoToLanding, onSignOut, user, nav, status }) => {
   // Starts with the visible text so the accessible name matches the label (WCAG 2.5.3).
   const settingsLabel = hasApiKey ? 'API connected, change API settings' : 'Connect API provider';
+
+  const handleLogout = () => {
+    if (onSignOut) {
+      onSignOut();
+    } else {
+      try {
+        localStorage.removeItem('vf.session');
+        sessionStorage.removeItem('vf.session');
+      } catch {}
+      window.location.hash = '';
+      window.location.reload();
+    }
+  };
+
   return (
     <header className="sticky top-0 z-30 backdrop-blur-xl bg-white/90 border-b border-[color:var(--color-hairline)] shadow-xs">
       <div className="max-w-6xl mx-auto px-4 md:px-6 min-h-16 py-2 flex flex-wrap items-center justify-between gap-3">
-        {/* Brand */}
+        {/* Brand - Exactly matches Landing Page logo */}
         <div
           onClick={onGoToLanding}
           className={`flex items-center gap-2.5 min-w-0 ${onGoToLanding ? 'cursor-pointer group' : ''}`}
@@ -30,17 +44,9 @@ export const Header: React.FC<HeaderProps> = ({ hasApiKey, onOpenSettings, onGoT
               <path d="M5 12.5l5 5L19 7.5" />
             </svg>
           </span>
-          <div className="leading-tight min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-[1.35rem] font-extrabold tracking-tight text-[#1e0a3c] leading-none">
-                Veri<span className="text-[#7c3aed]">Flow</span>
-              </span>
-              <span className="chip text-[10px] px-2 py-0.5 tracking-wide">Python Audit</span>
-            </div>
-            <p className="text-[11px] text-[color:var(--color-ink-faint)] hidden sm:block truncate">
-              Multi-Agent Code Intelligence
-            </p>
-          </div>
+          <span className="text-[1.35rem] font-extrabold tracking-tight text-ink leading-none">
+            Veri<span className="text-brand-600">Flow</span>
+          </span>
         </div>
 
         {nav}
@@ -81,18 +87,16 @@ export const Header: React.FC<HeaderProps> = ({ hasApiKey, onOpenSettings, onGoT
             </div>
           )}
 
-          {onSignOut && (
-            <button
-              type="button"
-              onClick={onSignOut}
-              className="px-2.5 py-1.5 text-xs font-semibold rounded-xl text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-              title="Log out of VeriFlow"
-              aria-label="Log out"
-            >
-              <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
-              <span className="hidden sm:inline">Log out</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="px-3 py-1.5 text-xs font-semibold rounded-xl text-rose-600 hover:text-rose-700 bg-rose-50/90 hover:bg-rose-100 border border-rose-200/80 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+            title="Log out of VeriFlow"
+            aria-label="Log out"
+          >
+            <LogOut className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+            <span>Log out</span>
+          </button>
         </div>
       </div>
     </header>
