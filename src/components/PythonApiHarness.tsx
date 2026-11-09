@@ -103,7 +103,7 @@ export const PythonApiHarness: React.FC = () => {
             onClick={() => setActiveEndpoint(ep.id as typeof activeEndpoint)}
             className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
               activeEndpoint === ep.id
-                ? 'bg-[#7c6cff]/10 border-[#7c6cff]/40'
+                ? 'bg-[#7c3aed]/10 border-[#7c3aed]/40'
                 : 'bg-[color:var(--color-surface-2)] border-[color:var(--color-hairline)] hover:border-[#33384a]'
             }`}
           >
