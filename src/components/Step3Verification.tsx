@@ -175,7 +175,7 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-bold text-[color:var(--color-ink)] tracking-tight">{title}</h1>
             {stepBadge && (
-              <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-[#7c6cff]/15 text-[color:var(--color-brand-soft)] border border-[#7c6cff]/30">
+              <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-[#7c3aed]/15 text-[color:var(--color-brand-soft)] border border-[#7c3aed]/30">
                 {stepBadge}
               </span>
             )}
@@ -185,7 +185,7 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
           {onProceedToOptimization && (
             <button
               onClick={onProceedToOptimization}
-              className="btn-primary px-4 py-2 text-sm font-medium transition flex items-center gap-2 cursor-pointer shadow-[0_4px_14px_rgba(124,108,255,0.4)]"
+              className="btn-primary px-4 py-2 text-sm font-medium transition flex items-center gap-2 cursor-pointer shadow-[0_4px_14px_rgba(124,58,237,0.4)]"
             >
               <Sparkles className="w-4 h-4" /> {nextButtonLabel}
             </button>
@@ -468,7 +468,7 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
             {allVerificationIssues.map((issue) => (
               <div
                 key={issue.id}
-                className="p-4 rounded-xl bg-[color:var(--color-surface-1)] border border-[color:var(--color-hairline)] space-y-3 hover:border-[#7c6cff]/40 transition"
+                className="p-4 rounded-xl bg-[color:var(--color-surface-1)] border border-[color:var(--color-hairline)] space-y-3 hover:border-[#7c3aed]/40 transition"
               >
                 {/* Issue Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
