@@ -76,7 +76,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-white">
-      <Header user={session} />
+      <Header user={session} onSignOut={handleSignOut} />
       <main>
         <Hero />
         <Techniques />
