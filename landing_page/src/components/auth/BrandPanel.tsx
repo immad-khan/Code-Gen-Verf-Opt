@@ -156,16 +156,16 @@ function Terminal({ step, cycle }: { step: number; cycle: number }) {
   const shown = lines.slice(-3);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0b0418]/60 shadow-[0_30px_60px_-30px_rgba(0,0,0,0.6)] backdrop-blur-md">
-      <div className="flex items-center gap-1.5 border-b border-white/10 px-3 py-2">
+    <div className="overflow-hidden rounded-xl border border-white/10 bg-[#0b0418]/60 shadow-[0_20px_40px_-20px_rgba(0,0,0,0.6)] backdrop-blur-md">
+      <div className="flex items-center gap-1.5 border-b border-white/10 px-3 py-1.5">
         <span className="h-2 w-2 rounded-full bg-rose-400/80" />
         <span className="h-2 w-2 rounded-full bg-amber-300/80" />
         <span className="h-2 w-2 rounded-full bg-emerald-400/80" />
-        <span className="ml-2 min-w-0 truncate font-mono text-[11px] text-white/45">veriflow run · {RING[step].name}</span>
+        <span className="ml-2 min-w-0 truncate font-mono text-[10.5px] text-white/45">veriflow run · {RING[step].name}</span>
       </div>
-      <div className="min-h-[104px] space-y-1.5 px-3.5 py-2.5 font-mono text-[11.5px] leading-relaxed">
+      <div className="min-h-[84px] space-y-1 px-3 py-2 font-mono text-[11px] leading-relaxed">
         {shown.map((l) => (
-          <p key={l.key} className={`log-in flex gap-2 ${TONE[l.tone]}`}>
+          <p key={l.key} className={`log-in flex gap-1.5 ${TONE[l.tone]}`}>
             <span className="select-none text-white/25">›</span>
             <span className="min-w-0">{l.t}</span>
           </p>
@@ -211,7 +211,7 @@ export function BrandPanel() {
     <aside
       ref={asideRef}
       onPointerMove={onMove}
-      className="relative hidden h-screen sticky top-0 overflow-hidden bg-[#140830] text-white lg:flex lg:w-[46%] lg:flex-col lg:justify-between lg:px-8 lg:py-7 xl:px-12 xl:py-8"
+      className="relative hidden h-screen sticky top-0 overflow-hidden bg-[#140830] text-white lg:flex lg:w-[48%] xl:w-[45%] lg:flex-col lg:justify-between lg:px-6 lg:py-5 xl:px-9 xl:py-6"
     >
       {/* background layers */}
       <div
@@ -242,7 +242,7 @@ export function BrandPanel() {
           <Logo dark />
         </div>
         <span
-          className="auth-in hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold text-brand-100/80 xl:inline-flex"
+          className="auth-in hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10.5px] font-bold text-brand-100/80 xl:inline-flex"
           style={d(120)}
         >
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
@@ -251,9 +251,9 @@ export function BrandPanel() {
       </div>
 
       {/* hero */}
-      <div className="relative mt-4 xl:mt-6">
+      <div className="relative mt-2 xl:mt-3">
         <span
-          className="auth-in inline-flex items-center gap-2 rounded-full border border-brand-400/25 bg-brand-500/10 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.18em] text-brand-200"
+          className="auth-in inline-flex items-center gap-1.5 rounded-full border border-brand-400/25 bg-brand-500/10 px-2.5 py-0.5 text-[10.5px] font-extrabold uppercase tracking-[0.16em] text-brand-200"
           style={d(120)}
         >
           <span className="relative flex h-1.5 w-1.5">
@@ -262,36 +262,36 @@ export function BrandPanel() {
           </span>
           Verify · Repair · Verify
         </span>
-        <h2 className="auth-in mt-3 text-[1.85rem] font-extrabold leading-[1.08] tracking-[-0.03em] xl:text-[2.35rem]" style={d(180)}>
+        <h2 className="auth-in mt-2 text-[1.65rem] font-extrabold leading-[1.1] tracking-[-0.03em] xl:text-[2.05rem]" style={d(180)}>
           Ship LLM code you can{" "}
           <span className="bg-gradient-to-r from-[#ede4ff] via-[#c4b5fd] to-[#f0abfc] bg-clip-text text-transparent">actually trust.</span>
         </h2>
-        <p className="auth-in mt-2 max-w-md text-[13.5px] leading-relaxed text-brand-100/65 xl:text-[14.5px]" style={d(240)}>
+        <p className="auth-in mt-1.5 max-w-md text-[13px] leading-relaxed text-brand-100/65 xl:text-[14px]" style={d(240)}>
           Seven real checks, two bounded repair rounds, and a report that proves what changed.
         </p>
       </div>
 
-      {/* live loop */}
-      <div className="relative mt-4 flex flex-col items-center gap-4 xl:mt-6 xl:flex-row xl:gap-6">
-        <div className="auth-in shrink-0 scale-90 xl:scale-95 origin-center" style={d(300)}>
+      {/* live loop - animation positioned right in view */}
+      <div className="relative my-auto py-2 flex flex-row items-center justify-between gap-3 xl:gap-5">
+        <div className="auth-in shrink-0 scale-[0.74] xl:scale-[0.84] origin-center -my-6 -mx-3" style={d(300)}>
           <Dial step={step} />
         </div>
-        <div className="auth-in min-w-0 w-full flex-1" style={d(380)}>
+        <div className="auth-in min-w-0 flex-1" style={d(380)}>
           <Terminal step={step} cycle={cycle} />
         </div>
       </div>
 
       {/* footer */}
-      <div className="relative mt-4 xl:mt-6">
-        <div className="auth-in flex flex-wrap gap-2" style={d(440)}>
+      <div className="relative mt-2">
+        <div className="auth-in flex flex-wrap gap-1.5" style={d(440)}>
           {TAXONOMY.map((t) => (
-            <span key={t} className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 font-mono text-[10.5px] text-brand-100/70">
+            <span key={t} className="rounded-lg border border-white/10 bg-white/[0.04] px-2 py-0.5 font-mono text-[10px] text-brand-100/70">
               {t}
             </span>
           ))}
         </div>
         <p
-          className="auth-in mt-3 flex items-center justify-between gap-3 border-t border-white/10 pt-3 text-[11.5px] text-brand-100/45 xl:mt-4 xl:pt-4"
+          className="auth-in mt-2 flex items-center justify-between gap-2 border-t border-white/10 pt-2 text-[11px] text-brand-100/45 xl:mt-3 xl:pt-3"
           style={d(500)}
         >
           <span>Based on the Dou et al. LLM-code verification study</span>
