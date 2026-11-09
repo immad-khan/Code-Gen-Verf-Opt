@@ -30,12 +30,14 @@
   /* Form control boundaries (28.11): #6b7280 ≈ 4.8:1 on #ffffff (≥ 3:1). */
   --color-control-border: #6b7280;
 
-  /* Focus indicator (28.8): #5b46e5 ≈ 6.1:1 on #ffffff, 5.8:1 on #f8fafc, 5.5:1 on #f1f5f9 (≥ 3:1). */
-  --color-focus-ring: #5b46e5;
+  /* Focus indicator: aligned with VeriFlow violet #7c3aed */
+  --color-focus-ring: #7c3aed;
 
-  /* Brand accent — indigo→violet */
-  --color-brand: #7c6cff;
-  --color-brand-soft: #8b7bff;
+  /* Brand accent — VeriFlow Unified Violet Palette */
+  --color-brand: #7c3aed;
+  --color-brand-soft: #8b5cf6;
+  --color-brand-dark: #6d28d9;
+  --color-brand-deep: #5b21b6;
 }
 
 /* Global keyboard focus indicator (28.8): 3 px outline with a 2 px offset so it
@@ -68,7 +70,7 @@ body {
 .app-shell {
   position: relative;
   background:
-    radial-gradient(900px 500px at 12% -8%, rgba(124, 108, 255, 0.08), transparent 60%),
+    radial-gradient(900px 500px at 12% -8%, rgba(124, 58, 237, 0.08), transparent 60%),
     radial-gradient(760px 520px at 92% 0%, rgba(167, 139, 250, 0.08), transparent 55%),
     #ffffff;
 }
@@ -94,7 +96,7 @@ body {
   background-color: var(--color-surface);
   border: 1px solid var(--color-hairline);
   border-radius: 16px;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 10px 25px -5px rgba(124, 108, 255, 0.05);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 10px 25px -5px rgba(124, 58, 237, 0.05);
 }
 
 .card-quiet {
@@ -104,14 +106,14 @@ body {
 }
 
 .btn-primary {
-  background: linear-gradient(180deg, #8b7bff, #6b57f5);
+  background: linear-gradient(180deg, #8b5cf6, #6d28d9);
   color: #fff;
   border-radius: 10px;
   font-weight: 600;
-  box-shadow: 0 6px 20px -8px rgba(124,108,255,0.7), 0 1px 0 rgba(255,255,255,0.2) inset;
+  box-shadow: 0 6px 20px -8px rgba(124, 58, 237, 0.7), 0 1px 0 rgba(255, 255, 255, 0.2) inset;
   transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
 }
-.btn-primary:hover { filter: brightness(1.06); box-shadow: 0 10px 28px -8px rgba(124,108,255,0.85); }
+.btn-primary:hover { filter: brightness(1.06); box-shadow: 0 10px 28px -8px rgba(124, 58, 237, 0.85); }
 .btn-primary:active { transform: translateY(1px); }
 .btn-primary:disabled { filter: grayscale(0.6) brightness(0.7); box-shadow: none; cursor: not-allowed; }
 
@@ -144,7 +146,7 @@ body {
 /* Keyboard focus keeps the global :focus-visible outline; this adds a border cue. */
 .input-field:focus {
   border-color: var(--color-focus-ring);
-  box-shadow: 0 0 0 4px rgba(124,108,255,0.12);
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.12);
 }
 
 .eyebrow {
