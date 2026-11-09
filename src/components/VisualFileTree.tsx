@@ -67,7 +67,7 @@ export const VisualFileTree: React.FC<VisualFileTreeProps> = ({
   const getCategoryMeta = (cat?: string) => {
     switch (cat) {
       case 'router':
-        return { label: 'API router', color: 'text-[#7c6cff]', icon: Server, desc: 'Receives HTTP requests and routes them to services' };
+        return { label: 'API router', color: 'text-[#7c3aed]', icon: Server, desc: 'Receives HTTP requests and routes them to services' };
       case 'service':
         return { label: 'Service logic', color: 'text-violet-400', icon: Wrench, desc: 'Business logic and database operations' };
       case 'model':
@@ -112,7 +112,7 @@ export const VisualFileTree: React.FC<VisualFileTreeProps> = ({
           key={node.path}
           onClick={() => typeof node.fileIndex === 'number' && onSelectFile(node.fileIndex)}
           className={`w-full flex items-center gap-2 py-1.5 px-2 my-0.5 rounded-lg cursor-pointer transition text-xs ${
-            isSelected ? 'bg-[#7c6cff]/12 text-[color:var(--color-ink)]' : 'hover:bg-white/[0.03] text-[color:var(--color-ink-muted)]'
+            isSelected ? 'bg-[#7c3aed]/12 text-[color:var(--color-ink)]' : 'hover:bg-white/[0.03] text-[color:var(--color-ink-muted)]'
           }`}
           style={{ paddingLeft: `${depth * 14 + 20}px` }}
         >
