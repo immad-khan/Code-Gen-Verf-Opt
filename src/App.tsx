@@ -16,7 +16,7 @@ import { ExportModal } from './components/ExportModal';
 import { ApiSettingsModal } from './components/ApiSettingsModal';
 import { PrintReport } from './components/PrintReport';
 import LandingPage from '../landing_page/src/App';
-import { getSession, type SessionUser } from '../landing_page/src/auth';
+import { clearSession, getSession, type SessionUser } from '../landing_page/src/auth';
 import '../landing_page/src/index.css';
 
 const DEFAULT_PROMPT = '';
@@ -376,6 +376,14 @@ export function App() {
     ? 3
     : 1;
 
+  const handleSignOut = () => {
+    clearSession();
+    setCurrentUser(null);
+    setShowLanding(true);
+    window.location.hash = '';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   if (showLanding) {
     return (
       <div onClickCapture={handleLandingClick}>
@@ -385,11 +393,12 @@ export function App() {
   }
 
   return (
-    <div className="app-shell min-h-screen text-[color:var(--color-ink)] font-sans flex flex-col antialiased selection:bg-[#7c6cff] selection:text-white">
+    <div className="app-shell min-h-screen text-[color:var(--color-ink)] font-sans flex flex-col antialiased selection:bg-[#7c3aed] selection:text-white">
       <Header
         hasApiKey={hasApiKey}
         user={currentUser}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onSignOut={handleSignOut}
         onGoToLanding={() => {
           setShowLanding(true);
           window.location.hash = '';
