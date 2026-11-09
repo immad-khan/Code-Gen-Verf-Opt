@@ -216,7 +216,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
 
         {/* Header */}
         <div className="flex items-start gap-3 mb-6 pr-6">
-          <div className="w-10 h-10 rounded-xl bg-[#7c6cff]/12 text-[color:var(--color-brand-soft)] flex items-center justify-center" aria-hidden="true">
+          <div className="w-10 h-10 rounded-xl bg-[#7c3aed]/12 text-[color:var(--color-brand-soft)] flex items-center justify-center" aria-hidden="true">
             <Key className="w-5 h-5" />
           </div>
           <div>
@@ -237,7 +237,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
               ref={index === 0 ? firstProviderButtonRef : undefined}
               onClick={() => setProvider(p.id)}
               className={`card-quiet p-3 text-center transition cursor-pointer ${FOCUS_RING} ${
-                provider === p.id ? 'border-[#7c6cff]/50 bg-[#7c6cff]/10' : 'hover:border-[#33384a]'
+                provider === p.id ? 'border-[#7c3aed]/50 bg-[#7c3aed]/10' : 'hover:border-[#33384a]'
               }`}
               role="radio"
               aria-checked={provider === p.id}
@@ -266,7 +266,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
             <button
               onClick={handleTest}
               disabled={!apiKey.trim() || apiKey.trim().length <= 8 || testing}
-              className={`absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 text-xs font-semibold rounded-lg bg-[#7c6cff]/20 text-[color:var(--color-brand-soft)] hover:bg-[#7c6cff]/40 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1.5 cursor-pointer ${FOCUS_RING}`}
+              className={`absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 text-xs font-semibold rounded-lg bg-[#7c3aed]/20 text-[color:var(--color-brand-soft)] hover:bg-[#7c3aed]/40 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1.5 cursor-pointer ${FOCUS_RING}`}
               aria-label={testing ? "Testing API key connection" : "Test API key connection"}
             >
               {testing ? <><Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" /> Testing…</> : <>Test</>}
