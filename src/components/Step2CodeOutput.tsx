@@ -134,7 +134,7 @@ export const CodeFileViewer = ({ files, agentLogs }: CodeFileViewerProps) => {
           {agentLogs.map((log, idx) => (
             <div key={idx} className="card-quiet p-3.5 flex items-start justify-between gap-3">
               <div className="flex items-start gap-3">
-                <div className="w-7 h-7 rounded-lg bg-[#7c6cff]/12 text-[color:var(--color-brand-soft)] flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-7 h-7 rounded-lg bg-[#7c3aed]/12 text-[color:var(--color-brand-soft)] flex items-center justify-center shrink-0 mt-0.5">
                   <Terminal aria-hidden="true" className="w-3.5 h-3.5" />
                 </div>
                 <div>
