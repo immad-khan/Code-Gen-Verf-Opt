@@ -101,14 +101,6 @@ export function Header({ user }: { user: SessionUser | null }) {
           ))}
         </nav>
         <div className="flex items-center gap-3">
-          {user && (
-            <span className="hidden items-center gap-2 rounded-full border border-brand-100 bg-brand-50 py-1.5 pl-1.5 pr-3.5 text-[13px] font-bold text-brand-800 sm:flex">
-              <span className="grid h-7 w-7 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-[12px] font-extrabold text-white">
-                {user.name.trim().charAt(0).toUpperCase() || "V"}
-              </span>
-              {user.name.split(" ")[0]}
-            </span>
-          )}
           <a href={user ? APP_URL || "#verified" : TRY_URL} className="btn btn-primary px-5 py-2.5 text-[14px]">
             {user ? "Open VeriFlow" : "Try it out"}
           </a>
