@@ -44,14 +44,14 @@ export const PipelineNav: React.FC<PipelineNavProps> = ({
                   title={`${s.label}: ${s.desc}`}
                   className={`flex items-center gap-2 sm:gap-2.5 px-2.5 py-1.5 rounded-xl transition-all shrink-0 group ${
                     isClickable ? 'cursor-pointer hover:bg-[color:var(--color-surface-2)]' : 'cursor-not-allowed opacity-40'
-                  } ${isActive ? 'bg-[color:var(--color-surface-2)] ring-1 ring-[#7c6cff]/40' : ''}`}
+                  } ${isActive ? 'bg-[color:var(--color-surface-2)] ring-1 ring-[#7c3aed]/40' : ''}`}
                 >
                   <div
                     className={`relative w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-all duration-300 shrink-0 ${
                       isActive
-                        ? 'bg-gradient-to-br from-[#8b7bff] to-[#6b57f5] text-white shadow-[0_4px_12px_rgba(124,108,255,0.6)]'
+                        ? 'bg-gradient-to-br from-[#8b5cf6] to-[#6d28d9] text-white shadow-[0_4px_12px_rgba(124,58,237,0.5)]'
                         : isDone
-                        ? 'bg-[#7c6cff]/15 text-[color:var(--color-brand-soft)] border border-[#7c6cff]/30'
+                        ? 'bg-[#7c3aed]/15 text-[#7c3aed] border border-[#7c3aed]/30'
                         : 'bg-[color:var(--color-surface-2)] text-[color:var(--color-ink-faint)] border border-[color:var(--color-hairline)]'
                     }`}
                   >
@@ -81,7 +81,7 @@ export const PipelineNav: React.FC<PipelineNavProps> = ({
                 {idx < steps.length - 1 && (
                   <div className="w-3 sm:w-4 h-px bg-[color:var(--color-hairline)] shrink-0 relative overflow-hidden rounded-full my-auto">
                     <div
-                      className="absolute inset-y-0 left-0 bg-gradient-to-r from-[#8b7bff] to-[#6b57f5] transition-all duration-500 ease-out"
+                      className="absolute inset-y-0 left-0 bg-gradient-to-r from-[#8b5cf6] to-[#6d28d9] transition-all duration-500 ease-out"
                       style={{ width: currentStep > s.number ? '100%' : '0%' }}
                     />
                   </div>
