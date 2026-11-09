@@ -106,7 +106,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
             <h1 className="text-2xl font-bold text-[color:var(--color-ink)] tracking-tight">
               {title || 'Taxonomy-Guided Iterative Repair'}
             </h1>
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#7c6cff]/15 text-[color:var(--color-brand-soft)] border border-[#7c6cff]/30">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#7c3aed]/15 text-[color:var(--color-brand-soft)] border border-[#7c3aed]/30">
               <Sparkles className="w-3 h-3" /> {stepBadge || 'Dou et al. 2026 (k=2)'}
             </span>
           </div>
@@ -128,7 +128,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
           {onProceedNext && (
             <button
               onClick={onProceedNext}
-              className="btn-primary px-4 py-2 text-sm font-medium transition flex items-center gap-2 cursor-pointer shadow-[0_4px_14px_rgba(124,108,255,0.4)]"
+              className="btn-primary px-4 py-2 text-sm font-medium transition flex items-center gap-2 cursor-pointer shadow-[0_4px_14px_rgba(124,58,237,0.4)]"
             >
               <Sparkles className="w-4 h-4" /> {nextButtonLabel || 'Proceed to Next Step →'}
             </button>
@@ -137,7 +137,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
           {onApplyRepairedCode && currentIteration?.repairedFiles && currentIteration.repairedFiles.length > 0 && !onProceedNext && (
             <button
               onClick={() => onApplyRepairedCode(currentIteration.repairedFiles)}
-              className="btn-primary px-4 py-2 text-sm font-medium transition flex items-center gap-2 cursor-pointer shadow-[0_4px_14px_rgba(124,108,255,0.4)]"
+              className="btn-primary px-4 py-2 text-sm font-medium transition flex items-center gap-2 cursor-pointer shadow-[0_4px_14px_rgba(124,58,237,0.4)]"
             >
               <Check className="w-4 h-4" /> Apply Repaired Code
             </button>
@@ -147,7 +147,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
 
       {/* Optimizing State Indicator */}
       {isOptimizing && (
-        <div className="card p-6 border border-[#7c6cff]/40 bg-gradient-to-r from-[#7c6cff]/10 via-[color:var(--color-surface-2)] to-[#6b57f5]/10 flex flex-col gap-3">
+        <div className="card p-6 border border-[#7c3aed]/40 bg-gradient-to-r from-[#7c3aed]/10 via-[color:var(--color-surface-2)] to-[#6d28d9]/10 flex flex-col gap-3">
           <div className="flex items-center gap-3">
             <div className="w-5 h-5 border-2 border-[color:var(--color-brand-soft)] border-t-transparent rounded-full animate-spin"></div>
             <h3 className="text-sm font-bold text-[color:var(--color-ink)]">
@@ -171,7 +171,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
       {/* Empty / Not yet run prompt */}
       {!optimizationResult && !isOptimizing && (
         <div className="card p-8 text-center flex flex-col items-center justify-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-[#7c6cff]/15 text-[color:var(--color-brand-soft)] flex items-center justify-center border border-[#7c6cff]/30">
+          <div className="w-12 h-12 rounded-2xl bg-[#7c3aed]/15 text-[color:var(--color-brand-soft)] flex items-center justify-center border border-[#7c3aed]/30">
             <Sparkles className="w-6 h-6" />
           </div>
           <div className="max-w-md">
@@ -184,7 +184,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
           </div>
           <button
             onClick={onRunOptimization}
-            className="btn-primary px-6 py-2.5 text-sm font-semibold flex items-center gap-2 cursor-pointer shadow-[0_6px_20px_rgba(124,108,255,0.4)]"
+            className="btn-primary px-6 py-2.5 text-sm font-semibold flex items-center gap-2 cursor-pointer shadow-[0_6px_20px_rgba(124,58,237,0.4)]"
           >
             <Sparkles className="w-4 h-4" /> Start 2-Iteration Repair
           </button>
@@ -214,7 +214,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
               </div>
               <div className="w-full bg-[color:var(--color-surface-2)] h-2 rounded-full overflow-hidden border border-[color:var(--color-hairline)]">
                 <div
-                  className="h-full bg-gradient-to-r from-[#7c6cff] to-emerald-400 rounded-full transition-all duration-700"
+                  className="h-full bg-gradient-to-r from-[#7c3aed] to-emerald-400 rounded-full transition-all duration-700"
                   style={{ width: `${Math.min(100, summary?.repairSuccessRate || 100)}%` }}
                 />
               </div>
@@ -307,13 +307,13 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs px-2.5 py-1 rounded bg-[#7c6cff]/10 text-[color:var(--color-brand-soft)] border border-[#7c6cff]/30 font-semibold">
+                <span className="text-xs px-2.5 py-1 rounded bg-[#7c3aed]/10 text-[color:var(--color-brand-soft)] border border-[#7c3aed]/30 font-semibold">
                   Syntax RSR: {summary?.syntaxRepairRate ?? 100}%
                 </span>
-                <span className="text-xs px-2.5 py-1 rounded bg-[#7c6cff]/10 text-[color:var(--color-brand-soft)] border border-[#7c6cff]/30 font-semibold">
+                <span className="text-xs px-2.5 py-1 rounded bg-[#7c3aed]/10 text-[color:var(--color-brand-soft)] border border-[#7c3aed]/30 font-semibold">
                   Runtime RSR: {summary?.runtimeRepairRate ?? 100}%
                 </span>
-                <span className="text-xs px-2.5 py-1 rounded bg-[#7c6cff]/10 text-[color:var(--color-brand-soft)] border border-[#7c6cff]/30 font-semibold">
+                <span className="text-xs px-2.5 py-1 rounded bg-[#7c3aed]/10 text-[color:var(--color-brand-soft)] border border-[#7c3aed]/30 font-semibold">
                   Functional RSR: {summary?.functionalRepairRate ?? 100}%
                 </span>
               </div>
@@ -399,7 +399,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                     >
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#7c6cff]/20 text-[color:var(--color-brand-soft)] border border-[#7c6cff]/30">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#7c3aed]/20 text-[color:var(--color-brand-soft)] border border-[#7c3aed]/30">
                             {bug.taxonomyId}
                           </span>
                           <span className="font-semibold text-[color:var(--color-ink)]">
@@ -442,7 +442,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                   onClick={() => setActiveIterationTab(it.iterationNumber)}
                   className={`pb-3 px-3 text-xs font-semibold flex items-center gap-2 transition border-b-2 cursor-pointer ${
                     activeIterationTab === it.iterationNumber
-                      ? 'border-[#7c6cff] text-[color:var(--color-brand-soft)]'
+                      ? 'border-[#7c3aed] text-[color:var(--color-brand-soft)]'
                       : 'border-transparent text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)]'
                   }`}
                 >
@@ -518,7 +518,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                           onClick={() => setCodeViewMode('split')}
                           className={`px-2.5 py-1 rounded-md font-medium flex items-center gap-1.5 transition cursor-pointer ${
                             codeViewMode === 'split'
-                              ? 'bg-[#7c6cff] text-white shadow-xs'
+                              ? 'bg-[#7c3aed] text-white shadow-xs'
                               : 'text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)]'
                           }`}
                           title="Side-by-side: Code before on left, code now on right"
@@ -530,7 +530,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                           onClick={() => setCodeViewMode('diff')}
                           className={`px-2.5 py-1 rounded-md font-medium flex items-center gap-1.5 transition cursor-pointer ${
                             codeViewMode === 'diff'
-                              ? 'bg-[#7c6cff] text-white shadow-xs'
+                              ? 'bg-[#7c3aed] text-white shadow-xs'
                               : 'text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)]'
                           }`}
                           title="Line-by-line colored diff"
@@ -542,7 +542,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                           onClick={() => setCodeViewMode('after')}
                           className={`px-2.5 py-1 rounded-md font-medium flex items-center gap-1.5 transition cursor-pointer ${
                             codeViewMode === 'after'
-                              ? 'bg-[#7c6cff] text-white shadow-xs'
+                              ? 'bg-[#7c3aed] text-white shadow-xs'
                               : 'text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)]'
                           }`}
                           title="Repaired code only"
@@ -603,7 +603,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                           onClick={() => setSelectedFileIndex(idx)}
                           className={`px-3 py-1.5 rounded-lg text-xs font-mono transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
                             selectedFileIndex === idx
-                              ? 'bg-[#7c6cff]/20 text-[color:var(--color-brand-soft)] border border-[#7c6cff]/40 font-bold shadow-xs'
+                              ? 'bg-[#7c3aed]/20 text-[color:var(--color-brand-soft)] border border-[#7c3aed]/40 font-bold shadow-xs'
                               : 'bg-[color:var(--color-surface-2)] text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)] border border-[color:var(--color-hairline)]'
                           }`}
                         >
@@ -734,7 +734,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                     <div className="rounded-xl border border-[color:var(--color-hairline)] overflow-hidden bg-[#0d0e15]">
                       <div className="px-4 py-2 bg-[#090a10] border-b border-[color:var(--color-hairline)] flex items-center justify-between text-xs text-[color:var(--color-ink-muted)] font-mono">
                         <span>{selectedFile?.path || selectedFile?.name}</span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#7c6cff]/20 text-[color:var(--color-brand-soft)]">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#7c3aed]/20 text-[color:var(--color-brand-soft)]">
                           {selectedFile?.category || 'python'}
                         </span>
                       </div>
@@ -764,7 +764,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                     className="p-3.5 rounded-lg bg-[color:var(--color-surface-2)] border border-[color:var(--color-hairline)] flex items-center justify-between text-xs"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#7c6cff]/20 text-[color:var(--color-brand-soft)]">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#7c3aed]/20 text-[color:var(--color-brand-soft)]">
                         {evo.fromType}
                       </span>
                       <span>→</span>
