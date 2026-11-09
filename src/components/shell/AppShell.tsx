@@ -61,7 +61,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   const content: Record<Section, React.ReactNode> = { workbench, experiments };
 
   return (
-    <div className="app-shell min-h-screen text-[color:var(--color-ink)] font-sans flex flex-col antialiased selection:bg-[#7c6cff] selection:text-white">
+    <div className="app-shell min-h-screen text-[color:var(--color-ink)] font-sans flex flex-col antialiased selection:bg-[#7c3aed] selection:text-white">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-[color:var(--color-ink)] focus:shadow"
