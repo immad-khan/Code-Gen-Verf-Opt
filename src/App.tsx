@@ -16,6 +16,7 @@ import { ExportModal } from './components/ExportModal';
 import { ApiSettingsModal } from './components/ApiSettingsModal';
 import { PrintReport } from './components/PrintReport';
 import LandingPage from '../landing_page/src/App';
+import { getSession, type SessionUser } from '../landing_page/src/auth';
 import '../landing_page/src/index.css';
 
 const DEFAULT_PROMPT = '';
@@ -126,6 +127,12 @@ export function App() {
   const [showLanding, setShowLanding] = useState<boolean>(() => {
     return window.location.hash !== '#app' && window.location.hash !== '#pipeline';
   });
+  const [currentUser, setCurrentUser] = useState<SessionUser | null>(() => getSession());
+
+  useEffect(() => {
+    setCurrentUser(getSession());
+  }, [showLanding]);
+
   const [currentStep, setCurrentStep] = useState<PipelineStep>(1);
   const [prompt, setPrompt] = useState<string>(DEFAULT_PROMPT);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -381,6 +388,7 @@ export function App() {
     <div className="app-shell min-h-screen text-[color:var(--color-ink)] font-sans flex flex-col antialiased selection:bg-[#7c6cff] selection:text-white">
       <Header
         hasApiKey={hasApiKey}
+        user={currentUser}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onGoToLanding={() => {
           setShowLanding(true);
