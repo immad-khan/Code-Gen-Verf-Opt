@@ -15,6 +15,9 @@ import { ProcessingOverlay } from './components/ProcessingOverlay';
 import { ExportModal } from './components/ExportModal';
 import { ApiSettingsModal } from './components/ApiSettingsModal';
 import { PrintReport } from './components/PrintReport';
+import { LeftNavbar } from './components/LeftNavbar';
+import { HistoryModal, type HistoryItem } from './components/HistoryModal';
+import { ProfileModal } from './components/ProfileModal';
 import LandingPage from '../landing_page/src/App';
 import { clearSession, getSession, type SessionUser } from '../landing_page/src/auth';
 import '../landing_page/src/index.css';
@@ -144,6 +147,30 @@ export function App() {
   const temperature = 0.1;
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [historyItems, setHistoryItems] = useState<HistoryItem[]>(() => {
+    try {
+      const raw = localStorage.getItem('veriflow_history');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const handleSelectHistoryPrompt = (selectedPrompt: string) => {
+    setPrompt(selectedPrompt);
+    setCurrentStep(1);
+    setIsHistoryOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleClearHistory = () => {
+    setHistoryItems([]);
+    try {
+      localStorage.removeItem('veriflow_history');
+    } catch {}
+  };
 
   const [resultData, setResultData] = useState<AIResultData>(createInitialResultData());
   const [hasGeneratedResult, setHasGeneratedResult] = useState(false);
@@ -287,6 +314,22 @@ export function App() {
 
       setResultData(enriched);
       setHasGeneratedResult(true);
+
+      // Record to history
+      const newHistoryItem: HistoryItem = {
+        id: Date.now().toString(),
+        prompt: prompt.trim(),
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' }),
+        provider: apiSettings.provider,
+        model: apiSettings.model,
+        verdict: enriched.mergeGate.verdict === 'APPROVED' ? 'Verified ✓' : 'Analyzed',
+      };
+      setHistoryItems(prev => {
+        const next = [newHistoryItem, ...prev.filter(p => p.prompt !== prompt.trim())].slice(0, 30);
+        try { localStorage.setItem('veriflow_history', JSON.stringify(next)); } catch {}
+        return next;
+      });
+
       setCurrentStep(2);
       setIsProcessing(false);
 
@@ -563,6 +606,33 @@ export function App() {
           </span>
         </div>
       </footer>
+
+      {/* Floating Left Navbar */}
+      <LeftNavbar
+        onOpenHistory={() => setIsHistoryOpen(true)}
+        onOpenProfile={() => setIsProfileOpen(true)}
+        isHistoryOpen={isHistoryOpen}
+        isProfileOpen={isProfileOpen}
+      />
+
+      {/* History Modal */}
+      <HistoryModal
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        history={historyItems}
+        onSelectPrompt={handleSelectHistoryPrompt}
+        onClearHistory={handleClearHistory}
+      />
+
+      {/* Profile Modal */}
+      <ProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        user={currentUser}
+        apiSettings={apiSettings}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        onSignOut={handleSignOut}
+      />
 
       {isProcessing && <ProcessingOverlay progress={progress} currentLog={currentLog} allLogs={allLogs} />}
       {hasGeneratedResult && (
