@@ -1,10 +1,11 @@
 import React from 'react';
-import { KeyRound } from 'lucide-react';
+import { KeyRound, LogOut } from 'lucide-react';
 
 interface HeaderProps {
   hasApiKey: boolean;
   onOpenSettings: () => void;
   onGoToLanding?: () => void;
+  onSignOut?: () => void;
   user?: { name: string; email: string; phone?: string } | null;
   /** Top-level section navigation (AppShell passes SectionNav). */
   nav?: React.ReactNode;
@@ -12,7 +13,7 @@ interface HeaderProps {
   status?: React.ReactNode;
 }
 
-export const Header: React.FC<HeaderProps> = ({ hasApiKey, onOpenSettings, onGoToLanding, user, nav, status }) => {
+export const Header: React.FC<HeaderProps> = ({ hasApiKey, onOpenSettings, onGoToLanding, onSignOut, user, nav, status }) => {
   // Starts with the visible text so the accessible name matches the label (WCAG 2.5.3).
   const settingsLabel = hasApiKey ? 'API connected, change API settings' : 'Connect API provider';
   return (
@@ -21,21 +22,19 @@ export const Header: React.FC<HeaderProps> = ({ hasApiKey, onOpenSettings, onGoT
         {/* Brand */}
         <div
           onClick={onGoToLanding}
-          className={`flex items-center gap-3 min-w-0 ${onGoToLanding ? 'cursor-pointer group' : ''}`}
+          className={`flex items-center gap-2.5 min-w-0 ${onGoToLanding ? 'cursor-pointer group' : ''}`}
           title={onGoToLanding ? 'Return to Landing Page' : undefined}
         >
-          <div
-            className="relative w-9 h-9 rounded-xl bg-gradient-to-br from-[#8b7bff] to-[#6b57f5] flex items-center justify-center shadow-[0_6px_18px_-6px_rgba(124,108,255,0.8)] shrink-0 group-hover:scale-105 transition-transform"
-            aria-hidden="true"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-white" focusable="false">
-              <path d="M12 2L4 6v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6l-8-4z" fill="currentColor" fillOpacity="0.25"/>
-              <path d="M9 12l2 2 4-4.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          <span className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-[#9d6cff] to-[#7c3aed] shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_8px_16px_-8px_rgba(124,58,237,0.8)] shrink-0 group-hover:scale-105 transition-transform">
+            <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] text-white" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12.5l5 5L19 7.5" />
             </svg>
-          </div>
+          </span>
           <div className="leading-tight min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-[15px] tracking-tight text-[color:var(--color-ink)] group-hover:text-[#7c6cff] transition-colors">Veriflow</span>
+              <span className="text-[1.35rem] font-extrabold tracking-tight text-[#1e0a3c] leading-none">
+                Veri<span className="text-[#7c3aed]">Flow</span>
+              </span>
               <span className="chip text-[10px] px-2 py-0.5 tracking-wide">Python Audit</span>
             </div>
             <p className="text-[11px] text-[color:var(--color-ink-faint)] hidden sm:block truncate">
@@ -46,7 +45,7 @@ export const Header: React.FC<HeaderProps> = ({ hasApiKey, onOpenSettings, onGoT
 
         {nav}
 
-        {/* Right controls: user profile + global status + API button */}
+        {/* Right controls: user profile + global status + API button + Logout */}
         <div className="flex items-center gap-2.5">
           {status}
 
@@ -58,7 +57,7 @@ export const Header: React.FC<HeaderProps> = ({ hasApiKey, onOpenSettings, onGoT
             className={`px-3 py-1.5 text-xs font-semibold rounded-xl flex items-center gap-2 cursor-pointer transition-all shadow-xs ${
               hasApiKey
                 ? 'border border-emerald-500/30 bg-emerald-50/90 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-500/50'
-                : 'border border-[#7c6cff]/40 bg-gradient-to-r from-[#7c6cff]/10 to-[#9333ea]/10 text-[#6b57f5] hover:bg-[#7c6cff]/20 hover:border-[#7c6cff]/60'
+                : 'border border-[#7c3aed]/40 bg-gradient-to-r from-[#7c3aed]/10 to-[#8b5cf6]/10 text-[#7c3aed] hover:bg-[#7c3aed]/20 hover:border-[#7c3aed]/60'
             }`}
           >
             <KeyRound className="w-3.5 h-3.5 shrink-0 text-current" aria-hidden="true" />
@@ -72,14 +71,27 @@ export const Header: React.FC<HeaderProps> = ({ hasApiKey, onOpenSettings, onGoT
 
           {user && (
             <div
-              className="flex items-center gap-2 rounded-full border border-purple-200/80 bg-purple-50/80 py-1 pl-1 pr-3 text-[12.5px] font-semibold text-purple-900 shadow-xs"
+              className="flex items-center gap-2 rounded-full border border-[#ddd0ff] bg-[#f6f2ff] py-1 pl-1 pr-3 text-[12.5px] font-semibold text-[#5b21b6] shadow-xs"
               title={`Logged in as ${user.name}${user.email ? ` (${user.email})` : ''}`}
             >
-              <span className="grid h-6 w-6 place-items-center rounded-full bg-gradient-to-br from-[#8b7bff] to-[#6b57f5] text-[11px] font-extrabold text-white shadow-xs">
+              <span className="grid h-6 w-6 place-items-center rounded-full bg-gradient-to-br from-[#8b5cf6] to-[#6d28d9] text-[11px] font-extrabold text-white shadow-xs">
                 {user.name.trim().charAt(0).toUpperCase() || "U"}
               </span>
               <span className="truncate max-w-[120px]">{user.name.split(" ")[0]}</span>
             </div>
+          )}
+
+          {onSignOut && (
+            <button
+              type="button"
+              onClick={onSignOut}
+              className="px-2.5 py-1.5 text-xs font-semibold rounded-xl text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+              title="Log out of VeriFlow"
+              aria-label="Log out"
+            >
+              <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
+              <span className="hidden sm:inline">Log out</span>
+            </button>
           )}
         </div>
       </div>
