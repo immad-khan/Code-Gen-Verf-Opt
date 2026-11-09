@@ -152,7 +152,7 @@ export const Step8FinalResults: React.FC<Step8FinalResultsProps> = ({
             <h1 className="text-2xl font-bold text-[color:var(--color-ink)] tracking-tight">
               Final Synthesis &amp; Multi-Round Evolution
             </h1>
-            <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-[#7c6cff]/15 text-[color:var(--color-brand-soft)] border border-[#7c6cff]/30">
+            <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-[#7c3aed]/15 text-[color:var(--color-brand-soft)] border border-[#7c3aed]/30">
               Dou et al. 2026 Evaluation
             </span>
           </div>
@@ -453,7 +453,7 @@ export const Step8FinalResults: React.FC<Step8FinalResultsProps> = ({
               <button
                 onClick={() => setComparisonPair('r0_vs_r1')}
                 className={`px-2.5 py-1 rounded-md font-medium transition cursor-pointer ${
-                  comparisonPair === 'r0_vs_r1' ? 'bg-[#7c6cff] text-white shadow-sm' : 'text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)]'
+                  comparisonPair === 'r0_vs_r1' ? 'bg-[#7c3aed] text-white shadow-sm' : 'text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)]'
                 }`}
               >
                 R0 vs R1
@@ -461,7 +461,7 @@ export const Step8FinalResults: React.FC<Step8FinalResultsProps> = ({
               <button
                 onClick={() => setComparisonPair('r1_vs_r2')}
                 className={`px-2.5 py-1 rounded-md font-medium transition cursor-pointer ${
-                  comparisonPair === 'r1_vs_r2' ? 'bg-[#7c6cff] text-white shadow-sm' : 'text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)]'
+                  comparisonPair === 'r1_vs_r2' ? 'bg-[#7c3aed] text-white shadow-sm' : 'text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)]'
                 }`}
               >
                 R1 vs R2
@@ -469,7 +469,7 @@ export const Step8FinalResults: React.FC<Step8FinalResultsProps> = ({
               <button
                 onClick={() => setComparisonPair('r0_vs_r2')}
                 className={`px-2.5 py-1 rounded-md font-medium transition cursor-pointer ${
-                  comparisonPair === 'r0_vs_r2' ? 'bg-[#7c6cff] text-white shadow-sm' : 'text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)]'
+                  comparisonPair === 'r0_vs_r2' ? 'bg-[#7c3aed] text-white shadow-sm' : 'text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)]'
                 }`}
               >
                 R0 vs R2 (Net)
@@ -481,7 +481,7 @@ export const Step8FinalResults: React.FC<Step8FinalResultsProps> = ({
               <button
                 onClick={() => setViewMode('split')}
                 className={`px-2.5 py-1 rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
-                  viewMode === 'split' ? 'bg-[#7c6cff] text-white shadow-sm' : 'text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)]'
+                  viewMode === 'split' ? 'bg-[#7c3aed] text-white shadow-sm' : 'text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)]'
                 }`}
               >
                 <Columns className="w-3.5 h-3.5" /> Side-by-Side
@@ -489,7 +489,7 @@ export const Step8FinalResults: React.FC<Step8FinalResultsProps> = ({
               <button
                 onClick={() => setViewMode('code')}
                 className={`px-2.5 py-1 rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
-                  viewMode === 'code' ? 'bg-[#7c6cff] text-white shadow-sm' : 'text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)]'
+                  viewMode === 'code' ? 'bg-[#7c3aed] text-white shadow-sm' : 'text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)]'
                 }`}
               >
                 <FileCode className="w-3.5 h-3.5" /> Final Only
