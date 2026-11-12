@@ -40,6 +40,11 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
 
   const m = backendVerification?.metrics;
   const hasResult = Boolean(backendVerification);
+  const hasSkippedOrError = Boolean(
+    backendVerification?.techniques?.some(t => t.status === 'SKIPPED' || t.status === 'ERROR')
+  );
+  const isFullyVerified = backendVerification?.overallVerdict === 'VERIFIED';
+  const showNotVerified = Boolean(backendVerification && !isFullyVerified);
   
   // Real metrics calculated directly from backend verification results
   const passRate = m?.passRate != null
@@ -260,10 +265,18 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
             </div>
           </div>
 
-          <p className="text-xs text-[color:var(--color-ink-muted)] font-normal">
-            {backendVerification
-              ? `Verdict: ${backendVerification.overallVerdict}`
-              : (verificationError ? 'Verification unavailable' : 'Awaiting verification')}
+          <p className="text-xs font-normal">
+            {backendVerification ? (
+              isFullyVerified ? (
+                <span className="text-emerald-400 font-semibold">Verdict: VERIFIED</span>
+              ) : (
+                <span className="text-amber-400 font-semibold">Verdict: Not verified</span>
+              )
+            ) : (
+              <span className="text-[color:var(--color-ink-muted)]">
+                {verificationError ? 'Verification unavailable' : 'Awaiting verification'}
+              </span>
+            )}
           </p>
         </div>
 
@@ -438,9 +451,17 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
                 allVerificationIssues.length > 0
                   ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                  : hasSkippedOrError || showNotVerified
+                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
                   : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
               }`}>
-                {allVerificationIssues.length > 0 ? `${allVerificationIssues.length} Issue(s) Diagnosed` : 'All Checks Clean'}
+                {allVerificationIssues.length > 0
+                  ? `${allVerificationIssues.length} Issue(s) Diagnosed`
+                  : hasSkippedOrError
+                  ? 'Checks Incomplete (SKIPPED / ERROR)'
+                  : showNotVerified
+                  ? 'Not verified'
+                  : 'All Checks Clean'}
               </span>
             </div>
             <p className="text-xs text-[color:var(--color-ink-muted)] mt-1">
@@ -450,15 +471,33 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
         </div>
 
         {allVerificationIssues.length === 0 ? (
-          <div className="p-5 rounded-xl bg-emerald-500/5 border border-emerald-500/20 flex items-center gap-3 text-xs text-emerald-300">
-            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+          <div className={`p-5 rounded-xl border flex items-center gap-3 text-xs ${
+            hasSkippedOrError || showNotVerified
+              ? 'bg-amber-500/5 border-amber-500/20 text-amber-300'
+              : 'bg-emerald-500/5 border-emerald-500/20 text-emerald-300'
+          }`}>
+            {hasSkippedOrError || showNotVerified ? (
+              <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+            )}
             <div>
-              <div className="font-semibold text-emerald-200">
-                {hasResult ? 'No Blocking Verification Issues Detected' : 'No Verification Data Yet'}
+              <div className={`font-semibold ${hasSkippedOrError || showNotVerified ? 'text-amber-200' : 'text-emerald-200'}`}>
+                {hasResult
+                  ? hasSkippedOrError
+                    ? 'Some Verification Checks Were Skipped or Returned Errors'
+                    : showNotVerified
+                    ? 'Not Verified (Pytest must execute with 0 failures or skips)'
+                    : 'All Checks Clean'
+                  : 'No Verification Data Yet'}
               </div>
               <div className="text-[11px] text-[color:var(--color-ink-muted)] mt-0.5">
                 {hasResult
-                  ? 'The synthesized Python codebase satisfies AST parsing, imports, runtime checks, and unit tests cleanly.'
+                  ? hasSkippedOrError
+                    ? 'SKIPPED and ERROR checks are never treated as clean or resolved. Review logs to ensure full environment verification.'
+                    : showNotVerified
+                    ? 'Automated tests must fully execute and pass with zero failures or skips for verified status.'
+                    : 'The synthesized Python codebase satisfies AST parsing, imports, runtime checks, and unit tests cleanly.'
                   : (verificationError ? 'Backend verification encountered an error. Click Retry Verification above.' : 'Run verification to test the generated Python code.')}
               </div>
             </div>
@@ -557,7 +596,11 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
                     <div key={t.id} className="p-3 card-quiet border border-[color:var(--color-hairline)] rounded-lg flex items-center justify-between">
                       <span className="text-xs font-semibold text-[color:var(--color-ink)]">{t.name}</span>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                        t.status === 'PASS' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                        t.status === 'PASS'
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                          : t.status === 'SKIPPED' || t.status === 'ERROR'
+                          ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                          : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                       }`}>
                         {t.status}
                       </span>
