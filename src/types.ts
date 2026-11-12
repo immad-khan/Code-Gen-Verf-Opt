@@ -223,4 +223,81 @@ export interface OptimizationResponse {
   finalDiagnosis: BugTaxonomyReport;
   summary: OptimizationSummary;
   totalDurationMs: number;
+  runResult?: RunResult;
+  repairSkipped?: boolean;
+}
+
+export interface CheckStatusRecord {
+  checkName: string;
+  status: 'PASS' | 'FAIL' | 'SKIPPED' | 'ERROR' | 'PENDING';
+  reason?: string;
+  details?: string;
+}
+
+export interface DiagnosedBugRecord {
+  taxonomyId: string;
+  primaryType: string;
+  secondaryType: string;
+  file: string;
+  line?: number;
+  message: string;
+  compilerFeedback: string;
+}
+
+export interface TestRunSummary {
+  totalTests: number;
+  passed: number;
+  failed: number;
+  skipped: number;
+  passRate: number;
+  durationMs: number;
+}
+
+export interface GeneratedCodeFileSnapshot {
+  name: string;
+  path: string;
+  content: string;
+  category?: string;
+}
+
+export interface TokenAccounting {
+  promptTokens: number;
+  completionTokens: number;
+  reasoningTokens: number;
+  totalTokens: number;
+  estimatedCostUsd: number;
+}
+
+export interface BaselineComparator {
+  paperRepairSuccessRate: number;
+  label: string;
+}
+
+export interface RunRoundResult {
+  roundNumber: number;
+  stageName: string;
+  verdict: string;
+  checkStatuses: CheckStatusRecord[];
+  diagnosedBugs: DiagnosedBugRecord[];
+  testsSummary: TestRunSummary;
+  codeSnapshot: GeneratedCodeFileSnapshot[];
+  promptSent?: string;
+  llmResponseReceived?: string;
+  tokens: TokenAccounting;
+  durationMs: number;
+}
+
+export interface RunResult {
+  runId: string;
+  problemId: string;
+  benchmark: string;
+  modelId: string;
+  executionDateUtc: string;
+  mode: string;
+  overallVerdict: string;
+  repairSkipped: boolean;
+  repairSuccessRate: number | null;
+  baselineComparator: BaselineComparator;
+  rounds: RunRoundResult[];
+  totalDurationMs: number;
 }
