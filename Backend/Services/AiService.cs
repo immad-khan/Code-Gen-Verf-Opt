@@ -83,7 +83,7 @@ public class AiService : ILlmClient
         string prompt, string systemPrompt, ApiSettings settings, double temperature, bool jsonMode, CancellationToken ct)
     {
         var provider = (settings.Provider ?? "").Trim().ToLowerInvariant();
-        if (provider is not ("openai" or "groq" or "anthropic" or "gemini"))
+        if (provider is not ("openai" or "groq" or "anthropic" or "gemini" or "deepseek"))
         {
             throw new LlmRequestException(provider, $"LLM request failed: unsupported provider '{settings.Provider}'.");
         }
@@ -146,21 +146,35 @@ public class AiService : ILlmClient
         {
             case "openai":
             case "groq":
+            case "deepseek":
             {
-                var url = provider == "openai"
-                    ? "https://api.openai.com/v1/chat/completions"
-                    : "https://api.groq.com/openai/v1/chat/completions";
+                var url = provider switch
+                {
+                    "openai" => "https://api.openai.com/v1/chat/completions",
+                    "groq" => "https://api.groq.com/openai/v1/chat/completions",
+                    "deepseek" => "https://api.deepseek.com/chat/completions",
+                    _ => "https://api.openai.com/v1/chat/completions"
+                };
+
+                bool isReasoner = (model ?? "").Contains("reasoner", StringComparison.OrdinalIgnoreCase);
+
                 var payload = new Dictionary<string, object>
                 {
-                    ["model"] = model,
-                    ["temperature"] = temperature,
+                    ["model"] = model ?? "",
                     ["messages"] = new[]
                     {
                         new { role = "system", content = systemPrompt },
                         new { role = "user", content = prompt },
                     },
                 };
-                if (jsonMode)
+
+                // deepseek-reasoner ignores temperature / top_p and rejects logprobs
+                if (!isReasoner)
+                {
+                    payload["temperature"] = temperature;
+                }
+
+                if (jsonMode && !isReasoner)
                 {
                     payload["response_format"] = new { type = "json_object" };
                 }
@@ -219,6 +233,7 @@ public class AiService : ILlmClient
             {
                 case "openai":
                 case "groq":
+                case "deepseek":
                     return root.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "";
                 case "anthropic":
                 {
@@ -296,13 +311,14 @@ public class AiService : ILlmClient
         "groq" => "Groq",
         "anthropic" => "Anthropic",
         "gemini" => "Gemini",
+        "deepseek" => "DeepSeek",
         _ => provider,
     };
 
     private JsonElement? ExtractJson(string text)
     {
         // First, strip any prefix like "Groq 400: ", "OpenAI 500: ", etc.
-        var processedText = System.Text.RegularExpressions.Regex.Replace(text, @"^(Groq|OpenAI|Anthropic|Gemini)\s+\d+:\s*", "");
+        var processedText = System.Text.RegularExpressions.Regex.Replace(text, @"^(Groq|OpenAI|Anthropic|Gemini|DeepSeek)\s+\d+:\s*", "");
 
         // First try: is processedText already valid JSON with "files" key?
         try
