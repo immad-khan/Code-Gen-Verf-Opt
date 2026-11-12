@@ -6,9 +6,6 @@ namespace Backend.Models;
 // Kept only so the old Services/OptimizationService.cs and Controllers/OptimizationController.cs
 // keep compiling. The new web repair DTOs live in OptimizationModels.cs
 // (RepairSessionRequest, RepairIteration, RepairResult, RepairSessionView, ...).
-//
-// Task 12.6 rewrites OptimizationService/OptimizationController onto the repair-session
-// DTOs, removes the old /repair endpoint, and deletes this file.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ───────────────────────────────────────────────── Request / Response
@@ -20,6 +17,8 @@ public class OptimizationRequest
     public ApiSettings ApiSettings { get; set; } = new();
     public VerificationResponse? VerificationResult { get; set; }
     public int MaxIterations { get; set; } = 2;
+    public string RepairMode { get; set; } = "dou";
+    public bool EnableEpisodicMemory { get; set; } = false;
 }
 
 public class OptimizationResponse
@@ -28,6 +27,8 @@ public class OptimizationResponse
     public BugTaxonomyReport InitialDiagnosis { get; set; } = new();
     public BugTaxonomyReport FinalDiagnosis { get; set; } = new();
     public OptimizationSummary Summary { get; set; } = new();
+    public bool RepairSkipped { get; set; }
+    public RunResult? RunResult { get; set; }
     public long TotalDurationMs { get; set; }
 }
 
@@ -81,7 +82,7 @@ public class OptimizationSummary
     public int TotalBugsBefore { get; set; }
     public int TotalBugsAfter { get; set; }
     public int TotalBugsFixed { get; set; }
-    public double RepairSuccessRate { get; set; } // (fixed / before) * 100
+    public double? RepairSuccessRate { get; set; } // (fixed / before) * 100, null if before == 0
     public int IterationsPerformed { get; set; }
 
     // Per-iteration breakdown
@@ -89,9 +90,9 @@ public class OptimizationSummary
     public int BugsFixedIteration2 { get; set; }
 
     // Per-category repair rates
-    public double SyntaxRepairRate { get; set; }
-    public double RuntimeRepairRate { get; set; }
-    public double FunctionalRepairRate { get; set; }
+    public double? SyntaxRepairRate { get; set; }
+    public double? RuntimeRepairRate { get; set; }
+    public double? FunctionalRepairRate { get; set; }
 
     // Bug evolution (how bugs transition between types across iterations)
     public List<BugEvolution> BugEvolutions { get; set; } = new();
