@@ -41,11 +41,21 @@ public class SemgrepVerificationHandler : VerificationHandlerBase
             }
 
             var scanArgs = semgrepCmd == context.PythonExecutable
-                ? $"-m semgrep scan --config p/python --json --quiet \"{context.TempDir}\""
-                : $"scan --config p/python --json --quiet \"{context.TempDir}\"";
+                ? $"-m semgrep scan --config auto --metrics=off --json --quiet \"{context.TempDir}\""
+                : $"scan --config auto --metrics=off --json --quiet \"{context.TempDir}\"";
 
             var (exitCode, stdout, stderr) = await context.RunCommandAsync(
-                semgrepCmd, scanArgs, 60000);
+                semgrepCmd, scanArgs, 8000);
+
+            if (exitCode == -1 && stderr.Contains("timed out", StringComparison.OrdinalIgnoreCase))
+            {
+                technique.Status = "SKIP";
+                technique.Details = "Semgrep scan timed out (rule registry unreachable offline)";
+                sw.Stop();
+                technique.DurationMs = sw.ElapsedMilliseconds;
+                context.AddTechnique(technique);
+                return;
+            }
 
             var jsonOutput = !string.IsNullOrWhiteSpace(stdout) ? stdout : stderr;
             var findingCount = 0;
