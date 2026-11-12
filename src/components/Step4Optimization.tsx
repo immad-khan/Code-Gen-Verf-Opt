@@ -70,6 +70,17 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
   const activeTab = forcedIteration ?? activeIterationTab;
   const currentIteration = iterations.find(it => it.iterationNumber === activeTab) || iterations[0];
 
+  const runResult = optimizationResult?.runResult;
+  const baselineRate = runResult?.baselineComparator?.paperRepairSuccessRate ?? 29.2;
+  const baselineLabel = runResult?.baselineComparator?.label ?? 'Paper, GPT-4';
+  const initialFailingBugs = summary?.totalBugsBefore ?? 0;
+  const rsrDisplay = initialFailingBugs === 0
+    ? 'N/A'
+    : summary
+    ? `${summary.repairSuccessRate.toFixed(1)}%`
+    : 'N/A';
+  const isRepairSkipped = Boolean(optimizationResult?.repairSkipped || runResult?.repairSkipped);
+
   const filesToDisplay = currentIteration?.repairedFiles || result.generatedCode;
   const selectedFile = filesToDisplay[selectedFileIndex] || filesToDisplay[0];
 
@@ -168,6 +179,19 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
         </div>
       )}
 
+      {/* Repair Skipped Banner (Requirement 4) */}
+      {isRepairSkipped && (
+        <div className="card p-5 border border-emerald-500/30 bg-emerald-500/10 flex items-center gap-3 text-emerald-300 text-sm">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+          <div>
+            <div className="font-bold text-emerald-200">Initial Verification Passed — Repair Skipped</div>
+            <div className="text-xs text-emerald-300/80 mt-0.5">
+              All compiler, runtime, and test checks passed cleanly in Round 0. No LLM repair calls were needed.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Empty / Not yet run prompt */}
       {!optimizationResult && !isOptimizing && (
         <div className="card p-8 text-center flex flex-col items-center justify-center gap-4">
@@ -206,16 +230,16 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
               </div>
               <div>
                 <div className="text-3xl font-extrabold text-[color:var(--color-ink)]">
-                  {summary ? `${summary.repairSuccessRate.toFixed(1)}%` : '100%'}
+                  {rsrDisplay}
                 </div>
                 <div className="text-[11px] text-[color:var(--color-brand-soft)] mt-1 font-medium flex items-center gap-1">
-                  <span>Dou et al. baseline comparator: ~29.2%</span>
+                  <span>{baselineLabel}: ~{baselineRate}%</span>
                 </div>
               </div>
               <div className="w-full bg-[color:var(--color-surface-2)] h-2 rounded-full overflow-hidden border border-[color:var(--color-hairline)]">
                 <div
                   className="h-full bg-gradient-to-r from-[#7c3aed] to-emerald-400 rounded-full transition-all duration-700"
-                  style={{ width: `${Math.min(100, summary?.repairSuccessRate || 100)}%` }}
+                  style={{ width: `${initialFailingBugs === 0 ? 100 : Math.min(100, summary?.repairSuccessRate || 0)}%` }}
                 />
               </div>
             </div>
@@ -262,7 +286,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
               </div>
               <div>
                 <div className="text-3xl font-extrabold text-[color:var(--color-ink)]">
-                  {summary ? `${summary.totalBugsFixed} / ${summary.totalBugsBefore}` : '3 / 3'}
+                  {summary ? `${summary.totalBugsFixed} / ${summary.totalBugsBefore}` : '0 / 0'}
                 </div>
                 <div className="text-[11px] text-[color:var(--color-ink-muted)] mt-1">
                   Iter 1: +{summary?.bugsFixedIteration1 || 0} fixed · Iter 2: +{summary?.bugsFixedIteration2 || 0} fixed
@@ -290,7 +314,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                 </div>
               </div>
               <div className="text-[11px] text-[color:var(--color-brand-soft)] font-medium">
-                Temperature locked: 0.1 (Ultra-Focused)
+                {runResult?.modelId ? `Model: ${runResult.modelId}` : 'Configured: DeepSeek-R1'}
               </div>
             </div>
           </div>
