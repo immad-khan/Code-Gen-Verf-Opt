@@ -15,10 +15,12 @@ namespace Backend.Services.Verification.Pipeline;
 /// </summary>
 public class VerificationPipeline : IVerificationPipeline
 {
+    private readonly PythonToolHealthService _toolHealth;
     private readonly ILogger<VerificationPipeline> _logger;
 
-    public VerificationPipeline(ILogger<VerificationPipeline> logger)
+    public VerificationPipeline(PythonToolHealthService toolHealth, ILogger<VerificationPipeline> logger)
     {
+        _toolHealth = toolHealth;
         _logger = logger;
     }
 
@@ -43,8 +45,8 @@ public class VerificationPipeline : IVerificationPipeline
 
             CreateInitFiles(tempDir);
 
-            var python = await FindPythonAsync();
-            if (python == null)
+            var python = await _toolHealth.ResolvePythonPathAsync();
+            if (string.IsNullOrEmpty(python))
             {
                 response.Techniques.Add(new VerificationTechnique
                 {
@@ -88,11 +90,6 @@ public class VerificationPipeline : IVerificationPipeline
             response.TotalFailed = response.Techniques.Count(t => t.Status == "FAIL");
             response.TotalSkipped = response.Techniques.Count(t => t.Status == "SKIP");
 
-            response.OverallVerdict = response.Techniques.Any(t => t.Status == "FAIL")
-                ? "FAIL"
-                : response.Techniques.All(t => t.Status is "PASS" or "SKIP")
-                    ? "PASS" : "PARTIAL";
-
             // 5. Compute Code Metrics
             var t1 = context.GetTechnique(1);
             var t3 = context.GetTechnique(3);
@@ -101,6 +98,34 @@ public class VerificationPipeline : IVerificationPipeline
             var t7 = context.GetTechnique(7);
 
             response.Metrics = await ComputeMetricsAsync(context, t1, t3, t4, t6, t7);
+
+            // 6. Strict Verdict Determination
+            // Verdict VERIFIED only if pytest actually ran and all tests passed, and no other check is FAIL/SKIP/ERROR.
+            bool anyFail = response.Techniques.Any(t => t.Status == "FAIL");
+            bool anyError = response.Techniques.Any(t => t.Status == "ERROR");
+            bool anySkipped = response.Techniques.Any(t => t.Status == "SKIP");
+            bool pytestExecutedAndPassed = t3 != null &&
+                                           t3.Status == "PASS" &&
+                                           response.Metrics.TotalTests > 0 &&
+                                           response.Metrics.FailedTests == 0;
+
+            if (anyFail)
+            {
+                response.OverallVerdict = "FAIL";
+            }
+            else if (anyError)
+            {
+                response.OverallVerdict = "ERROR";
+            }
+            else if (pytestExecutedAndPassed && !anySkipped)
+            {
+                response.OverallVerdict = "VERIFIED";
+            }
+            else
+            {
+                // When checks are SKIPPED or no tests ran, it is NOT clean and cannot be VERIFIED.
+                response.OverallVerdict = "NOT_VERIFIED";
+            }
         }
         catch (Exception ex)
         {
@@ -187,37 +212,6 @@ public class VerificationPipeline : IVerificationPipeline
             metrics.SemgrepFindingCount = t7Semgrep.Issues.Count;
 
         return metrics;
-    }
-
-    private async Task<string?> FindPythonAsync()
-    {
-        foreach (var cmd in new[] { "python", "python3" })
-        {
-            try
-            {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = cmd,
-                    Arguments = "--version",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                using var proc = Process.Start(psi);
-                if (proc != null)
-                {
-                    var stdout = await proc.StandardOutput.ReadToEndAsync();
-                    await proc.WaitForExitAsync();
-                    if (proc.ExitCode == 0 && stdout.Contains("Python"))
-                    {
-                        return cmd;
-                    }
-                }
-            }
-            catch { }
-        }
-        return null;
     }
 
     private void CreateInitFiles(string rootDir)
