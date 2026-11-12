@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
 using Backend.Models;
+using Backend.Services.Repair;
+using Backend.Services.Taxonomy;
 
 namespace Backend.Services;
 
@@ -9,6 +11,10 @@ public class OptimizationService
 {
     private readonly VerificationService _verificationService;
     private readonly AiService _aiService;
+    private readonly ITaxonomyProvider _taxonomyProvider;
+    private readonly IConfiguration _configuration;
+    private readonly RepairPromptBuilder _promptBuilder;
+    private readonly RepairResponseParser _responseParser = new();
     private readonly ILogger<OptimizationService> _logger;
 
     // Dou et al. Taxonomy Definitions (Section 4.1)
@@ -45,17 +51,22 @@ public class OptimizationService
     public OptimizationService(
         VerificationService verificationService,
         AiService aiService,
+        ITaxonomyProvider taxonomyProvider,
+        IConfiguration configuration,
         ILogger<OptimizationService> logger)
     {
         _verificationService = verificationService;
         _aiService = aiService;
+        _taxonomyProvider = taxonomyProvider;
+        _configuration = configuration;
+        _promptBuilder = new RepairPromptBuilder(taxonomyProvider);
         _logger = logger;
     }
 
     /// <summary>
     /// Executes the full Dou et al. 2-iteration optimization pipeline:
     /// Initial Diagnosis -> Iteration 1 (Critique + LLM Repair + Re-verify) ->
-    /// Iteration 2 (Episodic Feedback + LLM Repair + Re-verify) -> Bug Evolution & Summary
+    /// Iteration 2 (LLM Repair + Re-verify) -> Bug Evolution & Summary
     /// </summary>
     public async Task<OptimizationResponse> OptimizeAsync(OptimizationRequest request)
     {
@@ -82,21 +93,24 @@ public class OptimizationService
         var previousVerification = initialVerification;
         var episodicHistory = new List<string>();
 
-        // If initially clean, return early with 100% pass
-        if (initialDiagnosis.TotalBugs == 0 && initialVerification.OverallVerdict == "PASS")
+        // Requirement 4: If no check fails initially, SKIP repair. Do not call the LLM.
+        if (initialDiagnosis.TotalBugs == 0 && (initialVerification.OverallVerdict is "VERIFIED" or "PASS"))
         {
+            _logger.LogInformation("All checks verified in Round 0. Skipping repair loop entirely.");
+            response.RepairSkipped = true;
             response.FinalDiagnosis = initialDiagnosis;
             response.Summary = BuildSummary(initialDiagnosis, initialDiagnosis, 0, new List<OptimizationIteration>(), initialVerification, initialVerification);
             response.TotalDurationMs = totalSw.ElapsedMilliseconds;
             return response;
         }
 
-        // Step 2: Iterative Repair Loop (2 Iterations)
+        // Step 2: Iterative Repair Loop (up to maxIterations)
         for (int iter = 1; iter <= maxIterations; iter++)
         {
-            // If all bugs resolved in previous iteration, break early
-            if (iter > 1 && currentDiagnosis.TotalBugs == 0 && previousVerification?.OverallVerdict == "PASS")
+            // If all bugs resolved in previous iteration, break early (Round 2 skipped if Round 1 passed)
+            if (iter > 1 && currentDiagnosis.TotalBugs == 0 && (previousVerification?.OverallVerdict is "VERIFIED" or "PASS"))
             {
+                _logger.LogInformation("Round {PrevRound} verified all checks. Stopping repair loop early.", iter - 1);
                 break;
             }
 
@@ -107,6 +121,12 @@ public class OptimizationService
                 Diagnosis = currentDiagnosis
             };
 
+            // Requirement 8: Episodic memory (history) is NOT part of paper mode "dou".
+            // Only pass history if requested and not in pure "dou" mode.
+            var historyForPrompt = (request.EnableEpisodicMemory && request.RepairMode != "dou")
+                ? episodicHistory
+                : new List<string>();
+
             // Formulate critique & repair prompt
             var critiquePrompt = BuildCritiquePrompt(
                 request.OriginalPrompt,
@@ -115,33 +135,46 @@ public class OptimizationService
                 previousVerification,
                 iter,
                 maxIterations,
-                episodicHistory
+                historyForPrompt,
+                request.RepairMode
             );
             iterationData.CritiquePrompt = critiquePrompt;
 
-            // Call LLM for repair
+            // Call LLM for repair using RESEARCH ENGINE plain-text completion (NO JSON mode!)
             List<GeneratedCodeFile> repairedFiles;
             string rawLlmResponse = "";
             try
             {
-                var repairResult = await _aiService.RepairCodeAsync(critiquePrompt, request.ApiSettings);
-                repairedFiles = repairResult.Files;
-                rawLlmResponse = repairResult.RawResponse;
+                var systemPrompt = _promptBuilder.WebSystemPrompt;
+                rawLlmResponse = await _aiService.CompleteTextAsync(
+                    critiquePrompt, systemPrompt, request.ApiSettings, 0.1);
+
+                // Parse using RepairResponseParser (extracts Markdown fenced code blocks)
+                var parsed = _responseParser.Parse(rawLlmResponse, currentFiles);
+
+                // REJECT and log any attempt to modify test files (Tests are READ-ONLY!)
+                if (parsed.Ignored.Count > 0)
+                {
+                    foreach (var ig in parsed.Ignored)
+                    {
+                        _logger.LogWarning(
+                            "[SECURITY REJECTION] Model attempted to modify read-only file '{Path}': {Reason}",
+                            ig.Path, ig.Reason);
+                    }
+                }
+
+                repairedFiles = parsed.Apply(currentFiles);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error calling LLM for repair iteration {Iteration}", iter);
                 rawLlmResponse = $"Repair call error: {ex.Message}";
-                repairedFiles = new List<GeneratedCodeFile>();
+                repairedFiles = currentFiles;
             }
 
             iterationData.LlmCritiqueResponse = rawLlmResponse;
+            currentFiles = repairedFiles;
 
-            // If files were successfully repaired, update currentFiles
-            if (repairedFiles.Count > 0)
-            {
-                currentFiles = repairedFiles;
-            }
             iterationData.RepairedFiles = currentFiles.Select(f => new GeneratedCodeFile
             {
                 Name = f.Name,
@@ -164,8 +197,8 @@ public class OptimizationService
 
             response.Iterations.Add(iterationData);
 
-            // Add episodic memory for next iteration if needed
-            if (nextDiagnosis.TotalBugs > 0)
+            // Add episodic memory for next iteration if enabled
+            if (nextDiagnosis.TotalBugs > 0 && request.EnableEpisodicMemory && request.RepairMode != "dou")
             {
                 var topBug = nextDiagnosis.Bugs.FirstOrDefault();
                 var bugDesc = topBug != null ? $"{topBug.TaxonomyId} ({topBug.Message})" : "unresolved errors";
@@ -189,6 +222,92 @@ public class OptimizationService
         response.TotalDurationMs = totalSw.ElapsedMilliseconds;
 
         return response;
+    }
+
+    /// <summary>
+    /// Builds the Single Source of Truth RunResult object combining Round 0, Round 1, and Round 2.
+    /// </summary>
+    public RunResult BuildRunResult(
+        string prompt,
+        string model,
+        VerificationResponse r0Verif,
+        OptimizationResponse? optResponse,
+        long totalDurationMs)
+    {
+        var result = new RunResult
+        {
+            Model = model,
+            OriginalPrompt = prompt,
+            TotalDurationMs = totalDurationMs,
+            BaselineLabel = _configuration["PaperBaseline:Label"] ?? "Paper, GPT-4 (Dou et al.)",
+            BaselineComparator = double.TryParse(_configuration["PaperBaseline:RepairSuccessRate"], out var b) ? b : 29.2
+        };
+
+        // Round 0
+        var r0Round = new RunRoundResult
+        {
+            RoundIndex = 0,
+            TechniqueStatuses = r0Verif.Techniques,
+            DurationMs = r0Verif.TotalDurationMs,
+            Verdict = r0Verif.OverallVerdict,
+            TestsSummary = new TestRunSummary
+            {
+                Total = r0Verif.Metrics.TotalTests,
+                Passed = r0Verif.Metrics.PassedTests,
+                Failed = r0Verif.Metrics.FailedTests,
+                PassRate = r0Verif.Metrics.PassRate
+            }
+        };
+
+        if (optResponse != null)
+        {
+            r0Round.DiagnosedBugs = optResponse.InitialDiagnosis.Bugs;
+            result.InitialFailingBugs = optResponse.InitialDiagnosis.TotalBugs;
+            result.FixedBugs = optResponse.Summary.TotalBugsFixed;
+            result.RepairSuccessRate = optResponse.Summary.RepairSuccessRate;
+            result.RepairSkipped = optResponse.RepairSkipped;
+            result.OverallVerdict = optResponse.Summary.FinalVerdict;
+
+            // Round 1 and Round 2
+            foreach (var iter in optResponse.Iterations)
+            {
+                var v = iter.ReVerification;
+                var iterRound = new RunRoundResult
+                {
+                    RoundIndex = iter.IterationNumber,
+                    CodeSnapshot = iter.RepairedFiles,
+                    DiagnosedBugs = iter.Diagnosis.Bugs,
+                    PromptSent = iter.CritiquePrompt,
+                    LlmResponse = iter.LlmCritiqueResponse,
+                    DurationMs = iter.DurationMs,
+                    Verdict = v?.OverallVerdict ?? "NOT_VERIFIED",
+                    TechniqueStatuses = v?.Techniques ?? new List<VerificationTechnique>()
+                };
+
+                if (v != null)
+                {
+                    iterRound.TestsSummary = new TestRunSummary
+                    {
+                        Total = v.Metrics.TotalTests,
+                        Passed = v.Metrics.PassedTests,
+                        Failed = v.Metrics.FailedTests,
+                        PassRate = v.Metrics.PassRate
+                    };
+                }
+
+                result.Rounds.Add(iterRound);
+            }
+        }
+        else
+        {
+            result.InitialFailingBugs = r0Verif.Techniques.Count(t => t.Status == "FAIL");
+            result.OverallVerdict = r0Verif.OverallVerdict;
+            result.RepairSkipped = true;
+            result.RepairSuccessRate = null;
+        }
+
+        result.Rounds.Insert(0, r0Round);
+        return result;
     }
 
     /// <summary>
@@ -264,7 +383,11 @@ public class OptimizationService
         // 2. Runtime Bugs (Type B)
         else if (msg.Contains("NameError") || msg.Contains("UnboundLocalError"))
         {
-            taxonomyId = "B.2";
+            // If it's a NameError on standard library (math, json, os, sys, etc.), classify as A.3
+            if (Regex.IsMatch(msg, @"name '(math|sys|os|re|json|time|datetime|random|collections|itertools|heapq|bisect)' is not defined"))
+                taxonomyId = "A.3";
+            else
+                taxonomyId = "B.2";
         }
         else if (Regex.IsMatch(msg, @"(IndexError|KeyError|ZeroDivisionError|ValueError|OverflowError)"))
         {
@@ -297,7 +420,6 @@ public class OptimizationService
         }
         else
         {
-            // Default based on technique
             taxonomyId = technique.Id switch
             {
                 1 => "A.1",
@@ -314,7 +436,6 @@ public class OptimizationService
         if (!TaxonomyDefs.TryGetValue(taxonomyId, out var def))
             def = ("Type C: Functional Bug", $"{taxonomyId} Functional Bug", "Address logic inconsistency.");
 
-        // Grab snippet if missing
         var snippet = issue.CodeSnippet;
         if (string.IsNullOrEmpty(snippet) && issue.Line.HasValue && !string.IsNullOrEmpty(issue.File))
         {
@@ -372,7 +493,7 @@ public class OptimizationService
     }
 
     /// <summary>
-    /// Composes the self-critique repair prompt matching Dou et al. Sections 4 & 6 and TIVR feedback.
+    /// Builds the critique repair prompt following Dou et al. Figure 6 and repository specifications.
     /// </summary>
     private string BuildCritiquePrompt(
         string originalPrompt,
@@ -381,76 +502,102 @@ public class OptimizationService
         VerificationResponse? verification,
         int iteration,
         int maxIterations,
-        List<string> episodicHistory)
+        List<string> episodicHistory,
+        string mode)
     {
-        var sb = new StringBuilder();
+        // Editable (non-test) files only! Tests are excluded from the solution.
+        var editableFiles = RepairFiles.Editable(files);
 
-        sb.AppendLine("## Task Specification:");
-        sb.AppendLine(originalPrompt);
-        sb.AppendLine();
-
-        sb.AppendLine($"## Current Code (Iteration {iteration} of {maxIterations}):");
-        foreach (var file in files)
+        // Format editable code as markdown blocks
+        var solutionSb = new StringBuilder();
+        foreach (var file in editableFiles)
         {
-            sb.AppendLine($"### File: `{file.Path}` ({file.Category})");
-            sb.AppendLine("```python");
-            sb.AppendLine(file.Content);
-            sb.AppendLine("```");
-            sb.AppendLine();
+            solutionSb.AppendLine($"### File: {RepairFiles.PathOf(file)}");
+            solutionSb.AppendLine("```python");
+            solutionSb.AppendLine(file.Content);
+            solutionSb.AppendLine("```");
+            solutionSb.AppendLine();
         }
 
-        sb.AppendLine("## Machine-Verified Bug Diagnosis (Dou et al. Taxonomy):");
-        if (diagnosis.Bugs.Count > 0)
-        {
-            foreach (var bug in diagnosis.Bugs.Take(6))
-            {
-                var loc = !string.IsNullOrEmpty(bug.File) ? $" in `{bug.File}`" : "";
-                var line = bug.Line.HasValue ? $":{bug.Line.Value}" : "";
-                TaxonomyDefs.TryGetValue(bug.TaxonomyId, out var def);
+        // Format compiler error log according to Dou et al. rules:
+        // Type A / B: interpreter error report
+        // Type C: "The functionality of code is incorrect"
+        // Timeout: "The execution of the code has exceeded the time limit"
+        var errorLogSb = new StringBuilder();
+        bool hasFunctionalBug = diagnosis.Bugs.Any(b => b.PrimaryType.Contains("Functional"));
+        bool hasSyntaxOrRuntime = diagnosis.Bugs.Any(b => b.PrimaryType.Contains("Syntax") || b.PrimaryType.Contains("Runtime"));
 
-                sb.AppendLine($"- **[{bug.TaxonomyId}] {bug.PrimaryType} -> {bug.SecondaryType}**{loc}{line}");
-                sb.AppendLine($"  - Issue: {bug.Message}");
+        if (hasSyntaxOrRuntime)
+        {
+            foreach (var bug in diagnosis.Bugs.Where(b => !b.PrimaryType.Contains("Functional")).Take(5))
+            {
+                errorLogSb.AppendLine($"{bug.File}: {bug.Message}");
                 if (!string.IsNullOrEmpty(bug.CodeSnippet))
-                    sb.AppendLine($"  - Snippet: `{bug.CodeSnippet}`");
-                if (def.RepairHint != null)
-                    sb.AppendLine($"  - Guidance: {def.RepairHint}");
+                    errorLogSb.AppendLine($"  {bug.CodeSnippet}");
             }
+        }
+        else if (hasFunctionalBug)
+        {
+            errorLogSb.AppendLine("The functionality of code is incorrect");
         }
         else
         {
-            sb.AppendLine("- No syntax or runtime crashes detected, but verification assertions failed.");
+            errorLogSb.AppendLine("Compilation or execution check failed.");
         }
-        sb.AppendLine();
 
-        if (verification != null)
+        if (mode == "dou")
         {
-            sb.AppendLine("## Verification Execution & Compiler Feedback:");
-            var failedTechs = verification.Techniques.Where(t => t.Status == "FAIL" || t.Status == "ERROR").ToList();
-            foreach (var t in failedTechs)
+            // Exact Figure 6 prompt from paper
+            return _taxonomyProvider.Renderer.Render("dou_critique", new Dictionary<string, string>
             {
-                sb.AppendLine($"- **{t.Name}**: {t.Details}");
-            }
-            sb.AppendLine();
+                ["prompt"] = originalPrompt,
+                ["solution"] = solutionSb.ToString().Trim(),
+                ["error log"] = errorLogSb.ToString().Trim(),
+                ["checklist"] = _taxonomyProvider.Definition.ChecklistText()
+            });
         }
+
+        // Extended mode ("full") with episodic history and full compiler details
+        var fullSb = new StringBuilder();
+        fullSb.AppendLine("## Task Specification:");
+        fullSb.AppendLine(originalPrompt);
+        fullSb.AppendLine();
+
+        fullSb.AppendLine($"## Current Erroneous Code (Iteration {iteration} of {maxIterations}):");
+        fullSb.Append(solutionSb);
+
+        fullSb.AppendLine("## Machine-Verified Bug Diagnosis (Dou et al. Taxonomy):");
+        foreach (var bug in diagnosis.Bugs.Take(6))
+        {
+            var loc = !string.IsNullOrEmpty(bug.File) ? $" in `{bug.File}`" : "";
+            var line = bug.Line.HasValue ? $":{bug.Line.Value}" : "";
+            TaxonomyDefs.TryGetValue(bug.TaxonomyId, out var def);
+
+            fullSb.AppendLine($"- **[{bug.TaxonomyId}] {bug.PrimaryType} -> {bug.SecondaryType}**{loc}{line}");
+            fullSb.AppendLine($"  - Issue: {bug.Message}");
+            if (def.RepairHint != null)
+                fullSb.AppendLine($"  - Guidance: {def.RepairHint}");
+        }
+        fullSb.AppendLine();
+
+        fullSb.AppendLine("## Compiler / Execution Feedback:");
+        fullSb.AppendLine(errorLogSb.ToString().Trim());
+        fullSb.AppendLine();
 
         if (episodicHistory.Count > 0)
         {
-            sb.AppendLine("## Lessons from Previous Repair Attempts:");
+            fullSb.AppendLine("## Lessons from Previous Repair Attempts:");
             foreach (var h in episodicHistory)
-            {
-                sb.AppendLine($"- {h}");
-            }
-            sb.AppendLine();
+                fullSb.AppendLine($"- {h}");
+            fullSb.AppendLine();
         }
 
-        sb.AppendLine("## Repair Instructions:");
-        sb.AppendLine("1. Fix ALL the diagnosed bugs according to the taxonomy guidance and compiler evidence.");
-        sb.AppendLine("2. Preserve all existing function signatures, module interfaces, and file names.");
-        sb.AppendLine("3. Ensure the test file passes all tests.");
-        sb.AppendLine("4. Provide the COMPLETE, runnable Python code for every file without placeholders.");
-        sb.AppendLine("5. Output ONLY a valid JSON object matching the standard format with summary and files.");
+        fullSb.AppendLine("## Repair Instructions:");
+        fullSb.AppendLine("1. Fix all diagnosed bugs. Do not output or modify any test files.");
+        fullSb.AppendLine("2. For each modified file, write a line '### File: <path>' followed by a ```python ... ``` code block.");
+        fullSb.AppendLine("3. Output complete runnable code without placeholders.");
 
-        return sb.ToString();
+        return fullSb.ToString();
     }
 
     /// <summary>
@@ -476,9 +623,10 @@ public class OptimizationService
             FinalPassRate = finalVerification?.Metrics.PassRate ?? initialVerification.Metrics.PassRate
         };
 
+        // RSR = fixed_bugs / initial_failing. If initial == 0, null ("N/A")
         summary.RepairSuccessRate = summary.TotalBugsBefore > 0
             ? Math.Round((summary.TotalBugsFixed * 100.0) / summary.TotalBugsBefore, 1)
-            : 100.0;
+            : null;
 
         if (iterations.Count > 0)
             summary.BugsFixedIteration1 = iterations[0].BugsFixedThisIteration;
@@ -487,13 +635,13 @@ public class OptimizationService
 
         // Per-category repair rates
         int syntaxFixed = Math.Max(0, initial.SyntaxBugs - final.SyntaxBugs);
-        summary.SyntaxRepairRate = initial.SyntaxBugs > 0 ? Math.Round((syntaxFixed * 100.0) / initial.SyntaxBugs, 1) : 100.0;
+        summary.SyntaxRepairRate = initial.SyntaxBugs > 0 ? Math.Round((syntaxFixed * 100.0) / initial.SyntaxBugs, 1) : null;
 
         int runtimeFixed = Math.Max(0, initial.RuntimeBugs - final.RuntimeBugs);
-        summary.RuntimeRepairRate = initial.RuntimeBugs > 0 ? Math.Round((runtimeFixed * 100.0) / initial.RuntimeBugs, 1) : 100.0;
+        summary.RuntimeRepairRate = initial.RuntimeBugs > 0 ? Math.Round((runtimeFixed * 100.0) / initial.RuntimeBugs, 1) : null;
 
         int functionalFixed = Math.Max(0, initial.FunctionalBugs - final.FunctionalBugs);
-        summary.FunctionalRepairRate = initial.FunctionalBugs > 0 ? Math.Round((functionalFixed * 100.0) / initial.FunctionalBugs, 1) : 100.0;
+        summary.FunctionalRepairRate = initial.FunctionalBugs > 0 ? Math.Round((functionalFixed * 100.0) / initial.FunctionalBugs, 1) : null;
 
         // Bug Evolutions
         for (int i = 0; i < iterations.Count; i++)
