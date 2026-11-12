@@ -17,11 +17,16 @@ public class PytestVerificationHandler : VerificationHandlerBase
 
         try
         {
-            // Check if pytest is available
-            var (checkExit, _, _) = await context.RunCommandAsync(
-                context.PythonExecutable, "-m pytest --version", 5000);
+            // Run pytest directly in isolated sandbox
+            var (exitCode, stdout, stderr) = await context.RunCommandAsync(
+                context.PythonExecutable,
+                $"-m pytest \"{context.TempDir}\" --tb=short -q --no-header",
+                20000);
 
-            if (checkExit != 0)
+            var output = $"{stdout}\n{stderr}".Trim();
+            technique.Details = output;
+
+            if (exitCode != 0 && output.Contains("No module named pytest"))
             {
                 technique.Status = "SKIP";
                 technique.Details = "pytest not installed. Run: pip install pytest";
@@ -30,15 +35,6 @@ public class PytestVerificationHandler : VerificationHandlerBase
                 context.AddTechnique(technique);
                 return;
             }
-
-            // Run pytest in isolated sandbox
-            var (exitCode, stdout, stderr) = await context.RunCommandAsync(
-                context.PythonExecutable,
-                $"-m pytest \"{context.TempDir}\" --tb=short -q --no-header 2>&1",
-                60000);
-
-            var output = $"{stdout}\n{stderr}".Trim();
-            technique.Details = output;
 
             if (exitCode == 0)
             {
