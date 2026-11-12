@@ -297,6 +297,11 @@ function buildCritiquePrompt(
   return parts.join('\n');
 }
 
+const BACKEND_URL = (
+  import.meta.env.VITE_BACKEND_URL?.trim() ||
+  (import.meta.env.PROD ? 'https://code-gen-verf-opt.onrender.com' : 'http://localhost:5000')
+).replace(/\/+$/, '');
+
 /**
  * Executes the full Dou et al. 2-iteration repair pipeline:
  * Round 0 Diagnosis -> Round 1 LLM Critique Repair + Real Backend Re-Verification ->
@@ -304,6 +309,30 @@ function buildCritiquePrompt(
  */
 export async function runBackendOptimization(params: RunOptimizationParams): Promise<OptimizationResponse> {
   const { files, originalPrompt, apiSettings, maxIterations = 2 } = params;
+
+  // 1. Try real backend research engine first (Dou et al. Figure 6, read-only tests, Docker/tools)
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/optimization/repair`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        files,
+        originalPrompt,
+        apiSettings,
+        verificationResult: params.verificationResult,
+        maxIterations,
+        mode: 'dou',
+        enableEpisodicMemory: false,
+      }),
+    });
+    if (res.ok) {
+      const data: OptimizationResponse = await res.json();
+      return data;
+    }
+  } catch (backendErr) {
+    console.warn('Backend repair API unreachable, falling back to local runner:', backendErr);
+  }
+
   const startTime = Date.now();
 
   // Find a valid API configuration with a key
@@ -491,7 +520,7 @@ export async function runBackendOptimization(params: RunOptimizationParams): Pro
   // Build Summary
   const lastVerification = iterations[iterations.length - 1]?.reVerification || previousVerification;
   const finalPassRate = lastVerification?.metrics?.passRate ?? (lastVerification?.overallVerdict === 'PASS' ? 100 : 85);
-  const totalBugsBefore = initialDiagnosis.totalBugs || 3;
+  const totalBugsBefore = initialDiagnosis.totalBugs;
   const totalBugsAfter = currentDiagnosis.totalBugs;
   const totalBugsFixed = Math.max(0, totalBugsBefore - totalBugsAfter);
 
@@ -505,11 +534,11 @@ export async function runBackendOptimization(params: RunOptimizationParams): Pro
   const summary: OptimizationSummary = {
     totalBugsBefore,
     totalBugsAfter,
-    totalBugsFixed: totalBugsFixed || totalBugsBefore,
-    repairSuccessRate: totalBugsBefore > 0 ? Math.round(((totalBugsFixed || totalBugsBefore) / totalBugsBefore) * 1000) / 10 : 100.0,
+    totalBugsFixed,
+    repairSuccessRate: totalBugsBefore > 0 ? Math.round((totalBugsFixed / totalBugsBefore) * 1000) / 10 : 100.0,
     iterationsPerformed: iterations.length,
-    bugsFixedIteration1: iterations[0]?.bugsFixedThisIteration ?? 2,
-    bugsFixedIteration2: iterations[1]?.bugsFixedThisIteration ?? 1,
+    bugsFixedIteration1: iterations[0]?.bugsFixedThisIteration ?? 0,
+    bugsFixedIteration2: iterations[1]?.bugsFixedThisIteration ?? 0,
     syntaxRepairRate: 100.0,
     runtimeRepairRate: 100.0,
     functionalRepairRate: 100.0,
