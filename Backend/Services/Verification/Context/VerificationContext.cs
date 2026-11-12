@@ -60,20 +60,32 @@ public class VerificationContext
             CreateNoWindow = true
         };
 
-        using var process = new Process { StartInfo = psi };
-        process.Start();
-
-        var stdoutTask = process.StandardOutput.ReadToEndAsync();
-        var stderrTask = process.StandardError.ReadToEndAsync();
-
-        var completed = process.WaitForExit(timeoutMs);
-        if (!completed)
+        try
         {
-            try { process.Kill(true); } catch { }
-            return (-1, await stdoutTask, "Process timed out");
-        }
+            using var process = new Process { StartInfo = psi };
+            process.Start();
 
-        return (process.ExitCode, await stdoutTask, await stderrTask);
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            var stderrTask = process.StandardError.ReadToEndAsync();
+
+            using var cts = new CancellationTokenSource(timeoutMs);
+            try
+            {
+                await process.WaitForExitAsync(cts.Token);
+                var stdout = await stdoutTask;
+                var stderr = await stderrTask;
+                return (process.ExitCode, stdout, stderr);
+            }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(true); } catch { }
+                return (-1, "", "Process timed out after " + timeoutMs + "ms");
+            }
+        }
+        catch (Exception ex)
+        {
+            return (-1, "", ex.Message);
+        }
     }
 
     public string? GetCodeSnippet(string? relativeFile, int? lineNo)
