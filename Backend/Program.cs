@@ -1,6 +1,7 @@
 using Backend.Data;
 using Backend.Services;
 using Backend.Services.Taxonomy;
+using Backend.Services.Verification;
 using Backend.Services.Verification.Pipeline;
 using Microsoft.EntityFrameworkCore;
 
@@ -45,6 +46,10 @@ builder.Services.AddCors(options =>
 builder.Services.Configure<LlmClientOptions>(builder.Configuration.GetSection(LlmClientOptions.SectionName));
 builder.Services.AddHttpClient<AiService>(client => client.Timeout = Timeout.InfiniteTimeSpan);
 builder.Services.AddTransient<ILlmClient>(sp => sp.GetRequiredService<AiService>());
+// Python Verification Tool Health & Startup Validation
+builder.Services.AddSingleton<PythonToolHealthService>();
+builder.Services.AddHostedService<PythonToolStartupValidator>();
+
 builder.Services.AddSingleton<IVerificationPipeline, VerificationPipeline>();
 builder.Services.AddSingleton<VerificationService>();
 builder.Services.AddScoped<OptimizationService>();
@@ -61,18 +66,21 @@ builder.Services.AddHostedService<KeepAliveService>();
 
 var app = builder.Build();
 
-// Automatically ensure PostgreSQL tables exist
-using (var scope = app.Services.CreateScope())
+// Automatically ensure PostgreSQL tables exist when connection string is present
+if (!string.IsNullOrEmpty(connectionString))
 {
-    try
+    using (var scope = app.Services.CreateScope())
     {
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.Database.EnsureCreatedAsync();
-        app.Logger.LogInformation("Neon PostgreSQL database initialized successfully.");
-    }
-    catch (Exception ex)
-    {
-        app.Logger.LogWarning(ex, "Could not initialize PostgreSQL database at startup.");
+        try
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Database.EnsureCreatedAsync();
+            app.Logger.LogInformation("Neon PostgreSQL database initialized successfully.");
+        }
+        catch (Exception ex)
+        {
+            app.Logger.LogWarning(ex, "Could not initialize PostgreSQL database at startup.");
+        }
     }
 }
 
@@ -84,7 +92,11 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
-app.UseHttpsRedirection();
+// Only enable HTTPS redirection if explicitly configured (Render and local dev use HTTP upstream)
+if (app.Configuration.GetValue<bool>("EnableHttpsRedirection", false))
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseCors("AllowAll");
 
