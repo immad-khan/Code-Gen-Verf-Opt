@@ -43,7 +43,11 @@ export const Step8FinalResults: React.FC<Step8FinalResultsProps> = ({
 }) => {
   const summary = optimizationResult?.summary;
   const iterations = optimizationResult?.iterations || [];
-  
+  const runResult = optimizationResult?.runResult;
+  const r0 = runResult?.rounds?.find(r => r.roundNumber === 0);
+  const r1 = runResult?.rounds?.find(r => r.roundNumber === 1);
+  const r2 = runResult?.rounds?.find(r => r.roundNumber === 2);
+
   // Versions of files
   const round0Files: GeneratedCodeFile[] = result.generatedCode;
   const round1Files: GeneratedCodeFile[] = iterations[0]?.repairedFiles || round0Files;
@@ -97,28 +101,39 @@ export const Step8FinalResults: React.FC<Step8FinalResultsProps> = ({
   };
 
   // Pass rates progression
-  const v0PassRate = initialVerification?.metrics?.passRate ?? (initialVerification?.overallVerdict === 'PASS' ? 100 : 0);
-  const v1PassRate = round1Verification?.metrics?.passRate ?? (round1Verification?.overallVerdict === 'PASS' ? 100 : v0PassRate);
-  const v2PassRate = round2Verification?.metrics?.passRate ?? (round2Verification?.overallVerdict === 'PASS' ? 100 : v1PassRate);
+  const v0PassRate = r0?.testsSummary?.passRate ?? (initialVerification?.metrics?.passRate ?? (initialVerification?.overallVerdict === 'PASS' ? 100 : 0));
+  const v1PassRate = r1?.testsSummary?.passRate ?? (round1Verification?.metrics?.passRate ?? (round1Verification?.overallVerdict === 'PASS' ? 100 : v0PassRate));
+  const v2PassRate = r2?.testsSummary?.passRate ?? (round2Verification?.metrics?.passRate ?? (round2Verification?.overallVerdict === 'PASS' ? 100 : v1PassRate));
 
   // Verification scores (% checks passed)
-  const calcScore = (v: VerificationResponse | null | undefined) => {
+  const calcScore = (v: VerificationResponse | null | undefined, roundIndex?: number) => {
+    if (runResult?.rounds && roundIndex != null) {
+      const rnd = runResult.rounds.find(r => r.roundNumber === roundIndex);
+      if (rnd && rnd.checkStatuses.length > 0) {
+        const passed = rnd.checkStatuses.filter(c => c.status === 'PASS').length;
+        return Math.round((passed / rnd.checkStatuses.length) * 100);
+      }
+    }
     if (!v) return null;
     const total = v.totalPassed + v.totalFailed;
-    return total > 0 ? Math.round((v.totalPassed / total) * 100) : (v.overallVerdict === 'PASS' ? 100 : 0);
+    return total > 0 ? Math.round((v.totalPassed / total) * 100) : (v.overallVerdict === 'PASS' || v.overallVerdict === 'VERIFIED' ? 100 : 0);
   };
 
-  const v0Score = calcScore(initialVerification);
-  const v1Score = calcScore(round1Verification);
-  const v2Score = calcScore(round2Verification);
+  const v0Score = calcScore(initialVerification, 0);
+  const v1Score = calcScore(round1Verification, 1);
+  const v2Score = calcScore(round2Verification, 2);
 
-  const rsr = summary?.repairSuccessRate ?? (
-    summary?.totalBugsBefore && summary?.totalBugsBefore > 0
-      ? Math.round((summary.totalBugsFixed / summary.totalBugsBefore) * 100)
-      : 100
-  );
+  const initialBugsCount = r0 ? r0.diagnosedBugs.length : (summary?.totalBugsBefore ?? (initialVerification?.totalFailed ?? 0));
+  const rsrDisplay = initialBugsCount === 0
+    ? 'N/A'
+    : (runResult?.repairSuccessRate != null
+      ? `${runResult.repairSuccessRate.toFixed(1)}%`
+      : (summary?.repairSuccessRate != null ? `${summary.repairSuccessRate.toFixed(1)}%` : 'N/A'));
 
-  const finalVerdict = round2Verification?.overallVerdict || round1Verification?.overallVerdict || initialVerification?.overallVerdict || 'PASS';
+  const baselineRate = runResult?.baselineComparator?.paperRepairSuccessRate ?? 29.2;
+  const baselineLabel = runResult?.baselineComparator?.label ?? 'Paper, GPT-4';
+
+  const finalVerdict = runResult?.overallVerdict || round2Verification?.overallVerdict || round1Verification?.overallVerdict || initialVerification?.overallVerdict || 'PASS';
 
   // 7-Technique comparison list
   const techniqueNames = [
@@ -131,10 +146,17 @@ export const Step8FinalResults: React.FC<Step8FinalResultsProps> = ({
     'Semgrep Security Scan',
   ];
 
-  const getTechStatus = (v: VerificationResponse | null | undefined, nameMatch: string) => {
-    if (!v || !v.techniques) return null;
-    const t = v.techniques.find(tech => tech.name.toLowerCase().includes(nameMatch.toLowerCase()));
-    return t ? t.status : null;
+  const getTechStatus = (roundIndex: number, keyword: string, fallbackV?: VerificationResponse | null) => {
+    const round = runResult?.rounds?.find(r => r.roundNumber === roundIndex);
+    if (round?.checkStatuses) {
+      const match = round.checkStatuses.find(c => c.checkName.toLowerCase().includes(keyword.toLowerCase()));
+      if (match) return match.status;
+    }
+    if (fallbackV?.techniques) {
+      const match = fallbackV.techniques.find(t => t.name.toLowerCase().includes(keyword.toLowerCase()));
+      if (match) return match.status;
+    }
+    return null;
   };
 
   return (
@@ -215,14 +237,14 @@ export const Step8FinalResults: React.FC<Step8FinalResultsProps> = ({
           </div>
           <div className="my-2">
             <div className="text-3xl font-extrabold text-amber-400 tracking-tight">
-              {rsr}%
+              {rsrDisplay}
             </div>
             <p className="text-xs text-[color:var(--color-ink-muted)] mt-1">
-              Base Paper Benchmark: <strong className="text-[color:var(--color-ink)]">29.2% RSR</strong>
+              Base Paper Benchmark: <strong className="text-[color:var(--color-ink)]">{baselineLabel}: ~{baselineRate}% RSR</strong>
             </p>
           </div>
           <div className="text-[11px] text-[color:var(--color-ink-faint)] pt-2 border-t border-[color:var(--color-hairline)]">
-            {summary ? `${summary.totalBugsFixed} of ${summary.totalBugsBefore} diagnosed bugs resolved` : 'All checks verified'}
+            {initialBugsCount === 0 ? '0 initial failing bugs (RSR: N/A)' : (summary ? `${summary.totalBugsFixed} of ${initialBugsCount} diagnosed bugs resolved` : 'All checks verified')}
           </div>
         </div>
 
@@ -293,11 +315,11 @@ export const Step8FinalResults: React.FC<Step8FinalResultsProps> = ({
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-[color:var(--color-ink)]">Round 0: Initial Synthesis</span>
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                initialVerification?.overallVerdict === 'PASS'
+                (r0?.verdict || initialVerification?.overallVerdict) === 'PASS' || (r0?.verdict || initialVerification?.overallVerdict) === 'VERIFIED'
                   ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
                   : 'bg-red-500/15 text-red-300 border border-red-500/30'
               }`}>
-                {initialVerification?.overallVerdict || 'EVALUATED'}
+                {r0?.verdict || initialVerification?.overallVerdict || 'EVALUATED'}
               </span>
             </div>
             <div className="text-2xl font-bold text-[color:var(--color-ink)]">
@@ -308,7 +330,7 @@ export const Step8FinalResults: React.FC<Step8FinalResultsProps> = ({
               Raw model synthesis without compiler feedback.
             </p>
             <div className="text-[11px] text-amber-400 font-mono">
-              {summary ? `${summary.totalBugsBefore} initial bugs diagnosed` : 'Initial check'}
+              {initialBugsCount} initial bugs diagnosed
             </div>
           </div>
 
@@ -386,9 +408,10 @@ export const Step8FinalResults: React.FC<Step8FinalResultsProps> = ({
             </thead>
             <tbody className="divide-y divide-[color:var(--color-hairline)] font-mono">
               {techniqueNames.map((name, idx) => {
-                const s0 = getTechStatus(initialVerification, name.split(' ')[0]) || (initialVerification?.overallVerdict === 'PASS' ? 'PASS' : 'FAIL');
-                const s1 = getTechStatus(round1Verification, name.split(' ')[0]) || (round1Verification?.overallVerdict === 'PASS' ? 'PASS' : (idx === 0 || idx === 1 ? 'PASS' : s0));
-                const s2 = getTechStatus(round2Verification, name.split(' ')[0]) || 'PASS';
+                const keyword = idx === 0 ? 'ast' : idx === 1 ? 'import' : idx === 2 ? 'pytest' : idx === 3 ? 'runtime' : idx === 4 ? 'type' : idx === 5 ? 'radon' : 'semgrep';
+                const s0 = getTechStatus(0, keyword, initialVerification) || (initialVerification?.overallVerdict === 'VERIFIED' ? 'PASS' : (idx === 0 || idx === 1 ? 'PASS' : 'FAIL'));
+                const s1 = getTechStatus(1, keyword, round1Verification) || (round1Verification?.overallVerdict === 'VERIFIED' ? 'PASS' : (idx === 0 || idx === 1 ? 'PASS' : s0));
+                const s2 = getTechStatus(2, keyword, round2Verification) || (round2Verification?.overallVerdict === 'VERIFIED' ? 'PASS' : (idx === 0 || idx === 1 ? 'PASS' : s1));
 
                 return (
                   <tr key={idx} className="hover:bg-[color:var(--color-surface-2)] transition-colors">
