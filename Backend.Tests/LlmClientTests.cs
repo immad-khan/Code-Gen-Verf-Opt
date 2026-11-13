@@ -24,9 +24,11 @@ public class LlmClientTests
         { "groq", 0.0 }, { "groq", 0.37 }, { "groq", 1.0 },
         { "anthropic", 0.0 }, { "anthropic", 0.37 }, { "anthropic", 1.0 },
         { "gemini", 0.0 }, { "gemini", 0.37 }, { "gemini", 1.0 },
+        { "deepseek", 0.0 }, { "deepseek", 0.37 }, { "deepseek", 1.0 },
+        { "openrouter", 0.0 }, { "openrouter", 0.37 }, { "openrouter", 1.0 },
     };
 
-    public static readonly TheoryData<string> Providers = new() { "openai", "groq", "anthropic", "gemini" };
+    public static readonly TheoryData<string> Providers = new() { "openai", "groq", "anthropic", "gemini", "deepseek", "openrouter" };
 
     [Theory]
     [MemberData(nameof(ProviderTemperatures))]
@@ -61,7 +63,32 @@ public class LlmClientTests
     [Theory]
     [InlineData("openai")]
     [InlineData("gemini")]
-    public async Task Generation_StillUsesJsonMode_AndParsesFiles(string provider)
+    [InlineData("openrouter")]
+    public async Task Generation_NoLongerUsesJsonMode_AndParsesFencedBlocks(string provider)
+    {
+        const string generated = "```python\ndef solution():\n    return 42\n```";
+        var handler = new FakeHandler(_ => Ok(SuccessBody(provider, generated)));
+        var service = CreateClient(handler);
+
+        var files = await service.ProcessPromptAsync("make a", Settings(provider));
+
+        var file = Assert.Single(files);
+        Assert.Equal("solution.py", file.Path);
+        Assert.Contains("def solution():", file.Content);
+        using var body = JsonDocument.Parse(Assert.Single(handler.Requests).Body);
+        if (provider == "gemini")
+        {
+            Assert.False(body.RootElement.GetProperty("generationConfig").TryGetProperty("responseMimeType", out _));
+        }
+        else
+        {
+            Assert.False(body.RootElement.TryGetProperty("response_format", out _));
+        }
+    }
+
+    [Theory]
+    [InlineData("openai")]
+    public async Task Generation_BackwardsCompatibility_StillParsesJsonIfReturned(string provider)
     {
         const string generated = """{"summary":"s","files":[{"name":"a.py","path":"a.py","category":"service","description":"d","content":"x = 1"}]}""";
         var handler = new FakeHandler(_ => Ok(SuccessBody(provider, generated)));
@@ -72,16 +99,6 @@ public class LlmClientTests
         var file = Assert.Single(files);
         Assert.Equal("a.py", file.Path);
         Assert.Equal("x = 1", file.Content);
-        using var body = JsonDocument.Parse(Assert.Single(handler.Requests).Body);
-        if (provider == "gemini")
-        {
-            Assert.Equal("application/json",
-                body.RootElement.GetProperty("generationConfig").GetProperty("responseMimeType").GetString());
-        }
-        else
-        {
-            Assert.Equal("json_object", body.RootElement.GetProperty("response_format").GetProperty("type").GetString());
-        }
     }
 
     [Theory]
@@ -218,6 +235,101 @@ public class LlmClientTests
         Assert.Equal(TimeSpan.FromSeconds(7), service.Timeout);
     }
 
+    [Fact]
+    public async Task OpenRouter_SendsCorrectUrl_AndHeaders()
+    {
+        var handler = new FakeHandler(_ => Ok(SuccessBody("openrouter", "solution")));
+        var client = CreateClient(handler);
+
+        var result = await client.CompleteTextAsync("prompt", "sys", new ApiSettings { Provider = "openrouter", ApiKey = Key, Model = "deepseek/deepseek-r1" }, 0.0);
+
+        Assert.Equal("solution", result);
+        var req = Assert.Single(handler.Requests);
+        Assert.Equal("https://openrouter.ai/api/v1/chat/completions", req.Uri.ToString());
+        Assert.Contains(Key, string.Join(";", req.Headers.SelectMany(h => h.Value)));
+        Assert.Contains("https://github.com/veriflow", req.Headers.First(h => h.Key == "HTTP-Referer").Value);
+        Assert.Contains("VeriFlow", req.Headers.First(h => h.Key == "X-Title").Value);
+    }
+
+    [Theory]
+    [InlineData("deepseek/deepseek-r1")]
+    [InlineData("deepseek-reasoner")]
+    public async Task ReasonerModel_OmitsTemperature_AndSendsConfiguredMaxTokens(string model)
+    {
+        var options = new LlmClientOptions
+        {
+            TimeoutSeconds = 30,
+            Models = new Dictionary<string, ModelProfile>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["deepseek/deepseek-r1"] = new() { SendTemperature = false, MaxOutputTokens = 32000 },
+                ["deepseek-reasoner"] = new() { SendTemperature = false, MaxOutputTokens = 32000 }
+            }
+        };
+        var handler = new FakeHandler(_ => Ok(SuccessBody("openrouter", "code")));
+        var client = new AiService(new HttpClient(handler), Options.Create(options));
+
+        await client.CompleteTextAsync("prompt", "sys", new ApiSettings { Provider = "openrouter", ApiKey = Key, Model = model }, 0.7);
+
+        var req = Assert.Single(handler.Requests);
+        using var doc = JsonDocument.Parse(req.Body);
+        var root = doc.RootElement;
+        Assert.False(root.TryGetProperty("temperature", out _));
+        Assert.Equal(32000, root.GetProperty("max_tokens").GetInt32());
+    }
+
+    [Fact]
+    public async Task GptOssModel_SendsTemperature_AndConfiguredMaxTokens()
+    {
+        var options = new LlmClientOptions
+        {
+            TimeoutSeconds = 30,
+            Models = new Dictionary<string, ModelProfile>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["gpt-oss"] = new() { SendTemperature = true, MaxOutputTokens = 8000 }
+            }
+        };
+        var handler = new FakeHandler(_ => Ok(SuccessBody("openrouter", "code")));
+        var client = new AiService(new HttpClient(handler), Options.Create(options));
+
+        await client.CompleteTextAsync("prompt", "sys", new ApiSettings { Provider = "openrouter", ApiKey = Key, Model = "gpt-oss" }, 0.42);
+
+        var req = Assert.Single(handler.Requests);
+        using var doc = JsonDocument.Parse(req.Body);
+        var root = doc.RootElement;
+        Assert.Equal(0.42, root.GetProperty("temperature").GetDouble());
+        Assert.Equal(8000, root.GetProperty("max_tokens").GetInt32());
+    }
+
+    [Theory]
+    [InlineData("openrouter")]
+    [InlineData("deepseek")]
+    [InlineData("openai")]
+    public async Task ReasoningModel_EmptyContent_ThrowsDescriptiveLlmRequestException(string provider)
+    {
+        var emptyContentJson = JsonSerializer.Serialize(new
+        {
+            choices = new[]
+            {
+                new
+                {
+                    message = new
+                    {
+                        content = "",
+                        reasoning_content = "Thinking a lot..."
+                    }
+                }
+            }
+        });
+        var handler = new FakeHandler(_ => Ok(emptyContentJson));
+        var client = CreateClient(handler);
+
+        var ex = await Assert.ThrowsAsync<LlmRequestException>(
+            () => client.CompleteTextAsync("prompt", "sys", Settings(provider), 0.0));
+
+        Assert.Contains("returned empty content", ex.Message);
+        Assert.Contains("token budget", ex.Message);
+    }
+
     // ---- helpers ----
 
     private static AiService CreateClient(FakeHandler handler, double timeoutSeconds = 30) =>
@@ -231,6 +343,8 @@ public class LlmClientTests
         "openai" => "OpenAI",
         "groq" => "Groq",
         "anthropic" => "Anthropic",
+        "deepseek" => "DeepSeek",
+        "openrouter" => "OpenRouter",
         _ => "Gemini",
     };
 
