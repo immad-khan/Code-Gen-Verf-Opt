@@ -19,6 +19,7 @@ public class OptimizationRequest
     public int MaxIterations { get; set; } = 2;
     public string RepairMode { get; set; } = "dou";
     public bool EnableEpisodicMemory { get; set; } = false;
+    public string? LockedTestHash { get; set; }
 }
 
 public class OptimizationResponse

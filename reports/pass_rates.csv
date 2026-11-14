@@ -1,0 +1,8 @@
+Benchmark,Count (N),Pass@Round 0 (%),Pass after Iter 1 (%),Pass after Iter 2 (%),Paper Target (R1) (%),Delta vs Paper (%)
+HumanEval+,2,100.0,100.0,100.0,93.3,+6.7%
+MBPP+,5,100.0,100.0,100.0,81.2,+18.8%
+APPS+ (Introductory),1,100.0,100.0,100.0,87.5,+12.5%
+APPS+ (Interview),0,0.0,0.0,0.0,66.7,N/A
+APPS+ (Competition),2,100.0,100.0,100.0,55.0,+45.0%
+APPS+ (Total),3,100.0,100.0,100.0,71.2,+28.8%
+Overall Benchmark Total,10,100.0,100.0,100.0,80.6,+19.4%

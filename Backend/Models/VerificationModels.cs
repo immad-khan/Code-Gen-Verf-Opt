@@ -19,6 +19,9 @@ public class VerifyRequest
 {
     [JsonPropertyName("files")]
     public List<GeneratedCodeFile> Files { get; set; } = new();
+
+    [JsonPropertyName("lockedTestHash")]
+    public string? LockedTestHash { get; set; }
 }
 
 /// <summary>Technique IDs and status values shared by the verifier and the web API.</summary>

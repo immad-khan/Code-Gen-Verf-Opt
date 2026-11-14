@@ -1,4 +1,5 @@
-import { AIResultData, ApiSettings, AgentLog, GeneratedCodeFile } from '../types';
+import { AIResultData, ApiSettings, AgentLog, GeneratedCodeFile, InterfaceDefinition } from '../types';
+import { backendBaseUrl } from '../api/client';
 
 const SYSTEM_PROMPT = `You are Veriflow, a Python code generation system used for research purposes.
 
@@ -595,11 +596,152 @@ export async function processPromptWithAgents(
   throw new Error("No API keys configured! Please add at least one API key in the settings.");
 }
 
+// ------------------------------------------------------------------ Interface & Backend Generation
+export async function extractInterface(prompt: string, settings: ApiSettings): Promise<InterfaceDefinition> {
+  const res = await fetch(`${backendBaseUrl()}/api/ai/interface`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, apiSettings: settings })
+  });
+  if (!res.ok) {
+    const errorJson = await res.json().catch(() => ({}));
+    throw new Error(errorJson.error || `Interface extraction failed: HTTP ${res.status}`);
+  }
+  return await res.json();
+}
+
+export async function generateCodeFromBackend(
+  prompt: string,
+  settings: ApiSettings,
+  iface?: InterfaceDefinition
+): Promise<GeneratedCodeFile[]> {
+  const res = await fetch(`${backendBaseUrl()}/api/ai/process`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, apiSettings: settings, interface: iface })
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const err: any = new Error(body.error || `Code generation failed: HTTP ${res.status}`);
+    err.rawResponse = body.rawResponse;
+    err.status = res.status;
+    throw err;
+  }
+  const data = await res.json();
+  return data.files || [];
+}
+
+// ------------------------------------------------------------------ Phase C: Test Step Endpoints
+export async function generateTests(
+  prompt: string,
+  iface: InterfaceDefinition,
+  settings: ApiSettings
+): Promise<string> {
+  const res = await fetch(`${backendBaseUrl()}/api/ai/tests`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, interface: iface, apiSettings: settings })
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const err: any = new Error(body.error || `Test generation failed: HTTP ${res.status}`);
+    err.rawResponse = body.rawResponse;
+    err.status = res.status;
+    throw err;
+  }
+  const data = await res.json();
+  return data.testCode || '';
+}
+
+export async function validateTests(
+  testCode: string,
+  iface: InterfaceDefinition
+): Promise<{ valid: boolean; testCount: number; passedOnStubCount: number; warnings: string[]; error?: string }> {
+  const res = await fetch(`${backendBaseUrl()}/api/ai/tests/validate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ testCode, interface: iface })
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Test validation failed: HTTP ${res.status}`);
+  }
+  return await res.json();
+}
+
+export async function lockTests(
+  testCode: string,
+  testCount: number
+): Promise<{ hash: string; testCount: number; isLocked: boolean; lockedAtUtc: string }> {
+  const res = await fetch(`${backendBaseUrl()}/api/ai/tests/lock`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ testCode, testCount })
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Locking tests failed: HTTP ${res.status}`);
+  }
+  return await res.json();
+}
+
+export async function fetchBenchmarkProblems(benchmark?: string): Promise<{ benchmark: string; problemId: string; title: string; subTier?: string }[]> {
+  const url = benchmark
+    ? `${backendBaseUrl()}/api/benchmark/problems?benchmark=${encodeURIComponent(benchmark)}`
+    : `${backendBaseUrl()}/api/benchmark/problems`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`Failed to load benchmark problems: HTTP ${res.status}`);
+  }
+  return await res.json();
+}
+
+export async function fetchBenchmarkProblem(benchmark: string, problemId: string): Promise<{
+  benchmark: string;
+  problemId: string;
+  prompt: string;
+  interface: InterfaceDefinition;
+  testCount: number;
+  previewTests: string;
+  lockedTestHash: string;
+}> {
+  const res = await fetch(
+    `${backendBaseUrl()}/api/benchmark/problems/${encodeURIComponent(benchmark)}/${encodeURIComponent(problemId)}`
+  );
+  if (!res.ok) {
+    throw new Error(`Failed to load problem ${problemId}: HTTP ${res.status}`);
+  }
+  return await res.json();
+}
+
 // ------------------------------------------------------------------ API key tester
 export async function testApiKey(provider: string, apiKey: string, model: string): Promise<{ ok: boolean; message: string }> {
   const ping = 'Reply with the single word: PONG';
   try {
     switch (provider.toLowerCase()) {
+      case 'openrouter': {
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+            'HTTP-Referer': 'https://github.com/veriflow',
+            'X-Title': 'VeriFlow'
+          },
+          body: JSON.stringify({ model, max_tokens: 5, messages: [{ role: 'user', content: ping }] })
+        });
+        if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e?.error?.message ?? res.statusText); }
+        return { ok: true, message: 'OpenRouter key is valid ✓' };
+      }
+      case 'deepseek': {
+        const res = await fetch('https://api.deepseek.com/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+          body: JSON.stringify({ model, max_tokens: 5, messages: [{ role: 'user', content: ping }] })
+        });
+        if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e?.error?.message ?? res.statusText); }
+        return { ok: true, message: 'DeepSeek key is valid ✓' };
+      }
       case 'openai': {
         const res = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',

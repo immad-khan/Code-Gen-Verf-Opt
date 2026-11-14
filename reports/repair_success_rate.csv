@@ -1,0 +1,6 @@
+Cohort,failing_n,fixed_r1,rsr_r1,fixed_r2,rsr_r2
+All Failing Problems (Overall),0,0,N/A,0,N/A
+Fixed 120 Failing Sample (Seed 42),0,0,N/A,0,N/A
+Type A (Syntax) Failures,0,0,N/A,0,N/A
+Type B (Runtime) Failures,0,0,N/A,0,N/A
+Type C (Logic) Failures,0,0,N/A,0,N/A

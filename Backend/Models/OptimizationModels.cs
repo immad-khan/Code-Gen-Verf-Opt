@@ -78,6 +78,9 @@ public class RepairSessionRequest
 
     [JsonPropertyName("temperature")]
     public JsonElement? Temperature { get; set; }
+
+    [JsonPropertyName("lockedTestHash")]
+    public string? LockedTestHash { get; set; }
 }
 
 /// <summary>The repair settings actually used for a session (Req. 22.7).</summary>

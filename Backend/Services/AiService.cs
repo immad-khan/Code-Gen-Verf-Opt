@@ -12,6 +12,21 @@ namespace Backend.Services;
 /// </summary>
 public class AiService : ILlmClient
 {
+    public const string GenerationSystemPrompt = """
+        Write a Python solution for the task below. Use the exact function name and
+        signature given. Standard library only unless the task says otherwise.
+        Do NOT write tests. Return only the code in one ```python block.
+        """;
+
+    public const string InterfaceSystemPrompt = """
+        You are a software architect. Given a task description, determine the exact Python function interface required to solve it.
+        Do NOT write the function body or any tests.
+        Output EXACTLY three lines in this format:
+        NAME: <function_name>
+        SIGNATURE: def <function_name>(<parameters>) -> <return_type>:
+        DOC: <one-line docstring describing purpose>
+        """;
+
     private const string SYSTEM_PROMPT = """
         TASK: Generate Python code based on the user's description.
 
@@ -26,7 +41,7 @@ public class AiService : ILlmClient
 
         4. Always include at least one test file with pytest-compatible test functions (def test_...).
 
-        5. Return ONLY a valid JSON object with this structure â€” no markdown fences, no prose:
+        5. Return ONLY a valid JSON object with this structure - no markdown fences, no prose:
         {
           "summary": "one-line description of what was built",
           "files": [
@@ -42,10 +57,14 @@ public class AiService : ILlmClient
 
     private readonly HttpClient _httpClient;
     private readonly TimeSpan _timeout;
+    private readonly LlmClientOptions _options;
+    private readonly Microsoft.Extensions.Logging.ILogger<AiService>? _logger;
 
-    public AiService(HttpClient httpClient, IOptions<LlmClientOptions> options)
+    public AiService(HttpClient httpClient, IOptions<LlmClientOptions> options, Microsoft.Extensions.Logging.ILogger<AiService>? logger = null)
     {
         _httpClient = httpClient;
+        _options = options.Value;
+        _logger = logger;
         var seconds = options.Value.TimeoutSeconds;
         if (!(seconds > 0) || double.IsInfinity(seconds))
         {
@@ -55,15 +74,102 @@ public class AiService : ILlmClient
         _timeout = TimeSpan.FromSeconds(seconds);
     }
 
+    /// <summary>Resolves the model profile (sendTemperature, maxOutputTokens) based on config and heuristics.</summary>
+    public ModelProfile GetModelProfile(string? model)
+    {
+        var modelName = (model ?? "").Trim();
+        if (!string.IsNullOrEmpty(modelName) && _options.Models != null)
+        {
+            if (_options.Models.TryGetValue(modelName, out var exact))
+            {
+                return exact;
+            }
+            foreach (var (k, v) in _options.Models)
+            {
+                if (modelName.Equals(k, StringComparison.OrdinalIgnoreCase) ||
+                    modelName.StartsWith(k, StringComparison.OrdinalIgnoreCase))
+                {
+                    return v;
+                }
+            }
+        }
+
+        // Default heuristic: names containing "reasoner" or "r1" omit temperature and have large token limit
+        if (modelName.Contains("reasoner", StringComparison.OrdinalIgnoreCase) ||
+            modelName.Contains("r1", StringComparison.OrdinalIgnoreCase))
+        {
+            return new ModelProfile { SendTemperature = false, MaxOutputTokens = 32000 };
+        }
+
+        return new ModelProfile { SendTemperature = true, MaxOutputTokens = null };
+    }
+
     /// <summary>Effective per-request timeout (from <c>Llm:TimeoutSeconds</c>).</summary>
     public TimeSpan Timeout => _timeout;
 
-    public async Task<List<GeneratedCodeFile>> ProcessPromptAsync(string prompt, ApiSettings settings, CancellationToken ct = default)
+    public async Task<InterfaceDefinition> ExtractInterfaceAsync(string prompt, ApiSettings settings, CancellationToken ct = default)
     {
-        var rawResponse = await SendAsync(prompt, SYSTEM_PROMPT, settings, GenerationTemperature, jsonMode: true, ct);
-        var parsed = ExtractJson(rawResponse);
-        return NormalizeFiles(parsed);
+        var rawResponse = await SendAsync(prompt, InterfaceSystemPrompt, settings, GenerationTemperature, jsonMode: false, ct);
+        return InterfaceDefinitionParser.Parse(rawResponse);
     }
+
+    public async Task<List<GeneratedCodeFile>> ProcessPromptAsync(
+        string prompt,
+        ApiSettings settings,
+        InterfaceDefinition? iface = null,
+        CancellationToken ct = default)
+    {
+        var fullPrompt = new StringBuilder();
+        fullPrompt.AppendLine("TASK:");
+        fullPrompt.AppendLine(prompt);
+        if (iface != null && !string.IsNullOrWhiteSpace(iface.Signature))
+        {
+            fullPrompt.AppendLine();
+            fullPrompt.AppendLine("TARGET INTERFACE:");
+            if (!string.IsNullOrWhiteSpace(iface.Name))
+            {
+                fullPrompt.AppendLine($"Name: {iface.Name}");
+            }
+            fullPrompt.AppendLine($"Signature: {iface.Signature}");
+            if (!string.IsNullOrWhiteSpace(iface.Docstring))
+            {
+                fullPrompt.AppendLine($"Docstring: {iface.Docstring}");
+            }
+        }
+
+        var rawResponse = await SendAsync(fullPrompt.ToString(), GenerationSystemPrompt, settings, GenerationTemperature, jsonMode: false, ct);
+        var files = FencedCodeBlockParser.ParseBlocks(rawResponse);
+
+        // If no code block found: retry once.
+        if (files.Count == 0)
+        {
+            _logger?.LogWarning("[AiService] No code block found in response for prompt. Retrying once...");
+            var retryPrompt = fullPrompt.ToString() + "\n\nCRITICAL: Return the complete Python solution enclosed in a ```python block. Do not return plain text without code fences.";
+            rawResponse = await SendAsync(retryPrompt, GenerationSystemPrompt, settings, GenerationTemperature, jsonMode: false, ct);
+            files = FencedCodeBlockParser.ParseBlocks(rawResponse);
+        }
+
+        // Backward compatibility: If still no code blocks found, check if the response was JSON (e.g. from existing test mocks)
+        if (files.Count == 0)
+        {
+            var parsedJson = ExtractJson(rawResponse);
+            if (parsedJson.HasValue)
+            {
+                files = NormalizeFiles(parsedJson);
+            }
+        }
+
+        // If it still fails, throw CodeGenerationException with the raw response
+        if (files.Count == 0)
+        {
+            throw new CodeGenerationException("No code block found in LLM response after retry.", rawResponse);
+        }
+
+        return files;
+    }
+
+    public Task<List<GeneratedCodeFile>> ProcessPromptAsync(string prompt, ApiSettings settings, CancellationToken ct)
+        => ProcessPromptAsync(prompt, settings, iface: null, ct);
 
     // Legacy JSON-mode repair; replaced by the OptimizationService rewrite (task 12.6).
     public async Task<(List<GeneratedCodeFile> Files, string RawResponse)> RepairCodeAsync(string repairPrompt, ApiSettings settings, string? customSystemPrompt = null)
@@ -83,7 +189,7 @@ public class AiService : ILlmClient
         string prompt, string systemPrompt, ApiSettings settings, double temperature, bool jsonMode, CancellationToken ct)
     {
         var provider = (settings.Provider ?? "").Trim().ToLowerInvariant();
-        if (provider is not ("openai" or "groq" or "anthropic" or "gemini" or "deepseek"))
+        if (provider is not ("openai" or "groq" or "anthropic" or "gemini" or "deepseek" or "openrouter"))
         {
             throw new LlmRequestException(provider, $"LLM request failed: unsupported provider '{settings.Provider}'.");
         }
@@ -94,6 +200,11 @@ public class AiService : ILlmClient
         {
             throw new LlmRequestException(provider, $"LLM request to {name} failed: no API key configured.");
         }
+
+        var profile = GetModelProfile(settings.Model);
+        _logger?.LogInformation(
+            "[AiService] Sending request to {Provider} (Model: {Model}, SendTemperature: {SendTemp}, Temperature: {Temp}, MaxOutputTokens: {MaxTokens}, JsonMode: {JsonMode})",
+            provider, settings.Model ?? "DEFAULT", profile.SendTemperature, profile.SendTemperature ? temperature : "OMITTED", profile.MaxOutputTokens?.ToString() ?? "DEFAULT", jsonMode);
 
         using var request = BuildRequest(provider, prompt, systemPrompt, settings.Model ?? "", apiKey, temperature, jsonMode);
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -136,27 +247,28 @@ public class AiService : ILlmClient
     /// Builds the provider request. Keys travel only in headers (never in the URL), the
     /// temperature is serialized unchanged, and JSON response mode is requested only for generation.
     /// </summary>
-    private static HttpRequestMessage BuildRequest(
+    private HttpRequestMessage BuildRequest(
         string provider, string prompt, string systemPrompt, string model, string apiKey, double temperature, bool jsonMode)
     {
         HttpRequestMessage request;
         object body;
+        var profile = GetModelProfile(model);
 
         switch (provider)
         {
             case "openai":
             case "groq":
             case "deepseek":
+            case "openrouter":
             {
                 var url = provider switch
                 {
                     "openai" => "https://api.openai.com/v1/chat/completions",
                     "groq" => "https://api.groq.com/openai/v1/chat/completions",
                     "deepseek" => "https://api.deepseek.com/chat/completions",
+                    "openrouter" => "https://openrouter.ai/api/v1/chat/completions",
                     _ => "https://api.openai.com/v1/chat/completions"
                 };
-
-                bool isReasoner = (model ?? "").Contains("reasoner", StringComparison.OrdinalIgnoreCase);
 
                 var payload = new Dictionary<string, object>
                 {
@@ -168,32 +280,44 @@ public class AiService : ILlmClient
                     },
                 };
 
-                // deepseek-reasoner ignores temperature / top_p and rejects logprobs
-                if (!isReasoner)
+                if (profile.SendTemperature)
                 {
                     payload["temperature"] = temperature;
                 }
 
-                if (jsonMode && !isReasoner)
+                if (profile.MaxOutputTokens.HasValue)
+                {
+                    payload["max_tokens"] = profile.MaxOutputTokens.Value;
+                }
+
+                if (jsonMode && profile.SendTemperature)
                 {
                     payload["response_format"] = new { type = "json_object" };
                 }
                 body = payload;
                 request = new HttpRequestMessage(HttpMethod.Post, url);
                 request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {apiKey}");
+                if (provider == "openrouter")
+                {
+                    request.Headers.TryAddWithoutValidation("HTTP-Referer", "https://github.com/veriflow");
+                    request.Headers.TryAddWithoutValidation("X-Title", "VeriFlow");
+                }
                 break;
             }
             case "anthropic":
             {
-                // Anthropic has no JSON response mode; the payload is identical in both modes.
-                body = new
+                var anthropicDict = new Dictionary<string, object>
                 {
-                    model,
-                    temperature,
-                    max_tokens = AnthropicMaxTokens,
-                    system = systemPrompt,
-                    messages = new[] { new { role = "user", content = prompt } },
+                    ["model"] = model ?? "",
+                    ["max_tokens"] = profile.MaxOutputTokens ?? AnthropicMaxTokens,
+                    ["system"] = systemPrompt,
+                    ["messages"] = new[] { new { role = "user", content = prompt } },
                 };
+                if (profile.SendTemperature)
+                {
+                    anthropicDict["temperature"] = temperature;
+                }
+                body = anthropicDict;
                 request = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
                 request.Headers.TryAddWithoutValidation("x-api-key", apiKey);
                 request.Headers.TryAddWithoutValidation("anthropic-version", "2023-06-01");
@@ -201,7 +325,15 @@ public class AiService : ILlmClient
             }
             default: // gemini
             {
-                var generationConfig = new Dictionary<string, object> { ["temperature"] = temperature };
+                var generationConfig = new Dictionary<string, object>();
+                if (profile.SendTemperature)
+                {
+                    generationConfig["temperature"] = temperature;
+                }
+                if (profile.MaxOutputTokens.HasValue)
+                {
+                    generationConfig["maxOutputTokens"] = profile.MaxOutputTokens.Value;
+                }
                 if (jsonMode)
                 {
                     generationConfig["responseMimeType"] = "application/json";
@@ -223,18 +355,35 @@ public class AiService : ILlmClient
         return request;
     }
 
-    private static string ParseText(string provider, string responseJson)
+    private string ParseText(string provider, string responseJson)
     {
         try
         {
             using var doc = JsonDocument.Parse(responseJson);
             var root = doc.RootElement;
+            string content = "";
+
             switch (provider)
             {
                 case "openai":
                 case "groq":
                 case "deepseek":
-                    return root.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "";
+                case "openrouter":
+                {
+                    var choice = root.GetProperty("choices")[0].GetProperty("message");
+                    content = choice.TryGetProperty("content", out var cElem) ? cElem.GetString() ?? "" : "";
+
+                    // Log reasoning tokens if provider returned them
+                    if (root.TryGetProperty("usage", out var usageElem))
+                    {
+                        if (usageElem.TryGetProperty("completion_tokens_details", out var details) &&
+                            details.TryGetProperty("reasoning_tokens", out var rTokens))
+                        {
+                            _logger?.LogInformation("[AiService] Reasoning tokens reported by {Provider}: {Tokens}", provider, rTokens.GetInt32());
+                        }
+                    }
+                    break;
+                }
                 case "anthropic":
                 {
                     var sb = new StringBuilder();
@@ -243,18 +392,41 @@ public class AiService : ILlmClient
                         if (block.TryGetProperty("type", out var type) && type.GetString() != "text") continue;
                         if (block.TryGetProperty("text", out var text)) sb.Append(text.GetString());
                     }
-                    return sb.ToString();
+                    content = sb.ToString();
+                    break;
                 }
                 default: // gemini
                 {
                     var sb = new StringBuilder();
-                    foreach (var part in root.GetProperty("candidates")[0].GetProperty("content").GetProperty("parts").EnumerateArray())
+                    if (root.TryGetProperty("candidates", out var cands) && cands.GetArrayLength() > 0)
                     {
-                        if (part.TryGetProperty("text", out var text)) sb.Append(text.GetString());
+                        var cand = cands[0];
+                        if (cand.TryGetProperty("content", out var cContent) &&
+                            cContent.TryGetProperty("parts", out var parts))
+                        {
+                            foreach (var part in parts.EnumerateArray())
+                            {
+                                if (part.TryGetProperty("text", out var text)) sb.Append(text.GetString());
+                            }
+                        }
                     }
-                    return sb.ToString();
+                    content = sb.ToString();
+                    break;
                 }
             }
+
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                throw new LlmRequestException(
+                    provider,
+                    $"LLM request to {DisplayName(provider)} returned empty content. The model may have exhausted its output token budget during reasoning.");
+            }
+
+            return content;
+        }
+        catch (LlmRequestException)
+        {
+            throw;
         }
         catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException or IndexOutOfRangeException)
         {
@@ -312,6 +484,7 @@ public class AiService : ILlmClient
         "anthropic" => "Anthropic",
         "gemini" => "Gemini",
         "deepseek" => "DeepSeek",
+        "openrouter" => "OpenRouter",
         _ => provider,
     };
 

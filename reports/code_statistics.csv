@@ -1,0 +1,5 @@
+Metric,Generated Mean,Canonical Mean
+Lines of Code (LOC),18.2,18.2
+Cyclomatic Complexity (radon cc),4.3,4.3
+API / Function Calls,6.5,6.5
+Comment Ratio (%),0.19%,0.19%

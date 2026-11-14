@@ -1,0 +1,15 @@
+Category,Code,Description,Initial Count (R0),Initial % of Failures,Initial % of All Problems,Final Unresolved (R2),Fixed Count,Resolution Rate
+A,A.1,Incomplete syntax structure,0,0.0%,0.0%,0,0,N/A
+A,A.2,Incorrect indentation,0,0.0%,0.0%,0,0,N/A
+A,A.3,Undefined symbols (syntax-level),0,0.0%,0.0%,0,0,N/A
+A,A.4,Other syntax errors,0,0.0%,0.0%,0,0,N/A
+B,B.1,API usage error,0,0.0%,0.0%,0,0,N/A
+B,B.2,Definition missing,0,0.0%,0.0%,0,0,N/A
+B,B.3,Boundary condition,0,0.0%,0.0%,0,0,N/A
+B,B.4,Input-output / argument mismatch,0,0.0%,0.0%,0,0,N/A
+B,B.5,Timeout / infinite loop,0,0.0%,0.0%,0,0,N/A
+B,B.6,Other runtime errors,0,0.0%,0.0%,0,0,N/A
+C,C.1,Misunderstanding and logic error,0,0.0%,0.0%,0,0,N/A
+C,C.2,Boundary and special condition,0,0.0%,0.0%,0,0,N/A
+C,C.3,Algorithmic / computational flaw,0,0.0%,0.0%,0,0,N/A
+C,C.4,Prompt constraint violation,0,0.0%,0.0%,0,0,N/A

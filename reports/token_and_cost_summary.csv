@@ -1,0 +1,10 @@
+Metric,Value
+Model Used,deepseek-reasoner
+Repair Mode,dou
+Total Problems Executed,10
+Total Rounds Executed,0
+Total Tokens Consumed,0
+Average Tokens / Problem,0.0
+Estimated Total Cost (USD),$0.0000
+Total Execution Time,65.50 s (1.09 min)
+Average Time / Problem,6.55 s

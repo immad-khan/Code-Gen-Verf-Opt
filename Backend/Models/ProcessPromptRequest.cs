@@ -4,4 +4,5 @@ public class ProcessPromptRequest
 {
     public string Prompt { get; set; } = "";
     public ApiSettings ApiSettings { get; set; } = new();
+    public InterfaceDefinition? Interface { get; set; }
 }

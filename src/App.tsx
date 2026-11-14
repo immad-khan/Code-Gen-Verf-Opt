@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
-import { PipelineStep, AIResultData, ApiSettings, AgentLog, PythonAuditFinding, OptimizationResponse, GeneratedCodeFile } from './types';
-import { processPromptWithAgents } from './services/aiService';
+import { PipelineStep, AIResultData, ApiSettings, AgentLog, PythonAuditFinding, OptimizationResponse, GeneratedCodeFile, InterfaceDefinition, LockedTestSuite } from './types';
+import { processPromptWithAgents, generateCodeFromBackend } from './services/aiService';
 import { analyzePythonCode } from './analyzer';
 import { runBackendVerification, VerificationResponse } from './services/verificationService';
 import { runBackendOptimization } from './services/optimizationService';
 import { Header } from './components/Header';
 import { PipelineNav } from './components/PipelineNav';
 import { Step1Input } from './components/Step1Input';
+import { Step2Interface } from './components/Step2Interface';
+import { StepTestsReview } from './components/StepTestsReview';
 import { Step2CodeOutput } from './components/Step2CodeOutput';
 import { Step3Verification } from './components/Step3Verification';
 import { Step4Optimization } from './components/Step4Optimization';
@@ -143,6 +145,7 @@ export function App() {
   const [currentLog, setCurrentLog] = useState<AgentLog | null>(null);
   const [allLogs, setAllLogs] = useState<AgentLog[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [rawErrorResponse, setRawErrorResponse] = useState<string | null>(null);
 
   const temperature = 0.1;
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -194,6 +197,9 @@ export function App() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [optimizationResult, setOptimizationResult] = useState<OptimizationResponse | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
+  const [confirmedInterface, setConfirmedInterface] = useState<InterfaceDefinition | null>(null);
+  const [lockedTestSuite, setLockedTestSuite] = useState<LockedTestSuite | null>(null);
+  const [benchmarkInfo, setBenchmarkInfo] = useState<{ benchmark: string; problemId: string } | null>(null);
 
   // Intercept navigation to the app from the landing page
   const handleLandingClick = (e: React.MouseEvent) => {
@@ -249,39 +255,56 @@ export function App() {
     try { localStorage.setItem('maci_api_settings_v2', JSON.stringify(s)); } catch {}
   };
 
-  const handleProcessQuery = async () => {
+  const handleProcessQuery = async (confirmedInterface?: InterfaceDefinition) => {
     if (!prompt.trim()) return;
     setIsProcessing(true);
     setProgress(5);
     setAllLogs([]);
     setCurrentLog(null);
     setErrorMessage(null);
+    setRawErrorResponse(null);
     setOptimizationResult(null);
 
     try {
-      const data = await processPromptWithAgents(prompt, apiSettings, (pct, log) => {
-        setProgress(pct);
-        setCurrentLog(log);
-        setAllLogs(prev => [...prev, log]);
-      }, temperature);
+      let codeFiles: GeneratedCodeFile[] = [];
+      try {
+        codeFiles = await generateCodeFromBackend(prompt, apiSettings, confirmedInterface);
+      } catch (backendErr: any) {
+        if (backendErr.rawResponse) {
+          setRawErrorResponse(backendErr.rawResponse);
+          throw backendErr;
+        }
+        console.warn('Backend generation failed, trying browser agent:', backendErr);
+        const data = await processPromptWithAgents(prompt, apiSettings, (pct, log) => {
+          setProgress(pct);
+          setCurrentLog(log);
+          setAllLogs(prev => [...prev, log]);
+        }, temperature);
+        codeFiles = data.generatedCode;
+      }
 
       // Check if LLM returned an error (non-code request)
-      if (data.generatedCode.length === 0) {
+      if (!codeFiles || codeFiles.length === 0) {
         setErrorMessage('I can only generate Python code. Please describe a Python project or program you would like me to create.');
         setIsProcessing(false);
         return;
       }
 
       // Run client-side code quality analysis (patterns, style, security hints)
-      const analysis = analyzePythonCode(data.generatedCode);
+      const analysis = analyzePythonCode(codeFiles);
 
+      const baseResult = createInitialResultData();
       const enriched: AIResultData = {
-        ...data,
+        ...baseResult,
+        prompt,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        modelUsed: `${apiSettings.provider.toUpperCase()} · ${apiSettings.model}`,
+        generatedCode: codeFiles,
         findings: analysis.findings,
         techniqueMatrix: analysis.techniqueMatrix,
         securityChecklist: analysis.securityChecklist,
         executiveSummary: {
-          ...data.executiveSummary,
+          ...baseResult.executiveSummary,
           totalFindings: analysis.findings.length,
           criticalCount: analysis.findings.filter(f => f.severity === 'CRITICAL').length,
           highCount: analysis.findings.filter(f => f.severity === 'HIGH').length,
@@ -308,13 +331,13 @@ export function App() {
           temperature: 0.1,
         },
         metrics: {
-          ...data.metrics,
+          ...baseResult.metrics,
           linterWarnings: analysis.findings.filter(f => f.severity === 'LOW').length,
           securityVulnerabilitiesCount: analysis.findings.filter(f => f.severity === 'CRITICAL' || f.severity === 'HIGH').length,
         },
       };
 
-      const fileNames = data.generatedCode.map(f => f.name).join(', ');
+      const fileNames = codeFiles.map(f => f.name).join(', ');
       setProgress(100);
       const completionLog: AgentLog = {
         agentName: 'Pipeline',
@@ -344,14 +367,14 @@ export function App() {
         return next;
       });
 
-      setCurrentStep(2);
+      setCurrentStep(4);
       setIsProcessing(false);
 
       // Run real backend verification in background (AST, imports, pytest, runtime, mypy)
       setIsVerifying(true);
       setBackendVerification(null);
       setVerificationError(null);
-      runBackendVerification(data.generatedCode)
+      runBackendVerification(codeFiles, lockedTestSuite?.hash)
         .then(verification => {
           setBackendVerification(verification);
           console.log('Backend verification succeeded:', verification);
@@ -376,7 +399,7 @@ export function App() {
     setIsVerifying(true);
     setVerificationError(null);
     try {
-      const verification = await runBackendVerification(resultData.generatedCode);
+      const verification = await runBackendVerification(resultData.generatedCode, lockedTestSuite?.hash);
       setBackendVerification(verification);
       console.log('Backend verification retry succeeded:', verification);
     } catch (verifyErr) {
@@ -398,6 +421,7 @@ export function App() {
         apiSettings,
         verificationResult: backendVerification,
         maxIterations: 2,
+        lockedTestHash: lockedTestSuite?.hash,
       });
       setOptimizationResult(res);
     } catch (err) {
@@ -426,12 +450,16 @@ export function App() {
   const round2Verification = round2Iteration?.reVerification || null;
 
   const maxUnlockedStep: PipelineStep = optimizationResult
-    ? 8
+    ? 6
     : backendVerification
-    ? 4
+    ? 6
     : hasGeneratedResult
+    ? 5
+    : lockedTestSuite?.isLocked
+    ? 4
+    : confirmedInterface
     ? 3
-    : 1;
+    : 2;
 
   const handleSignOut = () => {
     clearSession();
@@ -454,6 +482,7 @@ export function App() {
       <Header
         hasApiKey={hasApiKey}
         user={currentUser}
+        apiSettings={apiSettings}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onSignOut={handleSignOut}
         onGoToLanding={() => {
@@ -477,48 +506,109 @@ export function App() {
 
       {activeView === 'pipeline' && (
         <main className="flex-1 flex flex-col justify-start">
+        {/* Step 1: Prompt / Benchmark Picker */}
         {currentStep === 1 && (
-          <>
-            {errorMessage && (
-              <div className="max-w-3xl mx-auto px-4 md:px-6 py-4 mt-4">
-                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-red-300 text-sm">
-                  <strong>Error:</strong> {errorMessage}
-                </div>
-              </div>
-            )}
-            <Step1Input
-              prompt={prompt}
-              onPromptChange={setPrompt}
-              onProcess={handleProcessQuery}
-              isProcessing={isProcessing}
-            />
-          </>
-        )}
-        {currentStep === 2 && (
-          <Step2CodeOutput
-            result={resultData}
-            onProceedToVerification={() => setCurrentStep(3)}
-            onBackToPrompt={() => setCurrentStep(1)}
-            onRegenerate={handleProcessQuery}
+          <Step1Input
+            prompt={prompt}
+            onPromptChange={(newPrompt) => {
+              setPrompt(newPrompt);
+              setBenchmarkInfo(null);
+              setConfirmedInterface(null);
+              setLockedTestSuite(null);
+              setHasGeneratedResult(false);
+            }}
+            onProceedToInterface={(iface) => {
+              setConfirmedInterface(iface);
+              setCurrentStep(2);
+            }}
+            onSelectBenchmarkProblem={(payload) => {
+              setPrompt(payload.prompt);
+              setConfirmedInterface(payload.interface);
+              setLockedTestSuite(payload.lockedTestSuite);
+              setBenchmarkInfo({ benchmark: payload.benchmark, problemId: payload.problemId });
+              setCurrentStep(3);
+            }}
+            isProcessing={isProcessing}
+            apiSettings={apiSettings}
+            errorMessage={errorMessage}
+            rawErrorResponse={rawErrorResponse}
           />
         )}
-        {/* Step 3: Initial Verification (Round 0) */}
+
+        {/* Step 2: Interface Contract Review (NAME, SIGNATURE, DOC, or stdin/stdout) */}
+        {currentStep === 2 && (
+          <Step2Interface
+            prompt={prompt}
+            initialInterface={confirmedInterface || undefined}
+            apiSettings={apiSettings}
+            isBenchmarkProblem={Boolean(benchmarkInfo)}
+            benchmarkId={benchmarkInfo?.problemId}
+            onConfirmInterface={(iface) => {
+              setConfirmedInterface(iface);
+              setCurrentStep(3);
+            }}
+            onBackToPrompt={() => setCurrentStep(1)}
+          />
+        )}
+
+        {/* Step 3: Pytest Tests Review & Lock (SHA-256 integrity, Docker sanity checks) */}
         {currentStep === 3 && (
+          <StepTestsReview
+            prompt={prompt}
+            interfaceDef={confirmedInterface || { name: 'solution', signature: 'def solution(*args, **kwargs):', docstring: '', isStdinStdout: false }}
+            apiSettings={apiSettings}
+            lockedTestSuite={lockedTestSuite}
+            isBenchmarkProblem={Boolean(benchmarkInfo)}
+            benchmarkId={benchmarkInfo?.problemId}
+            onLockTests={(suite) => {
+              setLockedTestSuite(suite);
+            }}
+            onUnlockTests={() => {
+              setLockedTestSuite(null);
+              setHasGeneratedResult(false);
+            }}
+            onProceedToCode={async () => {
+              setCurrentStep(4);
+              if (!hasGeneratedResult && !isProcessing) {
+                await handleProcessQuery(confirmedInterface || undefined);
+              }
+            }}
+            onBackToInterface={() => setCurrentStep(2)}
+          />
+        )}
+
+        {/* Step 4: Code Synthesis (Prompt + Interface only, never tests; fenced code blocks) */}
+        {currentStep === 4 && (
+          <Step2CodeOutput
+            result={resultData}
+            onProceedToVerification={() => {
+              if (!backendVerification && !isVerifying && resultData.generatedCode.length > 0) {
+                handleRetryVerification();
+              }
+              setCurrentStep(5);
+            }}
+            onBackToPrompt={() => setCurrentStep(3)}
+            onRegenerate={() => handleProcessQuery(confirmedInterface || undefined)}
+          />
+        )}
+
+        {/* Step 5: Verification (Round 0 Diagnostics against locked tests) */}
+        {currentStep === 5 && (
           <Step3Verification
             result={resultData}
-            title="Initial Verification (Round 0)"
-            stepBadge="Phase 3 · Pre-Repair Diagnostics"
+            title="Verification (Round 0 Diagnostics)"
+            stepBadge="Step 5 · Multi-Check Verification"
             backButtonLabel="Back to Code"
-            nextButtonLabel="Proceed to Round 1 Repair →"
+            nextButtonLabel="Proceed to Step 6 (Repair) →"
             onUpdateFindings={handleUpdateFindings}
-            onBackToCode={() => setCurrentStep(2)}
+            onBackToCode={() => setCurrentStep(4)}
             onBackToPrompt={() => setCurrentStep(1)}
             onExport={() => setIsExportModalOpen(true)}
             onProceedToOptimization={async () => {
               if (!optimizationResult && !isOptimizing) {
                 await handleRunOptimization();
               }
-              setCurrentStep(4);
+              setCurrentStep(6);
             }}
             backendVerification={backendVerification}
             verificationError={verificationError}
@@ -526,95 +616,19 @@ export function App() {
             onRetryVerification={handleRetryVerification}
           />
         )}
-        {/* Step 4: Optimization Round 1 (Dou et al. Iteration 1) */}
-        {currentStep === 4 && (
+
+        {/* Step 6: Repair & Comparison Pipeline (Dou / Improved / Compare modes, R1 & R2) */}
+        {currentStep === 6 && (
           <Step4Optimization
             result={resultData}
             backendVerification={backendVerification}
             optimizationResult={optimizationResult}
             isOptimizing={isOptimizing}
             onRunOptimization={handleRunOptimization}
-            forcedIteration={1}
-            title="Optimization — Round 1 Repair"
-            stepBadge="Phase 4 · Dou et al. Iteration 1"
-            backButtonLabel="Back to Initial Verification"
-            nextButtonLabel="Proceed to Round 1 Verification →"
-            onProceedNext={() => setCurrentStep(5)}
-            onBackToVerification={() => setCurrentStep(3)}
-            onApplyRepairedCode={handleApplyRepairedCode}
-          />
-        )}
-        {/* Step 5: Round 1 Verification (Post-Iteration 1 checks) */}
-        {currentStep === 5 && (
-          <Step3Verification
-            result={{
-              ...resultData,
-              generatedCode: round1Iteration?.repairedFiles || resultData.generatedCode,
-            }}
-            title="Round 1 Verification"
-            stepBadge="Phase 5 · Post-Round 1 Checks"
-            backButtonLabel="Back to Round 1 Repair"
-            nextButtonLabel={round2Iteration ? "Proceed to Round 2 Repair →" : "Proceed to Final Results →"}
-            onUpdateFindings={handleUpdateFindings}
-            onBackToCode={() => setCurrentStep(4)}
-            onBackToPrompt={() => setCurrentStep(1)}
-            onExport={() => setIsExportModalOpen(true)}
-            onProceedToOptimization={() => setCurrentStep(round2Iteration ? 6 : 8)}
-            backendVerification={round1Verification}
-            verificationError={null}
-            isVerifying={isOptimizing}
-          />
-        )}
-        {/* Step 6: Optimization Round 2 (Dou et al. Iteration 2 with Episodic Memory) */}
-        {currentStep === 6 && (
-          <Step4Optimization
-            result={resultData}
-            backendVerification={round1Verification}
-            optimizationResult={optimizationResult}
-            isOptimizing={isOptimizing}
-            onRunOptimization={handleRunOptimization}
-            forcedIteration={2}
-            title="Optimization — Round 2 Repair"
-            stepBadge="Phase 6 · Dou et al. Iteration 2 (Episodic Memory)"
-            backButtonLabel="Back to Round 1 Verification"
-            nextButtonLabel="Proceed to Round 2 Verification →"
-            onProceedNext={() => setCurrentStep(7)}
             onBackToVerification={() => setCurrentStep(5)}
             onApplyRepairedCode={handleApplyRepairedCode}
-          />
-        )}
-        {/* Step 7: Round 2 Verification (Post-Iteration 2 checks) */}
-        {currentStep === 7 && (
-          <Step3Verification
-            result={{
-              ...resultData,
-              generatedCode: round2Iteration?.repairedFiles || round1Iteration?.repairedFiles || resultData.generatedCode,
-            }}
-            title="Round 2 Verification"
-            stepBadge="Phase 7 · Post-Round 2 Checks"
-            backButtonLabel="Back to Round 2 Repair"
-            nextButtonLabel="View Final Results Tab →"
-            onUpdateFindings={handleUpdateFindings}
-            onBackToCode={() => setCurrentStep(6)}
-            onBackToPrompt={() => setCurrentStep(1)}
-            onExport={() => setIsExportModalOpen(true)}
-            onProceedToOptimization={() => setCurrentStep(8)}
-            backendVerification={round2Verification || round1Verification}
-            verificationError={null}
-            isVerifying={isOptimizing}
-          />
-        )}
-        {/* Step 8: Final Results Tab */}
-        {currentStep === 8 && (
-          <Step8FinalResults
-            result={resultData}
-            initialVerification={backendVerification}
-            round1Verification={round1Verification}
-            round2Verification={round2Verification}
-            optimizationResult={optimizationResult}
-            onStartNewPrompt={() => setCurrentStep(1)}
-            onBackToVerification={() => setCurrentStep(round2Iteration ? 7 : 5)}
-            onApplyFinalCode={handleApplyRepairedCode}
+            title="Repair & Comparison Pipeline"
+            stepBadge="Step 6 · Automated Synthesis Repair"
           />
         )}
       </main>

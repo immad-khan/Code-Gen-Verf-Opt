@@ -1,4 +1,33 @@
-export type PipelineStep = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+export type PipelineStep = 1 | 2 | 3 | 4 | 5 | 6;
+
+export interface LockedTestSuite {
+  testCode: string;
+  hash: string;
+  testCount: number;
+  isLocked: boolean;
+  lockedAtUtc?: string;
+  passedStubCount?: number;
+  warnings?: string[];
+}
+
+export interface BenchmarkProblemSummary {
+  problemId: string;
+  benchmark: string;
+  entryPoint: string;
+  promptPreview: string;
+  testCount: number;
+}
+
+export interface BenchmarkProblemDetail {
+  problemId: string;
+  benchmark: string;
+  prompt: string;
+  interface: InterfaceDefinition;
+  testCount: number;
+  previewTests: string[];
+  fullTestCode: string;
+  hash: string;
+}
 
 export type SeverityLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 
@@ -84,7 +113,13 @@ export interface GeneratedCodeFile {
   language: string; // "python", "toml", "ini", "yaml", "text"
   content: string;
   description: string; // Plain English breakdown for non-tech users
-  category: 'router' | 'service' | 'model' | 'schema' | 'data' | 'test' | 'config' | 'utils' | 'other';
+  category: 'router' | 'service' | 'model' | 'schema' | 'data' | 'test' | 'config' | 'utils' | 'solution' | 'other';
+}
+
+export interface InterfaceDefinition {
+  name: string;
+  signature: string;
+  docstring: string;
 }
 
 export interface ProcessingMetrics {
@@ -149,7 +184,7 @@ export interface AIResultData {
 }
 
 export interface ApiSettings {
-  provider: 'openai' | 'anthropic' | 'gemini' | 'groq';
+  provider: 'openai' | 'anthropic' | 'gemini' | 'groq' | 'deepseek' | 'openrouter';
   apiKey: string;
   model: string;
   customEndpoint?: string;
@@ -294,6 +329,7 @@ export interface RunResult {
   modelId: string;
   executionDateUtc: string;
   mode: string;
+  lockedTestHash?: string;
   overallVerdict: string;
   repairSkipped: boolean;
   repairSuccessRate: number | null;

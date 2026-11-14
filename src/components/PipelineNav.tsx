@@ -1,6 +1,6 @@
 import React from 'react';
 import { PipelineStep } from '../types';
-import { Check, PenLine, Code2, ShieldCheck, Sparkles, Trophy } from 'lucide-react';
+import { Check, PenLine, FileText, Lock, Code2, ShieldCheck, Sparkles } from 'lucide-react';
 
 interface PipelineNavProps {
   currentStep: PipelineStep;
@@ -13,28 +13,26 @@ export const PipelineNav: React.FC<PipelineNavProps> = ({
   currentStep,
   onSelectStep,
   hasResult,
-  maxUnlockedStep = 8,
+  maxUnlockedStep = 6,
 }) => {
   const steps = [
-    { number: 1 as PipelineStep, label: 'Prompt', shortLabel: 'Prompt', desc: 'Requirements', Icon: PenLine },
-    { number: 2 as PipelineStep, label: 'Generate', shortLabel: 'Generate', desc: 'Code synthesis', Icon: Code2 },
-    { number: 3 as PipelineStep, label: 'Verif. R0', shortLabel: 'V0', desc: 'Initial 7 checks', Icon: ShieldCheck },
-    { number: 4 as PipelineStep, label: 'Repair R1', shortLabel: 'R1', desc: 'Self-critique 1', Icon: Sparkles },
-    { number: 5 as PipelineStep, label: 'Verif. R1', shortLabel: 'V1', desc: 'Re-check R1', Icon: ShieldCheck },
-    { number: 6 as PipelineStep, label: 'Repair R2', shortLabel: 'R2', desc: 'Self-critique 2', Icon: Sparkles },
-    { number: 7 as PipelineStep, label: 'Verif. R2', shortLabel: 'V2', desc: 'Re-check R2', Icon: ShieldCheck },
-    { number: 8 as PipelineStep, label: 'Final Results', shortLabel: 'Results', desc: 'Evolution & RSR', Icon: Trophy },
+    { number: 1 as PipelineStep, label: 'Prompt', shortLabel: 'Prompt', desc: 'Task / Benchmark', Icon: PenLine },
+    { number: 2 as PipelineStep, label: 'Interface', shortLabel: 'Interface', desc: 'Contract review', Icon: FileText },
+    { number: 3 as PipelineStep, label: 'Tests (Lock)', shortLabel: 'Tests', desc: 'Pytest & integrity', Icon: Lock },
+    { number: 4 as PipelineStep, label: 'Code', shortLabel: 'Code', desc: 'Docker synthesis', Icon: Code2 },
+    { number: 5 as PipelineStep, label: 'Verify', shortLabel: 'Verify', desc: 'R0 / R1 / R2 checks', Icon: ShieldCheck },
+    { number: 6 as PipelineStep, label: 'Repair', shortLabel: 'Repair', desc: 'Dou / Improved / Compare', Icon: Sparkles },
   ];
 
   return (
     <div className="border-b border-[color:var(--color-hairline)] bg-[color:var(--color-surface-1)] sticky top-0 z-30">
       <div className="max-w-6xl mx-auto px-3 sm:px-6 py-3">
-        <div className="flex items-center overflow-x-auto scrollbar-none gap-2 sm:gap-1.5 pb-1 sm:pb-0">
+        <div className="flex items-center overflow-x-auto scrollbar-none gap-2 sm:gap-2 pb-1 sm:pb-0 justify-between">
           {steps.map((s, idx) => {
             const isActive = currentStep === s.number;
             const isPassed = currentStep > s.number;
-            const isClickable = s.number === 1 || (hasResult && s.number <= maxUnlockedStep);
-            const isDone = isPassed && hasResult;
+            const isClickable = s.number <= maxUnlockedStep;
+            const isDone = isPassed;
 
             return (
               <React.Fragment key={s.number}>
@@ -42,7 +40,7 @@ export const PipelineNav: React.FC<PipelineNavProps> = ({
                   onClick={() => isClickable && onSelectStep(s.number)}
                   disabled={!isClickable}
                   title={`${s.label}: ${s.desc}`}
-                  className={`flex items-center gap-2 sm:gap-2.5 px-2.5 py-1.5 rounded-xl transition-all shrink-0 group ${
+                  className={`flex items-center gap-2 sm:gap-2.5 px-3 py-1.5 rounded-xl transition-all shrink-0 group ${
                     isClickable ? 'cursor-pointer hover:bg-[color:var(--color-surface-2)]' : 'cursor-not-allowed opacity-40'
                   } ${isActive ? 'bg-[color:var(--color-surface-2)] ring-1 ring-[#7c3aed]/40' : ''}`}
                 >
@@ -79,7 +77,7 @@ export const PipelineNav: React.FC<PipelineNavProps> = ({
                 </button>
 
                 {idx < steps.length - 1 && (
-                  <div className="w-3 sm:w-4 h-px bg-[color:var(--color-hairline)] shrink-0 relative overflow-hidden rounded-full my-auto">
+                  <div className="w-4 sm:w-6 h-px bg-[color:var(--color-hairline)] shrink-0 relative overflow-hidden rounded-full my-auto">
                     <div
                       className="absolute inset-y-0 left-0 bg-gradient-to-r from-[#8b5cf6] to-[#6d28d9] transition-all duration-500 ease-out"
                       style={{ width: currentStep > s.number ? '100%' : '0%' }}

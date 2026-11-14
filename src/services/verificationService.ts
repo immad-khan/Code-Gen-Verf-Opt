@@ -55,11 +55,11 @@ const BACKEND_URL = (
   (import.meta.env.PROD ? 'https://code-gen-verf-opt.onrender.com' : 'http://localhost:5000')
 ).replace(/\/+$/, '');
 
-export async function runBackendVerification(files: GeneratedCodeFile[]): Promise<VerificationResponse> {
+export async function runBackendVerification(files: GeneratedCodeFile[], lockedTestHash?: string): Promise<VerificationResponse> {
   const response = await fetch(`${BACKEND_URL}/api/verification`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ files }),
+    body: JSON.stringify({ files, lockedTestHash }),
   });
 
   if (!response.ok) {

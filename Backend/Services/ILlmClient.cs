@@ -30,6 +30,19 @@ public sealed class LlmClientOptions
 
     /// <summary>Per-request timeout in seconds (must be &gt; 0).</summary>
     public double TimeoutSeconds { get; set; } = 120;
+
+    /// <summary>Configured per-model behavioral profiles.</summary>
+    public Dictionary<string, ModelProfile> Models { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+}
+
+/// <summary>Model profile defining parameter transmission and limits.</summary>
+public sealed class ModelProfile
+{
+    /// <summary>Whether temperature should be sent to the provider. Reasoning models typically reject or ignore temperature.</summary>
+    public bool SendTemperature { get; set; } = true;
+
+    /// <summary>Configured max output tokens (e.g. large budget for reasoning models).</summary>
+    public int? MaxOutputTokens { get; set; }
 }
 
 /// <summary>

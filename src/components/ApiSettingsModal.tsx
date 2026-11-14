@@ -13,6 +13,20 @@ export interface ApiSettingsModalProps {
 
 export const PROVIDERS: Array<{ id: ApiSettings['provider']; name: string; models: string[]; envVar: string; baseUrl: string }> = [
   {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    models: ['deepseek/deepseek-r1', 'deepseek/deepseek-chat', 'openai/gpt-4o', 'anthropic/claude-3.5-sonnet'],
+    envVar: 'OPENROUTER_API_KEY',
+    baseUrl: 'https://openrouter.ai/api/v1',
+  },
+  {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    models: ['deepseek-chat', 'deepseek-reasoner'],
+    envVar: 'DEEPSEEK_API_KEY',
+    baseUrl: 'https://api.deepseek.com',
+  },
+  {
     id: 'openai',
     name: 'OpenAI',
     models: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1', 'gpt-4.1-mini'],

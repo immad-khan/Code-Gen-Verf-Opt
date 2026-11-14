@@ -81,6 +81,8 @@ export interface RunOptimizationParams {
   apiSettings: ApiSettings;
   verificationResult?: VerificationResponse | null;
   maxIterations?: number;
+  lockedTestHash?: string;
+  mode?: 'dou' | 'improved' | 'compare';
 }
 
 /**
@@ -321,7 +323,8 @@ export async function runBackendOptimization(params: RunOptimizationParams): Pro
         apiSettings,
         verificationResult: params.verificationResult,
         maxIterations,
-        mode: 'dou',
+        mode: params.mode || 'dou',
+        lockedTestHash: params.lockedTestHash,
         enableEpisodicMemory: false,
       }),
     });

@@ -54,6 +54,12 @@ builder.Services.AddSingleton<IVerificationPipeline, VerificationPipeline>();
 builder.Services.AddSingleton<VerificationService>();
 builder.Services.AddScoped<OptimizationService>();
 
+// Docker Sandbox, Locked Test Store, Test Generation, and Benchmark Services
+builder.Services.AddSingleton<IDockerSandbox, DockerSandbox>();
+builder.Services.AddSingleton<ILockedTestStore, LockedTestStore>();
+builder.Services.AddTransient<ITestGenerationService, TestGenerationService>();
+builder.Services.AddSingleton<IBenchmarkDatasetService, BenchmarkDatasetService>();
+
 // Shared Taxonomy_Definition (Taxonomy:DefinitionPath, default shared/taxonomy.v1.json
 // under the app base directory). Loaded on first resolution; an invalid file throws
 // TaxonomyLoadException.
