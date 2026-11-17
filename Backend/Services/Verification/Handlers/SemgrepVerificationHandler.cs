@@ -19,13 +19,18 @@ public class SemgrepVerificationHandler : VerificationHandlerBase
         try
         {
             string? semgrepCmd = null;
-            foreach (var candidate in new[] { "semgrep", context.PythonExecutable })
+            var candidates = new List<string> { "semgrep" };
+            var scriptsDir = Path.Combine(Path.GetDirectoryName(context.PythonExecutable) ?? "", "Scripts");
+            var scriptExe = Path.Combine(scriptsDir, "semgrep.exe");
+            if (File.Exists(scriptExe))
+                candidates.Insert(0, scriptExe);
+
+            foreach (var candidate in candidates)
             {
-                var args = candidate == context.PythonExecutable ? "-m semgrep --version" : "--version";
-                var (exit, verOut, _) = await context.RunCommandAsync(candidate, args, 8000);
-                if (exit == 0 && verOut.Contains("semgrep", StringComparison.OrdinalIgnoreCase))
+                var (exit, verOut, _) = await context.RunCommandAsync(candidate, "--version", 15000);
+                if (exit == 0 && (verOut.Contains("semgrep", StringComparison.OrdinalIgnoreCase) || System.Text.RegularExpressions.Regex.IsMatch(verOut, @"\d+\.\d+")))
                 {
-                    semgrepCmd = candidate == context.PythonExecutable ? context.PythonExecutable : "semgrep";
+                    semgrepCmd = candidate;
                     break;
                 }
             }
@@ -40,9 +45,7 @@ public class SemgrepVerificationHandler : VerificationHandlerBase
                 return;
             }
 
-            var scanArgs = semgrepCmd == context.PythonExecutable
-                ? $"-m semgrep scan --config auto --metrics=off --json --quiet \"{context.TempDir}\""
-                : $"scan --config auto --metrics=off --json --quiet \"{context.TempDir}\"";
+            var scanArgs = $"scan --config auto --metrics=off --json --quiet \"{context.TempDir}\"";
 
             var (exitCode, stdout, stderr) = await context.RunCommandAsync(
                 semgrepCmd, scanArgs, 8000);
