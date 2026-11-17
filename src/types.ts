@@ -336,4 +336,33 @@ export interface RunResult {
   baselineComparator: BaselineComparator;
   rounds: RunRoundResult[];
   totalDurationMs: number;
+  repairMode?: string;
+  enabledSources?: string[];
+}
+
+export interface ImprovedRepairSources {
+  visibleTestDetail: boolean;
+  promptOnly: boolean;
+  staticAnalysis: boolean;
+  history: boolean;
+}
+
+export interface ComparisonSummary {
+  douFixedInRound1: boolean;
+  douFixedInRound2: boolean;
+  douUnresolved: boolean;
+  douTotalTokens: number;
+  improvedFixedInRound1: boolean;
+  improvedFixedInRound2: boolean;
+  improvedUnresolved: boolean;
+  improvedTotalTokens: number;
+  winner: 'improved' | 'dou' | 'tie';
+  description: string;
+}
+
+export interface CompareRepairResponse {
+  douResult: OptimizationResponse;
+  improvedResult: OptimizationResponse;
+  summary: ComparisonSummary;
+  totalDurationMs: number;
 }
