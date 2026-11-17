@@ -21,8 +21,10 @@ public static class RepairModes
     public const string EvidenceOnly = "evidence_only";
     public const string TaxonomyOnly = "taxonomy_only";
     public const string Full = "full";
+    public const string Improved = "improved";
+    public const string Compare = "compare";
 
-    public static readonly IReadOnlyList<string> All = [Dou, DouNoBt, Generic, EvidenceOnly, TaxonomyOnly, Full];
+    public static readonly IReadOnlyList<string> All = [Dou, DouNoBt, Generic, EvidenceOnly, TaxonomyOnly, Full, Improved, Compare];
 }
 
 /// <summary>Defaults applied when a repair setting is null or omitted (Req. 22.2).</summary>
