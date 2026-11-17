@@ -136,7 +136,8 @@ public class OptimizationService
                 iter,
                 maxIterations,
                 historyForPrompt,
-                request.RepairMode
+                request.RepairMode,
+                request.ImprovedSources
             );
             iterationData.CritiquePrompt = critiquePrompt;
 
@@ -221,7 +222,170 @@ public class OptimizationService
         );
         response.TotalDurationMs = totalSw.ElapsedMilliseconds;
 
+        if (response.RunResult == null && initialVerification != null)
+        {
+            response.RunResult = BuildRunResult(
+                request.OriginalPrompt,
+                request.ApiSettings.Model ?? "deepseek-reasoner",
+                initialVerification,
+                response,
+                response.TotalDurationMs
+            );
+        }
+        if (response.RunResult != null)
+        {
+            response.RunResult.RepairMode = request.RepairMode ?? "dou";
+            response.RunResult.EnabledSources = (request.RepairMode == "improved" && request.ImprovedSources != null)
+                ? request.ImprovedSources.GetEnabledTags()
+                : new List<string>();
+        }
+
         return response;
+    }
+
+    /// <summary>
+    /// Executes side-by-side comparison between 'dou' baseline and 'improved' mode.
+    /// Runs both branches concurrently via Task.WhenAll from the exact same initial code.
+    /// </summary>
+    public async Task<CompareRepairResponse> CompareAsync(CompareRepairRequest request)
+    {
+        var totalSw = Stopwatch.StartNew();
+
+        // 1. Initial verification on Round 0 code
+        var initialVerification = request.VerificationResult ?? await _verificationService.VerifyAsync(request.Files);
+
+        // 2. Clone initial files for both branches
+        var douFiles = request.Files.Select(f => new GeneratedCodeFile
+        {
+            Name = f.Name,
+            Path = f.Path,
+            Language = f.Language,
+            Category = f.Category,
+            Description = f.Description,
+            Content = f.Content
+        }).ToList();
+
+        var improvedFiles = request.Files.Select(f => new GeneratedCodeFile
+        {
+            Name = f.Name,
+            Path = f.Path,
+            Language = f.Language,
+            Category = f.Category,
+            Description = f.Description,
+            Content = f.Content
+        }).ToList();
+
+        // 3. Concurrently execute Dou and Improved pipelines (Req 2)
+        var douTask = OptimizeAsync(new OptimizationRequest
+        {
+            Files = douFiles,
+            OriginalPrompt = request.OriginalPrompt,
+            ApiSettings = request.ApiSettings,
+            VerificationResult = initialVerification,
+            MaxIterations = request.MaxIterations,
+            RepairMode = "dou",
+            LockedTestHash = request.LockedTestHash
+        });
+
+        var improvedTask = OptimizeAsync(new OptimizationRequest
+        {
+            Files = improvedFiles,
+            OriginalPrompt = request.OriginalPrompt,
+            ApiSettings = request.ApiSettings,
+            VerificationResult = initialVerification,
+            MaxIterations = request.MaxIterations,
+            RepairMode = "improved",
+            LockedTestHash = request.LockedTestHash,
+            ImprovedSources = request.ImprovedSources
+        });
+
+        await Task.WhenAll(douTask, improvedTask);
+
+        var douResult = await douTask;
+        var improvedResult = await improvedTask;
+
+        // 4. Token totals
+        var douTotalTokens = douResult.Iterations.Sum(it => (it.CritiquePrompt.Length + it.LlmCritiqueResponse.Length + 3) / 4);
+        var improvedTotalTokens = improvedResult.Iterations.Sum(it => (it.CritiquePrompt.Length + it.LlmCritiqueResponse.Length + 3) / 4);
+
+        // 5. Evaluate outcome per round
+        bool douR1Pass = douResult.Iterations.Count >= 1 && douResult.Iterations[0].BugsRemainingAfter == 0 && (douResult.Iterations[0].ReVerification?.OverallVerdict is "PASS" or "VERIFIED");
+        bool douR2Pass = !douR1Pass && douResult.Iterations.Count >= 2 && douResult.Iterations[1].BugsRemainingAfter == 0 && (douResult.Iterations[1].ReVerification?.OverallVerdict is "PASS" or "VERIFIED");
+        bool douUnresolved = douResult.FinalDiagnosis.TotalBugs > 0 || (douResult.Iterations.LastOrDefault()?.ReVerification?.OverallVerdict is not ("PASS" or "VERIFIED"));
+
+        bool impR1Pass = improvedResult.Iterations.Count >= 1 && improvedResult.Iterations[0].BugsRemainingAfter == 0 && (improvedResult.Iterations[0].ReVerification?.OverallVerdict is "PASS" or "VERIFIED");
+        bool impR2Pass = !impR1Pass && improvedResult.Iterations.Count >= 2 && improvedResult.Iterations[1].BugsRemainingAfter == 0 && (improvedResult.Iterations[1].ReVerification?.OverallVerdict is "PASS" or "VERIFIED");
+        bool impUnresolved = improvedResult.FinalDiagnosis.TotalBugs > 0 || (improvedResult.Iterations.LastOrDefault()?.ReVerification?.OverallVerdict is not ("PASS" or "VERIFIED"));
+
+        // 6. Winner determination
+        string winner;
+        string description;
+
+        if (impR1Pass && !douR1Pass)
+        {
+            winner = "improved";
+            description = "Improved mode fixed all bugs in Round 1, whereas Dou required multiple rounds or remained unresolved.";
+        }
+        else if (douR1Pass && !impR1Pass)
+        {
+            winner = "dou";
+            description = "Dou mode fixed all bugs in Round 1.";
+        }
+        else if (!impUnresolved && douUnresolved)
+        {
+            winner = "improved";
+            description = "Improved mode resolved all bugs within budget, while Dou mode remained unresolved.";
+        }
+        else if (!douUnresolved && impUnresolved)
+        {
+            winner = "dou";
+            description = "Dou mode resolved all bugs within budget, while Improved mode remained unresolved.";
+        }
+        else if (!impUnresolved && !douUnresolved)
+        {
+            if (improvedTotalTokens < douTotalTokens)
+            {
+                winner = "improved";
+                description = $"Both modes fixed all bugs; Improved consumed fewer tokens ({improvedTotalTokens} vs {douTotalTokens}).";
+            }
+            else if (douTotalTokens < improvedTotalTokens)
+            {
+                winner = "dou";
+                description = $"Both modes fixed all bugs; Dou consumed fewer tokens ({douTotalTokens} vs {improvedTotalTokens}).";
+            }
+            else
+            {
+                winner = "tie";
+                description = "Both modes fixed all bugs with identical efficiency.";
+            }
+        }
+        else
+        {
+            winner = "tie";
+            description = "Both modes were unable to resolve all bugs within the 2-iteration budget.";
+        }
+
+        var summary = new ComparisonSummary
+        {
+            DouFixedInRound1 = douR1Pass,
+            DouFixedInRound2 = douR2Pass,
+            DouUnresolved = douUnresolved,
+            DouTotalTokens = douTotalTokens,
+            ImprovedFixedInRound1 = impR1Pass,
+            ImprovedFixedInRound2 = impR2Pass,
+            ImprovedUnresolved = impUnresolved,
+            ImprovedTotalTokens = improvedTotalTokens,
+            Winner = winner,
+            Description = description
+        };
+
+        return new CompareRepairResponse
+        {
+            DouResult = douResult,
+            ImprovedResult = improvedResult,
+            Summary = summary,
+            TotalDurationMs = totalSw.ElapsedMilliseconds
+        };
     }
 
     /// <summary>
@@ -240,7 +404,9 @@ public class OptimizationService
             OriginalPrompt = prompt,
             TotalDurationMs = totalDurationMs,
             BaselineLabel = _configuration["PaperBaseline:Label"] ?? "Paper, GPT-4 (Dou et al.)",
-            BaselineComparator = double.TryParse(_configuration["PaperBaseline:RepairSuccessRate"], out var b) ? b : 29.2
+            BaselineComparator = double.TryParse(_configuration["PaperBaseline:RepairSuccessRate"], out var b) ? b : 29.2,
+            RepairMode = optResponse?.RunResult?.RepairMode ?? "dou",
+            EnabledSources = optResponse?.RunResult?.EnabledSources ?? new List<string>()
         };
 
         // Round 0
@@ -272,6 +438,8 @@ public class OptimizationService
             foreach (var iter in optResponse.Iterations)
             {
                 var v = iter.ReVerification;
+                var inTokens = (iter.CritiquePrompt.Length + 3) / 4;
+                var outTokens = (iter.LlmCritiqueResponse.Length + 3) / 4;
                 var iterRound = new RunRoundResult
                 {
                     RoundIndex = iter.IterationNumber,
@@ -281,7 +449,13 @@ public class OptimizationService
                     LlmResponse = iter.LlmCritiqueResponse,
                     DurationMs = iter.DurationMs,
                     Verdict = v?.OverallVerdict ?? "NOT_VERIFIED",
-                    TechniqueStatuses = v?.Techniques ?? new List<VerificationTechnique>()
+                    TechniqueStatuses = v?.Techniques ?? new List<VerificationTechnique>(),
+                    TokenMetrics = new TokenAccounting
+                    {
+                        InputTokens = inTokens,
+                        OutputTokens = outTokens,
+                        TotalTokens = inTokens + outTokens
+                    }
                 };
 
                 if (v != null)
@@ -503,8 +677,26 @@ public class OptimizationService
         int iteration,
         int maxIterations,
         List<string> episodicHistory,
-        string mode)
+        string mode,
+        ImprovedRepairSources? improvedSources = null)
     {
+        if (mode == "improved")
+        {
+            var verifResult = verification != null
+                ? RepairPromptBuilder.ToVerificationResult(verification, diagnosis)
+                : new VerificationResult();
+
+            return _promptBuilder.BuildImproved(
+                originalPrompt,
+                files,
+                verifResult,
+                iteration,
+                maxIterations,
+                episodicHistory,
+                improvedSources
+            );
+        }
+
         // Editable (non-test) files only! Tests are excluded from the solution.
         var editableFiles = RepairFiles.Editable(files);
 
