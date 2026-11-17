@@ -159,7 +159,7 @@ public sealed class ExperimentEngine
         for (var round = 1; round <= _config.Iterations; round++)
         {
             Console.WriteLine($"--> Round {round}: Requesting repair using Figure 6 prompt...");
-            var repairPrompt = PromptBuilder.BuildRepairPrompt(currentCode, currentDiag, _config.Mode);
+            var repairPrompt = PromptBuilder.BuildRepairPrompt(currentCode, currentDiag, _config.Mode, problem.Prompt, round);
             var repairResponse = await _llmClient.CompleteAsync(repairPrompt, ct);
             var repairedCode = CodeExtractor.ExtractPythonCode(repairResponse.Content);
 
