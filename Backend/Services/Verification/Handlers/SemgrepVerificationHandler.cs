@@ -19,19 +19,18 @@ public class SemgrepVerificationHandler : VerificationHandlerBase
         try
         {
             string? semgrepCmd = null;
-            var candidates = new List<string> { "semgrep" };
             var scriptsDir = Path.Combine(Path.GetDirectoryName(context.PythonExecutable) ?? "", "Scripts");
             var scriptExe = Path.Combine(scriptsDir, "semgrep.exe");
             if (File.Exists(scriptExe))
-                candidates.Insert(0, scriptExe);
-
-            foreach (var candidate in candidates)
             {
-                var (exit, verOut, _) = await context.RunCommandAsync(candidate, "--version", 15000);
+                semgrepCmd = scriptExe;
+            }
+            else
+            {
+                var (exit, verOut, _) = await context.RunCommandAsync("semgrep", "--version", 15000);
                 if (exit == 0 && (verOut.Contains("semgrep", StringComparison.OrdinalIgnoreCase) || System.Text.RegularExpressions.Regex.IsMatch(verOut, @"\d+\.\d+")))
                 {
-                    semgrepCmd = candidate;
-                    break;
+                    semgrepCmd = "semgrep";
                 }
             }
 
@@ -45,10 +44,10 @@ public class SemgrepVerificationHandler : VerificationHandlerBase
                 return;
             }
 
-            var scanArgs = $"scan --config auto --metrics=off --json --quiet \"{context.TempDir}\"";
+            var scanArgs = $"scan --config p/python --metrics=off --json --quiet \"{context.TempDir}\"";
 
             var (exitCode, stdout, stderr) = await context.RunCommandAsync(
-                semgrepCmd, scanArgs, 8000);
+                semgrepCmd, scanArgs, 30000);
 
             if (exitCode == -1 && stderr.Contains("timed out", StringComparison.OrdinalIgnoreCase))
             {
