@@ -72,6 +72,49 @@ public class OptimizationController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("compare")]
+    public async Task<IActionResult> Compare([FromBody] CompareRepairRequest request)
+    {
+        if (request.Files == null || request.Files.Count == 0)
+            return BadRequest(new { error = "No files provided for compare optimization" });
+
+        if (!string.IsNullOrWhiteSpace(request.LockedTestHash))
+        {
+            if (!_lockedTestStore.TryGet(request.LockedTestHash, out var lockedItem))
+            {
+                return BadRequest(new { error = $"Locked test suite not found for hash: {request.LockedTestHash}" });
+            }
+
+            var verifiedHash = TestHashUtility.ComputeHash(lockedItem.TestCode);
+            if (!string.Equals(verifiedHash, request.LockedTestHash, StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { error = "Server test hash integrity validation failed." });
+            }
+
+            // Enforce locked test file
+            var existingTest = request.Files.FirstOrDefault(f => f.Name.StartsWith("test_", StringComparison.OrdinalIgnoreCase) || f.Path.Contains("test"));
+            if (existingTest != null)
+            {
+                existingTest.Content = lockedItem.TestCode;
+            }
+            else
+            {
+                request.Files.Add(new GeneratedCodeFile
+                {
+                    Name = "test_solution.py",
+                    Path = "test_solution.py",
+                    Language = "python",
+                    Category = "test",
+                    Description = "Locked pytest suite",
+                    Content = lockedItem.TestCode
+                });
+            }
+        }
+
+        var result = await _optimizationService.CompareAsync(request);
+        return Ok(result);
+    }
+
     [HttpPost("run-result")]
     public IActionResult CreateInitialRunResult([FromBody] CreateInitialRunResultRequest request)
     {
