@@ -4,7 +4,10 @@ import {
   GeneratedCodeFile,
   OptimizationResponse,
   OptimizationIteration,
-  BugClassification
+  BugClassification,
+  CompareRepairResponse,
+  ImprovedRepairSources,
+  ApiSettings
 } from '../types';
 import { VerificationResponse } from '../services/verificationService';
 import {
@@ -23,7 +26,8 @@ import {
   FileCode,
   Layers,
   Columns,
-  GitCompare
+  GitCompare,
+  Sliders
 } from 'lucide-react';
 import { computeLineDiff } from '../utils/diff';
 
@@ -31,8 +35,9 @@ interface Step4OptimizationProps {
   result: AIResultData;
   backendVerification: VerificationResponse | null;
   optimizationResult: OptimizationResponse | null;
+  compareResult?: CompareRepairResponse | null;
   isOptimizing: boolean;
-  onRunOptimization: () => void;
+  onRunOptimization: (mode?: 'dou' | 'improved' | 'compare', sources?: ImprovedRepairSources) => void;
   onBackToVerification: () => void;
   onApplyRepairedCode?: (files: GeneratedCodeFile[]) => void;
   forcedIteration?: number;
@@ -41,12 +46,14 @@ interface Step4OptimizationProps {
   nextButtonLabel?: string;
   backButtonLabel?: string;
   onProceedNext?: () => void;
+  apiSettings?: ApiSettings;
 }
 
 export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
   result,
   backendVerification,
   optimizationResult,
+  compareResult,
   isOptimizing,
   onRunOptimization,
   onBackToVerification,
@@ -57,20 +64,34 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
   nextButtonLabel,
   backButtonLabel = 'Back to Verification',
   onProceedNext,
+  apiSettings,
 }) => {
+  const [repairMode, setRepairMode] = useState<'dou' | 'improved' | 'compare'>('dou');
+  const [sources, setSources] = useState<ImprovedRepairSources>({
+    visibleTestDetail: false,
+    promptOnly: true,
+    staticAnalysis: true,
+    history: true,
+  });
+  const [selectedBranch, setSelectedBranch] = useState<'dou' | 'improved'>('improved');
   const [activeIterationTab, setActiveIterationTab] = useState<number>(forcedIteration ?? 1);
   const [selectedFileIndex, setSelectedFileIndex] = useState<number>(0);
   const [showPromptDetails, setShowPromptDetails] = useState<boolean>(false);
   const [codeCopied, setCodeCopied] = useState<boolean>(false);
   const [codeViewMode, setCodeViewMode] = useState<'split' | 'diff' | 'after'>('split');
 
-  const summary = optimizationResult?.summary;
-  const initialDiagnosis = optimizationResult?.initialDiagnosis;
-  const iterations = optimizationResult?.iterations || [];
+  // If compareResult is active, display the selected branch's optimization result
+  const activeOptResult = compareResult
+    ? (selectedBranch === 'dou' ? compareResult.douResult : compareResult.improvedResult)
+    : optimizationResult;
+
+  const summary = activeOptResult?.summary;
+  const initialDiagnosis = activeOptResult?.initialDiagnosis;
+  const iterations = activeOptResult?.iterations || [];
   const activeTab = forcedIteration ?? activeIterationTab;
   const currentIteration = iterations.find(it => it.iterationNumber === activeTab) || iterations[0];
 
-  const runResult = optimizationResult?.runResult;
+  const runResult = activeOptResult?.runResult;
   const baselineRate = runResult?.baselineComparator?.paperRepairSuccessRate ?? 29.2;
   const baselineLabel = runResult?.baselineComparator?.label ?? 'Paper, GPT-4';
   const initialFailingBugs = summary?.totalBugsBefore ?? 0;
@@ -79,7 +100,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
     : summary
     ? `${summary.repairSuccessRate.toFixed(1)}%`
     : 'N/A';
-  const isRepairSkipped = Boolean(optimizationResult?.repairSkipped || runResult?.repairSkipped);
+  const isRepairSkipped = Boolean(activeOptResult?.repairSkipped || runResult?.repairSkipped);
 
   const filesToDisplay = currentIteration?.repairedFiles || result.generatedCode;
   const selectedFile = filesToDisplay[selectedFileIndex] || filesToDisplay[0];
@@ -100,6 +121,10 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
       setCodeCopied(true);
       setTimeout(() => setCodeCopied(false), 2000);
     }
+  };
+
+  const handleTriggerRepair = () => {
+    onRunOptimization(repairMode, sources);
   };
 
   return (
@@ -128,12 +153,12 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
 
         <div className="flex items-center gap-3">
           <button
-            onClick={onRunOptimization}
+            onClick={handleTriggerRepair}
             disabled={isOptimizing}
             className="btn-ghost px-4 py-2 text-sm font-medium transition flex items-center gap-2 cursor-pointer border border-[color:var(--color-hairline)]"
           >
             <RefreshCw className={`w-4 h-4 ${isOptimizing ? 'animate-spin' : ''}`} />
-            {isOptimizing ? 'Repairing...' : 'Re-run Repair'}
+            {isOptimizing ? 'Repairing...' : repairMode === 'compare' ? 'Run Compare' : 'Re-run Repair'}
           </button>
 
           {onProceedNext && (
@@ -155,6 +180,288 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
           )}
         </div>
       </div>
+
+      {/* Model & System Metadata Banner */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-[color:var(--color-surface-2)] border border-[color:var(--color-hairline)] text-xs text-[color:var(--color-ink-muted)]">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-[color:var(--color-ink)]">Active Model Profile:</span>
+          <span className="px-2 py-0.5 rounded bg-[color:var(--color-surface-1)] border border-[color:var(--color-hairline)] font-mono font-bold text-[color:var(--color-brand-soft)]">
+            {apiSettings?.provider || 'openrouter'} / {apiSettings?.model || 'deepseek/deepseek-r1'}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
+          <span>Docker Sandbox: <code className="font-mono text-[color:var(--color-ink)]">veriflow-sandbox:3.11</code> (--network none)</span>
+        </div>
+      </div>
+
+      {/* Methodology Mode Switcher & Diagnostic Sources */}
+      <div className="card p-4 flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <span className="text-xs font-bold text-[color:var(--color-ink)] uppercase tracking-wider">
+              Repair Methodology Mode:
+            </span>
+            <p className="text-[11.5px] text-[color:var(--color-ink-muted)] mt-0.5">
+              Choose paper baseline, multi-source enhanced repair, or parallel paired comparison.
+            </p>
+          </div>
+          <div className="flex items-center rounded-xl bg-[color:var(--color-surface-2)] p-1 border border-[color:var(--color-hairline)]">
+            <button
+              type="button"
+              onClick={() => setRepairMode('dou')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                repairMode === 'dou'
+                  ? 'bg-[color:var(--color-surface-1)] text-[color:var(--color-brand-soft)] shadow-sm'
+                  : 'text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)]'
+              }`}
+            >
+              Baseline (dou)
+            </button>
+            <button
+              type="button"
+              onClick={() => setRepairMode('improved')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                repairMode === 'improved'
+                  ? 'bg-[color:var(--color-surface-1)] text-[color:var(--color-brand-soft)] shadow-sm'
+                  : 'text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)]'
+              }`}
+            >
+              Enhanced (improved)
+            </button>
+            <button
+              type="button"
+              onClick={() => setRepairMode('compare')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                repairMode === 'compare'
+                  ? 'bg-[color:var(--color-brand-primary)] text-white shadow-sm'
+                  : 'text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)]'
+              }`}
+            >
+              <GitCompare className="w-3.5 h-3.5" /> Compare Both Modes
+            </button>
+          </div>
+        </div>
+
+        {/* Diagnostic Source Controls (for improved / compare) */}
+        {(repairMode === 'improved' || repairMode === 'compare') && (
+          <div className="pt-2.5 border-t border-[color:var(--color-hairline)] flex flex-wrap items-center gap-4 text-xs">
+            <span className="font-semibold text-[color:var(--color-ink)] flex items-center gap-1">
+              <Sliders className="w-3.5 h-3.5 text-[color:var(--color-brand-soft)]" /> Tagged Diagnostic Sources:
+            </span>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={sources.promptOnly}
+                onChange={(e) => setSources((s) => ({ ...s, promptOnly: e.target.checked }))}
+                className="rounded border-[color:var(--color-hairline)]"
+              />
+              <span className="text-[color:var(--color-ink-muted)] font-mono">[prompt-only]</span>
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={sources.staticAnalysis}
+                onChange={(e) => setSources((s) => ({ ...s, staticAnalysis: e.target.checked }))}
+                className="rounded border-[color:var(--color-hairline)]"
+              />
+              <span className="text-[color:var(--color-ink-muted)] font-mono">[static-analysis] Mypy/Semgrep</span>
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={sources.history}
+                onChange={(e) => setSources((s) => ({ ...s, history: e.target.checked }))}
+                className="rounded border-[color:var(--color-hairline)]"
+              />
+              <span className="text-[color:var(--color-ink-muted)] font-mono">[history] Prior Round</span>
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={sources.visibleTestDetail}
+                onChange={(e) => setSources((s) => ({ ...s, visibleTestDetail: e.target.checked }))}
+                className="rounded border-[color:var(--color-hairline)]"
+              />
+              <span className="text-[color:var(--color-ink-muted)] font-mono">[visible-test-detail] (Default: OFF)</span>
+            </label>
+          </div>
+        )}
+      </div>
+
+      {/* Side-by-Side Comparison Card (when compareResult is active) */}
+      {compareResult && (
+        <div className="card p-6 border-2 border-[color:var(--color-brand-primary)]/40 bg-gradient-to-br from-[#7c3aed]/10 via-[color:var(--color-surface-1)] to-[#4f46e5]/10 flex flex-col gap-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <span className="p-2 rounded-xl bg-[color:var(--color-brand-primary)] text-white shadow-md">
+                <GitCompare className="w-5 h-5" />
+              </span>
+              <div>
+                <h3 className="text-lg font-bold text-[color:var(--color-ink)]">
+                  Side-by-Side Methodology Comparison: Dou vs Improved
+                </h3>
+                <p className="text-xs text-[color:var(--color-ink-muted)]">
+                  Both branches evaluated concurrently from the same Round 0 code.
+                </p>
+              </div>
+            </div>
+
+            {/* Winner Badge */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-[color:var(--color-ink-muted)]">Outcome:</span>
+              <span
+                className={`px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider ${
+                  compareResult.summary.winner === 'improved'
+                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                    : compareResult.summary.winner === 'dou'
+                    ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                    : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                }`}
+              >
+                {compareResult.summary.winner === 'improved'
+                  ? '★ Improved Mode Won'
+                  : compareResult.summary.winner === 'dou'
+                  ? 'Dou Baseline Won'
+                  : 'Tie / Equal'}
+              </span>
+            </div>
+          </div>
+
+          <p className="text-xs text-[color:var(--color-ink)] font-medium p-3 rounded-lg bg-[color:var(--color-surface-2)] border border-[color:var(--color-hairline)]">
+            {compareResult.summary.description}
+          </p>
+
+          {/* Comparison Table */}
+          <div className="overflow-x-auto rounded-xl border border-[color:var(--color-hairline)]">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[color:var(--color-surface-2)] text-[color:var(--color-ink-muted)] font-semibold border-b border-[color:var(--color-hairline)]">
+                <tr>
+                  <th className="py-2.5 px-4">Evaluation Metric</th>
+                  <th className="py-2.5 px-4 text-center">Baseline (Dou et al.)</th>
+                  <th className="py-2.5 px-4 text-center">Enhanced (Improved)</th>
+                  <th className="py-2.5 px-4 text-center">Advantage</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[color:var(--color-hairline)]">
+                <tr>
+                  <td className="py-2.5 px-4 font-medium text-[color:var(--color-ink)]">Fixed in Round 1</td>
+                  <td className="py-2.5 px-4 text-center font-bold">
+                    {compareResult.summary.douFixedInRound1 ? (
+                      <span className="text-emerald-400">✓ Yes</span>
+                    ) : (
+                      <span className="text-rose-400">✗ No</span>
+                    )}
+                  </td>
+                  <td className="py-2.5 px-4 text-center font-bold">
+                    {compareResult.summary.improvedFixedInRound1 ? (
+                      <span className="text-emerald-400">✓ Yes</span>
+                    ) : (
+                      <span className="text-rose-400">✗ No</span>
+                    )}
+                  </td>
+                  <td className="py-2.5 px-4 text-center font-semibold text-[color:var(--color-ink-muted)]">
+                    {compareResult.summary.improvedFixedInRound1 && !compareResult.summary.douFixedInRound1
+                      ? 'Improved (+100%)'
+                      : compareResult.summary.douFixedInRound1 && !compareResult.summary.improvedFixedInRound1
+                      ? 'Dou (+100%)'
+                      : 'Equal'}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="py-2.5 px-4 font-medium text-[color:var(--color-ink)]">Fixed in Round 2</td>
+                  <td className="py-2.5 px-4 text-center font-bold">
+                    {compareResult.summary.douFixedInRound2 ? (
+                      <span className="text-emerald-400">✓ Yes</span>
+                    ) : (
+                      <span className="text-[color:var(--color-ink-muted)]">—</span>
+                    )}
+                  </td>
+                  <td className="py-2.5 px-4 text-center font-bold">
+                    {compareResult.summary.improvedFixedInRound2 ? (
+                      <span className="text-emerald-400">✓ Yes</span>
+                    ) : (
+                      <span className="text-[color:var(--color-ink-muted)]">—</span>
+                    )}
+                  </td>
+                  <td className="py-2.5 px-4 text-center font-semibold text-[color:var(--color-ink-muted)]">
+                    {compareResult.summary.improvedFixedInRound2 ? 'Resolved in R2' : 'N/A'}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="py-2.5 px-4 font-medium text-[color:var(--color-ink)]">Unresolved Status</td>
+                  <td className="py-2.5 px-4 text-center font-bold">
+                    {compareResult.summary.douUnresolved ? (
+                      <span className="text-rose-400">Unresolved</span>
+                    ) : (
+                      <span className="text-emerald-400">All Passed</span>
+                    )}
+                  </td>
+                  <td className="py-2.5 px-4 text-center font-bold">
+                    {compareResult.summary.improvedUnresolved ? (
+                      <span className="text-rose-400">Unresolved</span>
+                    ) : (
+                      <span className="text-emerald-400">All Passed</span>
+                    )}
+                  </td>
+                  <td className="py-2.5 px-4 text-center font-semibold text-[color:var(--color-ink-muted)]">
+                    {!compareResult.summary.improvedUnresolved && compareResult.summary.douUnresolved
+                      ? 'Improved Clean'
+                      : 'Equal'}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="py-2.5 px-4 font-medium text-[color:var(--color-ink)]">Total Tokens Consumed</td>
+                  <td className="py-2.5 px-4 text-center font-mono font-bold text-[color:var(--color-ink)]">
+                    {compareResult.summary.douTotalTokens.toLocaleString()}
+                  </td>
+                  <td className="py-2.5 px-4 text-center font-mono font-bold text-[color:var(--color-ink)]">
+                    {compareResult.summary.improvedTotalTokens.toLocaleString()}
+                  </td>
+                  <td className="py-2.5 px-4 text-center font-semibold text-[color:var(--color-brand-soft)]">
+                    {compareResult.summary.improvedTotalTokens < compareResult.summary.douTotalTokens
+                      ? `${compareResult.summary.douTotalTokens - compareResult.summary.improvedTotalTokens} fewer tokens`
+                      : compareResult.summary.douTotalTokens < compareResult.summary.improvedTotalTokens
+                      ? `${compareResult.summary.improvedTotalTokens - compareResult.summary.douTotalTokens} more tokens`
+                      : 'Equal tokens'}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Inspect Code Branch Switcher */}
+          <div className="flex items-center justify-between pt-2 border-t border-[color:var(--color-hairline)]">
+            <span className="text-xs font-semibold text-[color:var(--color-ink-muted)]">
+              Inspect Repaired Code &amp; Diagnostics for:
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedBranch('improved')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  selectedBranch === 'improved'
+                    ? 'bg-[color:var(--color-brand-primary)] text-white shadow-sm'
+                    : 'bg-[color:var(--color-surface-2)] text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)]'
+                }`}
+              >
+                Inspect Improved Branch
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedBranch('dou')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  selectedBranch === 'dou'
+                    ? 'bg-[color:var(--color-brand-primary)] text-white shadow-sm'
+                    : 'bg-[color:var(--color-surface-2)] text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)]'
+                }`}
+              >
+                Inspect Dou Branch
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Optimizing State Indicator */}
       {isOptimizing && (
