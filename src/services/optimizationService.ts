@@ -6,7 +6,9 @@ import {
   BugClassification,
   BugTaxonomyReport,
   OptimizationSummary,
-  BugEvolution
+  BugEvolution,
+  CompareRepairResponse,
+  ImprovedRepairSources
 } from '../types';
 import { VerificationResponse, runBackendVerification, VerificationTechnique, VerificationIssue } from './verificationService';
 import { callProvider, extractJson, normalizeFiles, getProviderConfigs } from './aiService';
@@ -83,6 +85,7 @@ export interface RunOptimizationParams {
   maxIterations?: number;
   lockedTestHash?: string;
   mode?: 'dou' | 'improved' | 'compare';
+  improvedSources?: ImprovedRepairSources;
 }
 
 /**
@@ -323,9 +326,10 @@ export async function runBackendOptimization(params: RunOptimizationParams): Pro
         apiSettings,
         verificationResult: params.verificationResult,
         maxIterations,
-        mode: params.mode || 'dou',
+        repairMode: params.mode || 'dou',
         lockedTestHash: params.lockedTestHash,
         enableEpisodicMemory: false,
+        improvedSources: params.improvedSources,
       }),
     });
     if (res.ok) {
@@ -559,4 +563,41 @@ export async function runBackendOptimization(params: RunOptimizationParams): Pro
     summary,
     totalDurationMs: Date.now() - startTime,
   };
+}
+
+/**
+ * Runs parallel compare optimization (POST /api/optimization/compare),
+ * executing 'dou' and 'improved' pipelines concurrently from the same Round 0 code.
+ */
+export async function runCompareOptimization(params: RunOptimizationParams): Promise<CompareRepairResponse> {
+  const BACKEND_URL = (
+    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_BACKEND_URL?.trim()) ||
+    (typeof import.meta !== 'undefined' && import.meta.env?.PROD ? 'https://code-gen-verf-opt.onrender.com' : 'http://localhost:5000')
+  ).replace(/\/+$/, '');
+
+  const res = await fetch(`${BACKEND_URL}/api/optimization/compare`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      files: params.files,
+      originalPrompt: params.originalPrompt,
+      apiSettings: params.apiSettings,
+      verificationResult: params.verificationResult,
+      maxIterations: params.maxIterations ?? 2,
+      lockedTestHash: params.lockedTestHash,
+      improvedSources: params.improvedSources ?? {
+        visibleTestDetail: false,
+        promptOnly: true,
+        staticAnalysis: true,
+        history: true,
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Compare repair failed (${res.status}): ${errText}`);
+  }
+
+  return await res.json();
 }
