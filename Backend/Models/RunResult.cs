@@ -69,4 +69,10 @@ public class RunResult
     public string BaselineLabel { get; set; } = "Paper, GPT-4 (Dou et al.)";
     public double BaselineComparator { get; set; } = 29.2;
     public long TotalDurationMs { get; set; }
+
+    /// <summary>The repair mode used for this run: "dou" | "improved" | "compare".</summary>
+    public string RepairMode { get; set; } = "dou";
+
+    /// <summary>Enabled diagnostic source tags for improved mode (e.g. "[prompt-only]", "[static-analysis]").</summary>
+    public List<string> EnabledSources { get; set; } = new();
 }
