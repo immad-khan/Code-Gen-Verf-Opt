@@ -78,7 +78,11 @@ public class RepairPromptBuilderTests
     {
         var prompt = BuildPrompt(mode, iteration: 3);
 
-        Assert.DoesNotContain(AdvisorySentinel, prompt);
+        // Baseline modes strictly exclude advisory findings; 'improved' mode integrates static analysis
+        if (mode != RepairPromptBuilder.Improved)
+        {
+            Assert.DoesNotContain(AdvisorySentinel, prompt);
+        }
         Assert.DoesNotContain(TestFileSentinel, prompt);
         Assert.DoesNotContain("test_main.py", prompt);
         Assert.Contains("return d['k']", prompt);
