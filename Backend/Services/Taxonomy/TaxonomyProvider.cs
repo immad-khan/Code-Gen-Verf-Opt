@@ -33,6 +33,9 @@ public sealed class TaxonomyProvider : ITaxonomyProvider
     public TaxonomyMapper Mapper { get; }
     public PromptRenderer Renderer { get; }
 
+    private static ITaxonomyProvider? _default;
+    public static ITaxonomyProvider Default => _default ??= LoadOrThrow(ResolvePath(null));
+
     /// <summary>
     /// <c>Taxonomy:DefinitionPath</c> if set (relative paths resolve against
     /// <see cref="AppContext.BaseDirectory"/>), else <c>shared/taxonomy.v1.json</c>
