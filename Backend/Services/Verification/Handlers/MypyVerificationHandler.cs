@@ -17,7 +17,7 @@ public class MypyVerificationHandler : VerificationHandlerBase
         try
         {
             var (checkExit, _, _) = await context.RunCommandAsync(
-                context.PythonExecutable, "-m mypy --version", 5000);
+                context.PythonExecutable, "-m mypy --version", 15000);
 
             if (checkExit != 0)
             {
