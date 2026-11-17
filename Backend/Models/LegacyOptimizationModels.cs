@@ -20,6 +20,7 @@ public class OptimizationRequest
     public string RepairMode { get; set; } = "dou";
     public bool EnableEpisodicMemory { get; set; } = false;
     public string? LockedTestHash { get; set; }
+    public Backend.Services.Repair.ImprovedRepairSources? ImprovedSources { get; set; }
 }
 
 public class OptimizationResponse
