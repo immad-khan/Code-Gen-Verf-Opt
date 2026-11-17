@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { PipelineStep, AIResultData, ApiSettings, AgentLog, PythonAuditFinding, OptimizationResponse, GeneratedCodeFile, InterfaceDefinition, LockedTestSuite } from './types';
+import { PipelineStep, AIResultData, ApiSettings, AgentLog, PythonAuditFinding, OptimizationResponse, GeneratedCodeFile, InterfaceDefinition, LockedTestSuite, CompareRepairResponse, ImprovedRepairSources } from './types';
 import { processPromptWithAgents, generateCodeFromBackend } from './services/aiService';
 import { analyzePythonCode } from './analyzer';
 import { runBackendVerification, VerificationResponse } from './services/verificationService';
-import { runBackendOptimization } from './services/optimizationService';
+import { runBackendOptimization, runCompareOptimization } from './services/optimizationService';
 import { Header } from './components/Header';
 import { PipelineNav } from './components/PipelineNav';
 import { Step1Input } from './components/Step1Input';
@@ -196,6 +196,7 @@ export function App() {
   const [verificationError, setVerificationError] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [optimizationResult, setOptimizationResult] = useState<OptimizationResponse | null>(null);
+  const [compareResult, setCompareResult] = useState<CompareRepairResponse | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [confirmedInterface, setConfirmedInterface] = useState<InterfaceDefinition | null>(null);
   const [lockedTestSuite, setLockedTestSuite] = useState<LockedTestSuite | null>(null);
@@ -264,6 +265,7 @@ export function App() {
     setErrorMessage(null);
     setRawErrorResponse(null);
     setOptimizationResult(null);
+    setCompareResult(null);
 
     try {
       let codeFiles: GeneratedCodeFile[] = [];
@@ -411,19 +413,39 @@ export function App() {
     }
   };
 
-  const handleRunOptimization = async () => {
+  const handleRunOptimization = async (
+    mode: 'dou' | 'improved' | 'compare' = 'dou',
+    sources?: ImprovedRepairSources
+  ) => {
     if (!resultData?.generatedCode || resultData.generatedCode.length === 0) return;
     setIsOptimizing(true);
     try {
-      const res = await runBackendOptimization({
-        files: resultData.generatedCode,
-        originalPrompt: prompt,
-        apiSettings,
-        verificationResult: backendVerification,
-        maxIterations: 2,
-        lockedTestHash: lockedTestSuite?.hash,
-      });
-      setOptimizationResult(res);
+      if (mode === 'compare') {
+        const compRes = await runCompareOptimization({
+          files: resultData.generatedCode,
+          originalPrompt: prompt,
+          apiSettings,
+          verificationResult: backendVerification,
+          maxIterations: 2,
+          lockedTestHash: lockedTestSuite?.hash,
+          improvedSources: sources,
+        });
+        setCompareResult(compRes);
+        setOptimizationResult(compRes.improvedResult);
+      } else {
+        setCompareResult(null);
+        const res = await runBackendOptimization({
+          files: resultData.generatedCode,
+          originalPrompt: prompt,
+          apiSettings,
+          verificationResult: backendVerification,
+          maxIterations: 2,
+          lockedTestHash: lockedTestSuite?.hash,
+          mode,
+          improvedSources: sources,
+        });
+        setOptimizationResult(res);
+      }
     } catch (err) {
       console.error('Optimization error:', err);
     } finally {
@@ -623,12 +645,14 @@ export function App() {
             result={resultData}
             backendVerification={backendVerification}
             optimizationResult={optimizationResult}
+            compareResult={compareResult}
             isOptimizing={isOptimizing}
             onRunOptimization={handleRunOptimization}
             onBackToVerification={() => setCurrentStep(5)}
             onApplyRepairedCode={handleApplyRepairedCode}
             title="Repair & Comparison Pipeline"
             stepBadge="Step 6 · Automated Synthesis Repair"
+            apiSettings={apiSettings}
           />
         )}
       </main>
