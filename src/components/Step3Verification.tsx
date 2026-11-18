@@ -1,9 +1,11 @@
-import React from 'react';
-import { AIResultData } from '../types';
+import React, { useState } from 'react';
+import { AIResultData, ApiSettings, InterfaceDefinition } from '../types';
 import { VerificationResponse } from '../services/verificationService';
+import { PROVIDERS } from './ApiSettingsModal';
 import {
   ArrowLeft, AlertTriangle, Info,
-  Terminal, BarChart2, ChevronDown, ChevronUp, Sparkles, CheckCircle2, HelpCircle, RefreshCw, XCircle
+  Terminal, BarChart2, ChevronDown, ChevronUp, Sparkles, CheckCircle2, HelpCircle, RefreshCw, XCircle,
+  Sliders
 } from 'lucide-react';
 
 interface Step3VerificationProps {
@@ -16,11 +18,16 @@ interface Step3VerificationProps {
   backendVerification: VerificationResponse | null;
   verificationError?: string | null;
   isVerifying: boolean;
-  onRetryVerification?: () => void;
+  onRetryVerification?: (overrideSecondarySettings?: ApiSettings | null) => void;
   title?: string;
   stepBadge?: string;
   backButtonLabel?: string;
   nextButtonLabel?: string;
+  apiSettings?: ApiSettings;
+  prompt?: string;
+  interfaceDef?: InterfaceDefinition;
+  secondaryApiSettings?: ApiSettings | null;
+  onUpdateSecondaryApiSettings?: (settings: ApiSettings | null) => void;
 }
 
 export const Step3Verification: React.FC<Step3VerificationProps> = ({
@@ -35,8 +42,72 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
   stepBadge,
   backButtonLabel = 'Back to code',
   nextButtonLabel = 'Proceed to Optimization →',
+  apiSettings,
+  prompt: _prompt,
+  interfaceDef: _interfaceDef,
+  secondaryApiSettings,
+  onUpdateSecondaryApiSettings,
 }) => {
-  const [showDetailedLogs, setShowDetailedLogs] = React.useState(false);
+  const [showDetailedLogs, setShowDetailedLogs] = useState(false);
+  const [showSecondarySettings, setShowSecondarySettings] = useState(false);
+
+  const [secProvider, setSecProvider] = useState<ApiSettings['provider']>(
+    secondaryApiSettings?.provider || (apiSettings?.provider === 'groq' ? 'openrouter' : 'groq')
+  );
+  const [secModel, setSecModel] = useState<string>(
+    secondaryApiSettings?.model || 'llama-3.3-70b-versatile'
+  );
+  const [secApiKey, setSecApiKey] = useState<string>(
+    secondaryApiSettings?.apiKey || ''
+  );
+
+  const handleRunDifferentialCheck = () => {
+    const secSettings: ApiSettings = {
+      provider: secProvider,
+      model: secModel.trim() || 'default',
+      apiKey: secApiKey.trim() || (secProvider === apiSettings?.provider ? (apiSettings?.apiKey || '') : ''),
+    };
+    if (onUpdateSecondaryApiSettings) {
+      onUpdateSecondaryApiSettings(secSettings);
+    }
+    if (onRetryVerification) {
+      onRetryVerification(secSettings);
+    }
+  };
+
+  const independentChecks = backendVerification?.independentChecks;
+  const promptCheck = independentChecks?.promptExamples || {
+    executed: false,
+    totalExamples: 0,
+    passedExamples: 0,
+    failedExamples: 0,
+    examples: [],
+    warnings: [],
+  };
+  const fuzzCheck = independentChecks?.fuzzCheck || {
+    executed: false,
+    inputsTried: 0,
+    hasUnexpectedException: false,
+    hasWrongReturnType: false,
+    hasTimeout: false,
+    failureDetails: undefined,
+    warnings: [],
+  };
+  const secondSolCheck = independentChecks?.secondSolution || {
+    enabled: Boolean(secondaryApiSettings),
+    executed: false,
+    secondaryModel: secondaryApiSettings?.model,
+    totalInputsTested: 0,
+    disagreementCount: 0,
+    disagreements: [],
+    warnings: [],
+  };
+
+  const totalIndependentWarnings =
+    (promptCheck.warnings?.length || 0) +
+    (fuzzCheck.warnings?.length || 0) +
+    (secondSolCheck.warnings?.length || 0) +
+    (independentChecks?.allWarnings?.length || 0);
 
   const m = backendVerification?.metrics;
   const hasResult = Boolean(backendVerification);
@@ -221,7 +292,7 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
           </div>
           {onRetryVerification && (
             <button
-              onClick={onRetryVerification}
+              onClick={() => onRetryVerification()}
               className="btn-primary bg-red-600 hover:bg-red-500 text-white px-4 py-2 text-xs font-semibold rounded-lg shrink-0 flex items-center gap-1.5 transition self-start sm:self-center cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" />
@@ -268,9 +339,13 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
           <p className="text-xs font-normal">
             {backendVerification ? (
               isFullyVerified ? (
-                <span className="text-emerald-400 font-semibold">Verdict: VERIFIED</span>
+                <span className="text-emerald-400 font-semibold font-mono">
+                  PASSED {passedTests ?? backendVerification.totalPassed}/{totalTests ?? (backendVerification.totalPassed + backendVerification.totalFailed)} locked tests
+                </span>
               ) : (
-                <span className="text-amber-400 font-semibold">Verdict: Not verified</span>
+                <span className="text-amber-400 font-semibold font-mono">
+                  FAILED ({passedTests ?? backendVerification.totalPassed}/{totalTests ?? (backendVerification.totalPassed + backendVerification.totalFailed)} locked tests passed)
+                </span>
               )
             ) : (
               <span className="text-[color:var(--color-ink-muted)]">
@@ -293,7 +368,9 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
             </div>
             <div className="text-xs text-[color:var(--color-ink-faint)] mt-0.5">
               {passedTests != null && totalTests != null
-                ? `${passedTests} of ${totalTests} checks passed`
+                ? (isFullyVerified
+                    ? `PASSED ${passedTests}/${totalTests} locked tests`
+                    : `${passedTests} of ${totalTests} checks passed`)
                 : (isVerifying ? 'Running test runner...' : 'No test results')}
             </div>
           </div>
@@ -440,6 +517,358 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
 
       </div>
 
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* Dedicated Section: Independent Checks (Advisory Warnings)      */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <div className="card p-6 space-y-5 border border-purple-500/20 bg-[color:var(--color-surface-1)]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[color:var(--color-hairline)] pb-4">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <h3 className="text-base font-bold text-[color:var(--color-ink)] flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-purple-400" />
+                Independent checks
+              </h3>
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                totalIndependentWarnings > 0
+                  ? 'bg-amber-500/10 text-amber-300 border-amber-500/25'
+                  : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
+              }`}>
+                {totalIndependentWarnings > 0
+                  ? `${totalIndependentWarnings} Advisory Warning(s)`
+                  : (promptCheck.executed || fuzzCheck.executed ? 'All Independent Checks Clean' : 'Ready / Advisory')}
+              </span>
+            </div>
+            <p className="text-xs text-[color:var(--color-ink-muted)] mt-1">
+              3 empirical sanity checks evaluated outside the locked test suite. Mismatches are surfaced strictly as advisory warnings and never alter locked tests or change the primary verdict.
+            </p>
+          </div>
+        </div>
+
+        {/* 3 Cards for the 3 Independent Checks */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+          {/* Check 1: Prompt Examples */}
+          <div className="p-4 rounded-xl bg-[color:var(--color-surface-2)] border border-[color:var(--color-hairline)] flex flex-col justify-between space-y-3">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-[color:var(--color-ink)]">Prompt Examples</span>
+                  <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] font-bold">
+                    from prompt
+                  </span>
+                </div>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                  !promptCheck.executed || promptCheck.totalExamples === 0
+                    ? 'bg-slate-500/15 text-slate-400 border-slate-500/30'
+                    : promptCheck.failedExamples > 0
+                    ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                    : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                }`}>
+                  {!promptCheck.executed || promptCheck.totalExamples === 0
+                    ? 'No examples'
+                    : promptCheck.failedExamples > 0
+                    ? `${promptCheck.failedExamples} warning(s)`
+                    : `${promptCheck.passedExamples}/${promptCheck.totalExamples} passed`}
+                </span>
+              </div>
+
+              <p className="text-[11px] text-[color:var(--color-ink-muted)] mb-3">
+                Extracts input/output examples written in your prompt, running them as extra test cases labeled <span className="font-semibold text-purple-300">from prompt</span>.
+              </p>
+
+              {promptCheck.totalExamples === 0 ? (
+                <div className="p-3 rounded-lg bg-[color:var(--color-surface-1)] border border-[color:var(--color-hairline)] text-xs text-[color:var(--color-ink-faint)] italic">
+                  No input/output examples detected in the prompt (e.g. doctests or Input/Output specifications).
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {promptCheck.examples.map((ex, idx) => (
+                    <div
+                      key={idx}
+                      className={`p-2.5 rounded-lg border text-xs font-mono space-y-1 ${
+                        ex.passed
+                          ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-300'
+                          : 'bg-amber-500/10 border-amber-500/30 text-amber-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-semibold text-[color:var(--color-ink)] truncate max-w-[170px]" title={ex.input || ex.example}>
+                          {ex.input || ex.example}
+                        </span>
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                          ex.passed
+                            ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        }`}>
+                          {ex.passed ? '✓ from prompt' : '⚠️ from prompt'}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-[color:var(--color-ink-muted)] flex items-center justify-between">
+                        <span>Exp: <code className="text-blue-300">{ex.expected}</code></span>
+                        <span>Act: <code className={ex.passed ? 'text-emerald-300' : 'text-amber-300 font-bold'}>{ex.actual}</code></span>
+                      </div>
+                      {ex.error && (
+                        <div className="text-[10px] text-red-300 truncate" title={ex.error}>
+                          {ex.error}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {promptCheck.warnings.length > 0 && (
+              <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/25 text-[11px] text-amber-300 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-xs text-amber-400">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  <span>Prompt Example Warnings</span>
+                </div>
+                {promptCheck.warnings.map((w, i) => (
+                  <p key={i} className="text-[10px] leading-tight text-amber-200/90 pl-5">
+                    {w}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Check 2: Fuzz Check (Hypothesis) */}
+          <div className="p-4 rounded-xl bg-[color:var(--color-surface-2)] border border-[color:var(--color-hairline)] flex flex-col justify-between space-y-3">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-[color:var(--color-ink)]">Fuzz Check</span>
+                  <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 text-[10px] font-bold">
+                    Hypothesis
+                  </span>
+                </div>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                  !fuzzCheck.executed
+                    ? 'bg-slate-500/15 text-slate-400 border-slate-500/30'
+                    : (fuzzCheck.hasUnexpectedException || fuzzCheck.hasWrongReturnType || fuzzCheck.hasTimeout || fuzzCheck.warnings.length > 0)
+                    ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                    : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                }`}>
+                  {!fuzzCheck.executed
+                    ? 'Not executed'
+                    : (fuzzCheck.hasUnexpectedException || fuzzCheck.hasWrongReturnType || fuzzCheck.hasTimeout || fuzzCheck.warnings.length > 0)
+                    ? 'Anomaly Flagged'
+                    : 'Clean'}
+                </span>
+              </div>
+
+              <p className="text-[11px] text-[color:var(--color-ink-muted)] mb-3">
+                Hypothesis randomized fuzzing inside sandbox from signature type hints. Unsupported types skipped.
+              </p>
+
+              {/* Fuzz Metrics Grid */}
+              <div className="grid grid-cols-2 gap-2 text-xs mb-3">
+                <div className="p-2 rounded-lg bg-[color:var(--color-surface-1)] border border-[color:var(--color-hairline)]">
+                  <div className="text-[10px] text-[color:var(--color-ink-muted)]">Inputs Tried</div>
+                  <div className="text-sm font-bold text-blue-400 font-mono mt-0.5">
+                    {fuzzCheck.inputsTried}
+                  </div>
+                </div>
+
+                <div className="p-2 rounded-lg bg-[color:var(--color-surface-1)] border border-[color:var(--color-hairline)]">
+                  <div className="text-[10px] text-[color:var(--color-ink-muted)]">Return Type</div>
+                  <div className={`text-xs font-bold mt-0.5 ${fuzzCheck.hasWrongReturnType ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    {fuzzCheck.hasWrongReturnType ? '⚠️ Wrong Type' : '✓ Valid'}
+                  </div>
+                </div>
+
+                <div className="p-2 rounded-lg bg-[color:var(--color-surface-1)] border border-[color:var(--color-hairline)]">
+                  <div className="text-[10px] text-[color:var(--color-ink-muted)]">Exception Types</div>
+                  <div className={`text-xs font-bold mt-0.5 ${fuzzCheck.hasUnexpectedException ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    {fuzzCheck.hasUnexpectedException ? '⚠️ Unexpected' : '✓ Expected Only'}
+                  </div>
+                </div>
+
+                <div className="p-2 rounded-lg bg-[color:var(--color-surface-1)] border border-[color:var(--color-hairline)]">
+                  <div className="text-[10px] text-[color:var(--color-ink-muted)]">Timeout (&gt;500ms)</div>
+                  <div className={`text-xs font-bold mt-0.5 ${fuzzCheck.hasTimeout ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    {fuzzCheck.hasTimeout ? '⚠️ Timeout' : '✓ Clean (<500ms)'}
+                  </div>
+                </div>
+              </div>
+
+              {fuzzCheck.failureDetails && (
+                <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/25 font-mono text-[10px] text-amber-200 overflow-x-auto max-h-24">
+                  {fuzzCheck.failureDetails}
+                </div>
+              )}
+            </div>
+
+            {fuzzCheck.warnings.length > 0 && (
+              <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/25 text-[11px] text-amber-300 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-xs text-amber-400">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  <span>Fuzz Warnings</span>
+                </div>
+                {fuzzCheck.warnings.map((w, i) => (
+                  <p key={i} className="text-[10px] leading-tight text-amber-200/90 pl-5">
+                    {w}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Check 3: Optional Second Solution */}
+          <div className="p-4 rounded-xl bg-[color:var(--color-surface-2)] border border-[color:var(--color-hairline)] flex flex-col justify-between space-y-3">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-[color:var(--color-ink)]">Second Solution</span>
+                  <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
+                    Differential
+                  </span>
+                </div>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                  !secondSolCheck.enabled || !secondSolCheck.executed
+                    ? 'bg-slate-500/15 text-slate-400 border-slate-500/30'
+                    : secondSolCheck.disagreementCount > 0
+                    ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                    : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                }`}>
+                  {!secondSolCheck.enabled || !secondSolCheck.executed
+                    ? 'Optional'
+                    : secondSolCheck.disagreementCount > 0
+                    ? `${secondSolCheck.disagreementCount} disagreement(s)`
+                    : '0 disagreements'}
+                </span>
+              </div>
+
+              <p className="text-[11px] text-[color:var(--color-ink-muted)] mb-3">
+                Compares primary code with an independent secondary model solution across all test and fuzz inputs.
+              </p>
+
+              {secondSolCheck.executed ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs p-2 rounded-lg bg-[color:var(--color-surface-1)] border border-[color:var(--color-hairline)]">
+                    <span className="text-[11px] text-[color:var(--color-ink-muted)]">Secondary Model:</span>
+                    <span className="font-semibold text-emerald-300 font-mono text-[11px] truncate max-w-[150px]" title={secondSolCheck.secondaryModel}>
+                      {secondSolCheck.secondaryModel || 'Custom Model'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs p-2 rounded-lg bg-[color:var(--color-surface-1)] border border-[color:var(--color-hairline)]">
+                    <span className="text-[11px] text-[color:var(--color-ink-muted)]">Inputs Compared:</span>
+                    <span className="font-semibold text-blue-400 font-mono text-[11px]">
+                      {secondSolCheck.totalInputsTested} inputs
+                    </span>
+                  </div>
+
+                  {secondSolCheck.disagreementCount > 0 ? (
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                      {secondSolCheck.disagreements.map((d, idx) => (
+                        <div key={idx} className="p-2 rounded bg-amber-500/10 border border-amber-500/25 text-[10px] font-mono space-y-1 text-amber-200">
+                          <div className="font-bold text-[color:var(--color-ink)] truncate" title={d.input}>
+                            Input: {d.input}
+                          </div>
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="text-blue-300">Sol 1: {d.solution1Output}</span>
+                            <span className="text-amber-300 font-bold">Sol 2: {d.solution2Output}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Zero disagreements between both solutions across all inputs.</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="p-3 rounded-lg bg-[color:var(--color-surface-1)] border border-[color:var(--color-hairline)] text-xs text-[color:var(--color-ink-muted)] leading-relaxed">
+                  Configure an independent second model to run both solutions on all test &amp; fuzz inputs and flag disagreements.
+                </div>
+              )}
+            </div>
+
+            {/* Toggle / Secondary Model Setting Controls */}
+            <div className="pt-2 border-t border-[color:var(--color-hairline)]">
+              <button
+                type="button"
+                onClick={() => setShowSecondarySettings(!showSecondarySettings)}
+                className="w-full text-xs font-semibold py-1.5 px-2.5 rounded bg-[color:var(--color-surface-3)] hover:bg-[color:var(--color-surface-4)] text-[color:var(--color-ink)] transition flex items-center justify-between cursor-pointer"
+              >
+                <span>{secondSolCheck.executed ? 'Configure Secondary Model' : 'Enable Second Solution Check'}</span>
+                {showSecondarySettings ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+
+              {showSecondarySettings && (
+                <div className="mt-2.5 p-3 rounded-lg bg-[color:var(--color-surface-1)] border border-[color:var(--color-hairline)] space-y-2 text-xs">
+                  <div>
+                    <label className="text-[10px] font-bold text-[color:var(--color-ink-muted)] uppercase tracking-wider block mb-1">
+                      Secondary Provider
+                    </label>
+                    <select
+                      value={secProvider}
+                      onChange={(e) => {
+                        const p = e.target.value as ApiSettings['provider'];
+                        setSecProvider(p);
+                        const match = PROVIDERS.find(x => x.id === p);
+                        if (match && match.models.length > 0) {
+                          setSecModel(match.models[0]);
+                        }
+                      }}
+                      className="w-full text-xs bg-[color:var(--color-surface-2)] border border-[color:var(--color-hairline)] rounded px-2 py-1 text-[color:var(--color-ink)]"
+                    >
+                      {PROVIDERS.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-[color:var(--color-ink-muted)] uppercase tracking-wider block mb-1">
+                      Secondary Model
+                    </label>
+                    <input
+                      type="text"
+                      value={secModel}
+                      onChange={(e) => setSecModel(e.target.value)}
+                      placeholder="e.g. gpt-4o-mini, llama-3.3-70b-versatile"
+                      className="w-full text-xs bg-[color:var(--color-surface-2)] border border-[color:var(--color-hairline)] rounded px-2 py-1 text-[color:var(--color-ink)]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-[color:var(--color-ink-muted)] uppercase tracking-wider block mb-1">
+                      API Key (optional if pre-configured)
+                    </label>
+                    <input
+                      type="password"
+                      value={secApiKey}
+                      onChange={(e) => setSecApiKey(e.target.value)}
+                      placeholder="API key for secondary provider..."
+                      className="w-full text-xs bg-[color:var(--color-surface-2)] border border-[color:var(--color-hairline)] rounded px-2 py-1 text-[color:var(--color-ink)] font-mono"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleRunDifferentialCheck}
+                    disabled={isVerifying}
+                    className="w-full btn-primary py-1.5 text-xs font-semibold flex items-center justify-center gap-1.5 mt-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {isVerifying ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    )}
+                    <span>Run Differential Check</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+        </div>
+      </div>
+
       {/* Dedicated Section: Detected Verification Issues & Why They Matter */}
       <div className="card p-6 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[color:var(--color-hairline)] pb-4">
@@ -488,7 +917,9 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
                     ? 'Some Verification Checks Were Skipped or Returned Errors'
                     : showNotVerified
                     ? 'Not Verified (Pytest must execute with 0 failures or skips)'
-                    : 'All Checks Clean'
+                    : (passedTests != null && totalTests != null && passedTests === totalTests
+                        ? `PASSED ${passedTests}/${totalTests} locked tests`
+                        : 'All Checks Clean')
                   : 'No Verification Data Yet'}
               </div>
               <div className="text-[11px] text-[color:var(--color-ink-muted)] mt-0.5">
