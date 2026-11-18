@@ -52,6 +52,7 @@ builder.Services.AddHostedService<PythonToolStartupValidator>();
 
 builder.Services.AddSingleton<IVerificationPipeline, VerificationPipeline>();
 builder.Services.AddSingleton<VerificationService>();
+builder.Services.AddSingleton<IIndependentChecksService, IndependentChecksService>();
 builder.Services.AddScoped<OptimizationService>();
 
 // Docker Sandbox, Locked Test Store, Test Generation, and Benchmark Services

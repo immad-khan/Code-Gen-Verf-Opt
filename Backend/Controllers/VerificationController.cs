@@ -1,5 +1,6 @@
 using Backend.Models;
 using Backend.Services;
+using Backend.Services.Verification;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Backend.Controllers;
@@ -10,11 +11,16 @@ public class VerificationController : ControllerBase
 {
     private readonly VerificationService _verificationService;
     private readonly ILockedTestStore _lockedTestStore;
+    private readonly IIndependentChecksService? _independentChecksService;
 
-    public VerificationController(VerificationService verificationService, ILockedTestStore lockedTestStore)
+    public VerificationController(
+        VerificationService verificationService,
+        ILockedTestStore lockedTestStore,
+        IIndependentChecksService? independentChecksService = null)
     {
         _verificationService = verificationService;
         _lockedTestStore = lockedTestStore;
+        _independentChecksService = independentChecksService;
     }
 
     [HttpPost]
@@ -57,6 +63,24 @@ public class VerificationController : ControllerBase
         }
 
         var result = await _verificationService.VerifyAsync(request.Files);
+
+        // Run 3 independent checks as advisory warnings (never alters locked tests or verdict)
+        if (_independentChecksService != null)
+        {
+            try
+            {
+                result.IndependentChecks = await _independentChecksService.ExecuteAsync(
+                    request.Files, request.Prompt, request.Interface, request.SecondaryApiSettings);
+            }
+            catch (Exception ex)
+            {
+                result.IndependentChecks = new IndependentChecksResult
+                {
+                    AllWarnings = new List<string> { $"Independent checks notice: {ex.Message}" }
+                };
+            }
+        }
+
         return Ok(result);
     }
 }

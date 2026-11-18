@@ -8,6 +8,7 @@ RUN pip install --no-cache-dir \
     mypy==1.15.0 \
     radon==6.0.1 \
     semgrep==1.185.0 \
+    hypothesis \
     numpy \
     scipy
 

@@ -52,6 +52,7 @@ public class VerificationResponse
     public string OverallVerdict { get; set; } = "UNKNOWN";
     public long TotalDurationMs { get; set; }
     public CodeMetrics Metrics { get; set; } = new();
+    public IndependentChecksResult? IndependentChecks { get; set; }
 }
 
 public class VerificationTechnique

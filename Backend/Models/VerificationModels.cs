@@ -22,6 +22,15 @@ public class VerifyRequest
 
     [JsonPropertyName("lockedTestHash")]
     public string? LockedTestHash { get; set; }
+
+    [JsonPropertyName("prompt")]
+    public string? Prompt { get; set; }
+
+    [JsonPropertyName("interface")]
+    public InterfaceDefinition? Interface { get; set; }
+
+    [JsonPropertyName("secondaryApiSettings")]
+    public ApiSettings? SecondaryApiSettings { get; set; }
 }
 
 /// <summary>Technique IDs and status values shared by the verifier and the web API.</summary>
@@ -87,6 +96,10 @@ public class VerificationResult
 
     [JsonPropertyName("durationMs")]
     public long DurationMs { get; set; }
+
+    [JsonPropertyName("independentChecks")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IndependentChecksResult? IndependentChecks { get; set; }
 }
 
 /// <summary>Status of one verification technique as shown in the web UI.</summary>

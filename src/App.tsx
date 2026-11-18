@@ -192,6 +192,14 @@ export function App() {
   const [resultData, setResultData] = useState<AIResultData>(createInitialResultData());
   const [hasGeneratedResult, setHasGeneratedResult] = useState(false);
   const [apiSettings, setApiSettings] = useState<ApiSettings>(loadSettings);
+  const [secondaryApiSettings, setSecondaryApiSettings] = useState<ApiSettings | null>(() => {
+    try {
+      const saved = localStorage.getItem('maci_secondary_api_settings');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [backendVerification, setBackendVerification] = useState<VerificationResponse | null>(null);
   const [verificationError, setVerificationError] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -372,11 +380,17 @@ export function App() {
       setCurrentStep(4);
       setIsProcessing(false);
 
-      // Run real backend verification in background (AST, imports, pytest, runtime, mypy)
+      // Run real backend verification in background (AST, imports, pytest, runtime, mypy + independent checks)
       setIsVerifying(true);
       setBackendVerification(null);
       setVerificationError(null);
-      runBackendVerification(codeFiles, lockedTestSuite?.hash)
+      runBackendVerification(
+        codeFiles,
+        lockedTestSuite?.hash,
+        prompt,
+        confirmedInterface || undefined,
+        secondaryApiSettings
+      )
         .then(verification => {
           setBackendVerification(verification);
           console.log('Backend verification succeeded:', verification);
@@ -396,12 +410,19 @@ export function App() {
     }
   };
 
-  const handleRetryVerification = async () => {
+  const handleRetryVerification = async (overrideSecondarySettings?: ApiSettings | null) => {
     if (!resultData?.generatedCode || resultData.generatedCode.length === 0) return;
     setIsVerifying(true);
     setVerificationError(null);
+    const secSettings = overrideSecondarySettings !== undefined ? overrideSecondarySettings : secondaryApiSettings;
     try {
-      const verification = await runBackendVerification(resultData.generatedCode, lockedTestSuite?.hash);
+      const verification = await runBackendVerification(
+        resultData.generatedCode,
+        lockedTestSuite?.hash,
+        prompt,
+        confirmedInterface || undefined,
+        secSettings
+      );
       setBackendVerification(verification);
       console.log('Backend verification retry succeeded:', verification);
     } catch (verifyErr) {
@@ -636,6 +657,17 @@ export function App() {
             verificationError={verificationError}
             isVerifying={isVerifying}
             onRetryVerification={handleRetryVerification}
+            apiSettings={apiSettings}
+            prompt={prompt}
+            interfaceDef={confirmedInterface || undefined}
+            secondaryApiSettings={secondaryApiSettings}
+            onUpdateSecondaryApiSettings={(s) => {
+              setSecondaryApiSettings(s);
+              try {
+                if (s) localStorage.setItem('maci_secondary_api_settings', JSON.stringify(s));
+                else localStorage.removeItem('maci_secondary_api_settings');
+              } catch {}
+            }}
           />
         )}
 
