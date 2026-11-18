@@ -1,4 +1,4 @@
-import { GeneratedCodeFile } from '../types';
+import { GeneratedCodeFile, IndependentChecksResult, InterfaceDefinition, ApiSettings } from '../types';
 
 export interface VerificationIssue {
   file: string;
@@ -48,6 +48,7 @@ export interface VerificationResponse {
   overallVerdict: string;
   totalDurationMs: number;
   metrics: CodeMetrics;
+  independentChecks?: IndependentChecksResult;
 }
 
 const BACKEND_URL = (
@@ -55,11 +56,23 @@ const BACKEND_URL = (
   (import.meta.env.PROD ? 'https://code-gen-verf-opt.onrender.com' : 'http://localhost:5000')
 ).replace(/\/+$/, '');
 
-export async function runBackendVerification(files: GeneratedCodeFile[], lockedTestHash?: string): Promise<VerificationResponse> {
+export async function runBackendVerification(
+  files: GeneratedCodeFile[],
+  lockedTestHash?: string,
+  prompt?: string,
+  interfaceDef?: InterfaceDefinition,
+  secondaryApiSettings?: ApiSettings | null
+): Promise<VerificationResponse> {
   const response = await fetch(`${BACKEND_URL}/api/verification`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ files, lockedTestHash }),
+    body: JSON.stringify({
+      files,
+      lockedTestHash,
+      prompt,
+      interface: interfaceDef,
+      secondaryApiSettings: secondaryApiSettings || null,
+    }),
   });
 
   if (!response.ok) {
