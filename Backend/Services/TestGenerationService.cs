@@ -347,23 +347,23 @@ public class TestGenerationService : ITestGenerationService
         catch (OperationCanceledException)
         {
             try { proc.Kill(true); } catch { }
-            return new SandboxRunResult
-            {
-                Success = false,
-                Stdout = stdout.ToString(),
-                Stderr = "Execution timed out.",
-                ExitCode = -1,
-                DurationMs = sw.ElapsedMilliseconds
-            };
+            return new SandboxRunResult(
+                Success: false,
+                ExitCode: -1,
+                Stdout: stdout.ToString(),
+                Stderr: "Execution timed out.",
+                TimedOut: true,
+                Duration: sw.Elapsed
+            );
         }
 
-        return new SandboxRunResult
-        {
-            Success = proc.ExitCode == 0,
-            Stdout = stdout.ToString(),
-            Stderr = stderr.ToString(),
-            ExitCode = proc.ExitCode,
-            DurationMs = sw.ElapsedMilliseconds
-        };
+        return new SandboxRunResult(
+            Success: proc.ExitCode == 0,
+            ExitCode: proc.ExitCode,
+            Stdout: stdout.ToString(),
+            Stderr: stderr.ToString(),
+            TimedOut: false,
+            Duration: sw.Elapsed
+        );
     }
 }
