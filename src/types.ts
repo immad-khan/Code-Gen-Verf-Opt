@@ -120,6 +120,7 @@ export interface InterfaceDefinition {
   name: string;
   signature: string;
   docstring: string;
+  isStdinStdout?: boolean;
 }
 
 export interface ProcessingMetrics {
