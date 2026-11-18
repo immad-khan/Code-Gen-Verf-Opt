@@ -707,9 +707,8 @@ export async function fetchBenchmarkProblem(benchmark: string, problemId: string
   previewTests: string;
   lockedTestHash: string;
 }> {
-  const res = await fetch(
-    `${backendBaseUrl()}/api/benchmark/problems/${encodeURIComponent(benchmark)}/${encodeURIComponent(problemId)}`
-  );
+  const url = `${backendBaseUrl()}/api/benchmark/problem?benchmark=${encodeURIComponent(benchmark)}&id=${encodeURIComponent(problemId)}`;
+  const res = await fetch(url);
   if (!res.ok) {
     throw new Error(`Failed to load problem ${problemId}: HTTP ${res.status}`);
   }
