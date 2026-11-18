@@ -48,6 +48,13 @@ export const StepTestsReview: React.FC<StepTestsReviewProps> = ({
   const currentHash = lockedTestSuite?.hash;
   const currentTestCount = lockedTestSuite?.testCount ?? 0;
 
+  // Sync test code if lockedTestSuite is updated from parent (e.g. benchmark selected)
+  useEffect(() => {
+    if (lockedTestSuite?.testCode && lockedTestSuite.testCode !== testCode) {
+      setTestCode(lockedTestSuite.testCode);
+    }
+  }, [lockedTestSuite?.testCode]);
+
   // Auto-generate tests on initial mount if freeform prompt and empty
   useEffect(() => {
     if (!isBenchmarkProblem && !testCode.trim() && !isLocked && !isGenerating) {
