@@ -61,9 +61,10 @@ export const StepTestsReview: React.FC<StepTestsReviewProps> = ({
     setRawGenerateResponse(null);
     try {
       const generated = await generateTests(prompt, interfaceDef, apiSettings);
-      setTestCode(generated);
+      const clean = (generated || '').replace(/^\uFEFF/, '').trim();
+      setTestCode(clean);
       // Run sanity check right away
-      handleValidate(generated);
+      handleValidate(clean);
     } catch (err: any) {
       setGenerateError(err.message || 'Failed to generate tests.');
       setRawGenerateResponse(err.rawResponse || null);

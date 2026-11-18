@@ -657,10 +657,11 @@ export async function validateTests(
   testCode: string,
   iface: InterfaceDefinition
 ): Promise<{ valid: boolean; testCount: number; passedOnStubCount: number; warnings: string[]; error?: string }> {
+  const cleanCode = (testCode || '').replace(/^\uFEFF/, '').trim();
   const res = await fetch(`${backendBaseUrl()}/api/ai/tests/validate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ testCode, interface: iface })
+    body: JSON.stringify({ testCode: cleanCode, interface: iface })
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -673,10 +674,11 @@ export async function lockTests(
   testCode: string,
   testCount: number
 ): Promise<{ hash: string; testCount: number; isLocked: boolean; lockedAtUtc: string }> {
+  const cleanCode = (testCode || '').replace(/^\uFEFF/, '').trim();
   const res = await fetch(`${backendBaseUrl()}/api/ai/tests/lock`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ testCode, testCount })
+    body: JSON.stringify({ testCode: cleanCode, testCount })
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));

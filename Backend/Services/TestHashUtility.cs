@@ -21,6 +21,6 @@ public static class TestHashUtility
     public static string Normalize(string? code)
     {
         if (string.IsNullOrEmpty(code)) return "";
-        return code.Replace("\r\n", "\n").Replace('\r', '\n').TrimEnd();
+        return code.Trim('\uFEFF').Replace("\r\n", "\n").Replace('\r', '\n').TrimEnd();
     }
 }

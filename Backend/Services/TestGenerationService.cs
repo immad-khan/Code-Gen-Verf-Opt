@@ -150,13 +150,14 @@ public class TestGenerationService : ITestGenerationService
             var solutionPath = Path.Combine(tempDir, "solution.py");
             var testPath = Path.Combine(tempDir, "test_solution.py");
 
-            await File.WriteAllTextAsync(solutionPath, stubCode, Encoding.UTF8, ct);
-            await File.WriteAllTextAsync(testPath, normalized, Encoding.UTF8, ct);
+            var utf8NoBom = new UTF8Encoding(false);
+            await File.WriteAllTextAsync(solutionPath, stubCode, utf8NoBom, ct);
+            await File.WriteAllTextAsync(testPath, normalized.Trim('\uFEFF'), utf8NoBom, ct);
 
             // 1. ast.parse check (Docker with local Python fallback)
             var astRes = await RunCommandWithFallbackAsync(
                 tempDir,
-                "python3 -B -c \"import ast; ast.parse(open('test_solution.py').read()); print('AST_OK')\"",
+                "python3 -B -c \"import ast; ast.parse(open('test_solution.py', encoding='utf-8-sig').read()); print('AST_OK')\"",
                 timeoutSeconds: 15,
                 ct: ct);
 
