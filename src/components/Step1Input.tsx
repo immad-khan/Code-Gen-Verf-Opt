@@ -1,9 +1,15 @@
 import React, { useState } from 'react';
 import { PromptPreset, PRESET_PROMPTS } from '../prompt-presets';
-import { ArrowRight, ShieldCheck, Gauge, Code2, Sparkles, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Database, PenLine } from 'lucide-react';
+import { ArrowRight, ShieldCheck, Gauge, AlertCircle, ChevronDown, ChevronUp, Database, PenLine } from 'lucide-react';
 import { ApiSettings, InterfaceDefinition, LockedTestSuite } from '../types';
 import { extractInterface } from '../services/aiService';
 import { BenchmarkPicker } from './BenchmarkPicker';
+
+/**
+ * Feature flag: set to true when conducting research experiments / paper evaluations.
+ * Hidden for everyday user flow.
+ */
+const SHOW_BENCHMARK = false;
 
 interface Step1InputProps {
   prompt: string;
@@ -77,9 +83,6 @@ export const Step1Input: React.FC<Step1InputProps> = ({
 
           {/* Active Model & Trust strip */}
           <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-[color:var(--color-ink-faint)]">
-            <span className="inline-flex items-center gap-1.5 font-mono text-[color:var(--color-brand)] bg-[#7c3aed]/10 px-2.5 py-1 rounded-md">
-              <Sparkles className="w-3.5 h-3.5" /> Provider: {apiSettings.provider.toUpperCase()} ({apiSettings.model})
-            </span>
             <span className="inline-flex items-center gap-1.5">
               <ShieldCheck className="w-3.5 h-3.5 text-[color:var(--color-brand-soft)]" /> Docker Sandbox (veriflow-sandbox:3.11)
             </span>
@@ -91,34 +94,36 @@ export const Step1Input: React.FC<Step1InputProps> = ({
       </section>
 
       <div className="max-w-4xl mx-auto px-4 md:px-6 py-8 space-y-6">
-        {/* Source Mode Selector (Prompt vs Benchmark) */}
-        <div className="flex items-center justify-center gap-3">
-          <button
-            type="button"
-            onClick={() => setActiveTab('prompt')}
-            className={`px-5 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
-              activeTab === 'prompt'
-                ? 'bg-[#7c3aed] text-white shadow-lg ring-2 ring-[#7c3aed]/30'
-                : 'bg-[color:var(--color-surface-2)] text-[color:var(--color-ink-muted)] hover:bg-[color:var(--color-surface-3)] border border-[color:var(--color-hairline)]'
-            }`}
-          >
-            <PenLine className="w-3.5 h-3.5" />
-            <span>Freeform Prompt / Templates</span>
-          </button>
+        {/* Source Mode Selector (Prompt vs Benchmark) - shown when SHOW_BENCHMARK is enabled */}
+        {SHOW_BENCHMARK && (
+          <div className="flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => setActiveTab('prompt')}
+              className={`px-5 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                activeTab === 'prompt'
+                  ? 'bg-[#7c3aed] text-white shadow-lg ring-2 ring-[#7c3aed]/30'
+                  : 'bg-[color:var(--color-surface-2)] text-[color:var(--color-ink-muted)] hover:bg-[color:var(--color-surface-3)] border border-[color:var(--color-hairline)]'
+              }`}
+            >
+              <PenLine className="w-3.5 h-3.5" />
+              <span>Freeform Prompt / Templates</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('benchmark')}
-            className={`px-5 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
-              activeTab === 'benchmark'
-                ? 'bg-[#7c3aed] text-white shadow-lg ring-2 ring-[#7c3aed]/30'
-                : 'bg-[color:var(--color-surface-2)] text-[color:var(--color-ink-muted)] hover:bg-[color:var(--color-surface-3)] border border-[color:var(--color-hairline)]'
-            }`}
-          >
-            <Database className="w-3.5 h-3.5" />
-            <span>Benchmark Problem Picker (1,163 problems)</span>
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('benchmark')}
+              className={`px-5 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                activeTab === 'benchmark'
+                  ? 'bg-[#7c3aed] text-white shadow-lg ring-2 ring-[#7c3aed]/30'
+                  : 'bg-[color:var(--color-surface-2)] text-[color:var(--color-ink-muted)] hover:bg-[color:var(--color-surface-3)] border border-[color:var(--color-hairline)]'
+              }`}
+            >
+              <Database className="w-3.5 h-3.5" />
+              <span>Benchmark Problem Picker (1,163 problems)</span>
+            </button>
+          </div>
+        )}
 
         {/* Error Banner with Show Raw Response Toggle */}
         {(errorMessage || interfaceError) && (
@@ -227,7 +232,7 @@ export const Step1Input: React.FC<Step1InputProps> = ({
         )}
 
         {/* Tab 2: Benchmark Problem Picker */}
-        {activeTab === 'benchmark' && (
+        {SHOW_BENCHMARK && activeTab === 'benchmark' && (
           <BenchmarkPicker
             onSelectProblem={onSelectBenchmarkProblem}
             onCancel={() => setActiveTab('prompt')}

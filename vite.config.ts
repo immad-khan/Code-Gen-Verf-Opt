@@ -17,6 +17,20 @@ export default defineConfig({
       "@": path.resolve(__dirname, "src"),
     },
   },
+  optimizeDeps: {
+    include: [
+      "react",
+      "react-dom",
+      "lucide-react",
+      "clsx",
+      "tailwind-merge",
+    ],
+  },
+  server: {
+    warmup: {
+      clientFiles: ["./src/main.tsx", "./src/App.tsx", "./landing_page/src/App.tsx"],
+    },
+  },
   test: {
     // Pure logic tests (API client, reducers, formatters) run in Node; Node 22
     // provides fetch/AbortController globally.

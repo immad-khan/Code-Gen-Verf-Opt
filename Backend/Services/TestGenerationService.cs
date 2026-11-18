@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 using Backend.Models;
+using Backend.Services.Verification;
 
 namespace Backend.Services;
 
@@ -36,17 +38,20 @@ public class TestGenerationService : ITestGenerationService
     private readonly ILlmClient _llmClient;
     private readonly IDockerSandbox _sandbox;
     private readonly ILockedTestStore _lockedTestStore;
+    private readonly PythonToolHealthService? _toolHealth;
     private readonly Microsoft.Extensions.Logging.ILogger<TestGenerationService>? _logger;
 
     public TestGenerationService(
         ILlmClient llmClient,
         IDockerSandbox sandbox,
         ILockedTestStore lockedTestStore,
+        PythonToolHealthService? toolHealth = null,
         Microsoft.Extensions.Logging.ILogger<TestGenerationService>? logger = null)
     {
         _llmClient = llmClient;
         _sandbox = sandbox;
         _lockedTestStore = lockedTestStore;
+        _toolHealth = toolHealth;
         _logger = logger;
     }
 
@@ -148,8 +153,8 @@ public class TestGenerationService : ITestGenerationService
             await File.WriteAllTextAsync(solutionPath, stubCode, Encoding.UTF8, ct);
             await File.WriteAllTextAsync(testPath, normalized, Encoding.UTF8, ct);
 
-            // 1. ast.parse check in Docker
-            var astRes = await _sandbox.RunCommandAsync(
+            // 1. ast.parse check (Docker with local Python fallback)
+            var astRes = await RunCommandWithFallbackAsync(
                 tempDir,
                 "python3 -B -c \"import ast; ast.parse(open('test_solution.py').read()); print('AST_OK')\"",
                 timeoutSeconds: 15,
@@ -164,8 +169,8 @@ public class TestGenerationService : ITestGenerationService
                 };
             }
 
-            // 2. pytest --collect-only check in Docker
-            var collectRes = await _sandbox.RunCommandAsync(
+            // 2. pytest --collect-only check (Docker with local Python fallback)
+            var collectRes = await RunCommandWithFallbackAsync(
                 tempDir,
                 "python3 -B -m pytest --collect-only -q test_solution.py",
                 timeoutSeconds: 15,
@@ -207,7 +212,7 @@ public class TestGenerationService : ITestGenerationService
             }
 
             // 3. Run against stub: each test should fail with NotImplementedError
-            var runRes = await _sandbox.RunCommandAsync(
+            var runRes = await RunCommandWithFallbackAsync(
                 tempDir,
                 "python3 -B -m pytest -v --tb=line test_solution.py",
                 timeoutSeconds: 20,
@@ -258,6 +263,107 @@ public class TestGenerationService : ITestGenerationService
             Hash = hash,
             TestCount = testCount,
             TestCode = normalized
+        };
+    }
+
+    private async Task<SandboxRunResult> RunCommandWithFallbackAsync(
+        string tempDir,
+        string command,
+        int timeoutSeconds,
+        CancellationToken ct)
+    {
+        try
+        {
+            var isDocker = await _sandbox.IsDockerAvailableAsync(ct);
+            if (isDocker)
+            {
+                var dockerRes = await _sandbox.RunCommandAsync(tempDir, command, timeoutSeconds, ct);
+                if (dockerRes.Success || (!dockerRes.Stderr.Contains("docker API at npipe", StringComparison.OrdinalIgnoreCase) && !dockerRes.Stderr.Contains("cannot find the file specified", StringComparison.OrdinalIgnoreCase)))
+                {
+                    return dockerRes;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogDebug("Docker execution failed, falling back to local Python: {Msg}", ex.Message);
+        }
+
+        return await RunLocalCommandAsync(tempDir, command, timeoutSeconds, ct);
+    }
+
+    private async Task<SandboxRunResult> RunLocalCommandAsync(
+        string tempDir,
+        string command,
+        int timeoutSeconds,
+        CancellationToken ct)
+    {
+        string pythonExe = "python";
+        if (_toolHealth != null)
+        {
+            pythonExe = await _toolHealth.ResolvePythonPathAsync();
+        }
+        else if (File.Exists(@"E:\anaconda\python.exe"))
+        {
+            pythonExe = @"E:\anaconda\python.exe";
+        }
+
+        string args = command;
+        if (args.StartsWith("python3 ", StringComparison.OrdinalIgnoreCase))
+            args = args.Substring(8);
+        else if (args.StartsWith("python ", StringComparison.OrdinalIgnoreCase))
+            args = args.Substring(7);
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = pythonExe,
+            Arguments = args,
+            WorkingDirectory = tempDir,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        var stdout = new StringBuilder();
+        var stderr = new StringBuilder();
+        var sw = Stopwatch.StartNew();
+
+        using var proc = new Process { StartInfo = psi };
+        proc.OutputDataReceived += (_, e) => { if (e.Data != null) stdout.AppendLine(e.Data); };
+        proc.ErrorDataReceived += (_, e) => { if (e.Data != null) stderr.AppendLine(e.Data); };
+
+        proc.Start();
+        proc.BeginOutputReadLine();
+        proc.BeginErrorReadLine();
+
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+
+        try
+        {
+            await proc.WaitForExitAsync(linked.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            try { proc.Kill(true); } catch { }
+            return new SandboxRunResult
+            {
+                Success = false,
+                Stdout = stdout.ToString(),
+                Stderr = "Execution timed out.",
+                ExitCode = -1,
+                DurationMs = sw.ElapsedMilliseconds
+            };
+        }
+
+        return new SandboxRunResult
+        {
+            Success = proc.ExitCode == 0,
+            Stdout = stdout.ToString(),
+            Stderr = stderr.ToString(),
+            ExitCode = proc.ExitCode,
+            DurationMs = sw.ElapsedMilliseconds
         };
     }
 }

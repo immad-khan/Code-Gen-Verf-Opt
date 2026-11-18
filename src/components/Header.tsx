@@ -1,5 +1,5 @@
 import React from 'react';
-import { KeyRound, LogOut, Cpu } from 'lucide-react';
+import { KeyRound, LogOut } from 'lucide-react';
 import { ApiSettings } from '../types';
 
 interface HeaderProps {
@@ -13,9 +13,20 @@ interface HeaderProps {
   /** Global status area, e.g. the backend offline indicator (23.7). */
   status?: React.ReactNode;
   apiSettings?: ApiSettings;
+  className?: string;
 }
 
-export const Header: React.FC<HeaderProps> = ({ hasApiKey, onOpenSettings, onGoToLanding, onSignOut, user, nav, status, apiSettings }) => {
+export const Header: React.FC<HeaderProps> = ({
+  hasApiKey,
+  onOpenSettings,
+  onGoToLanding,
+  onSignOut,
+  user,
+  nav,
+  status,
+  apiSettings,
+  className = "sticky top-0 z-30 backdrop-blur-xl bg-white/90 border-b border-[color:var(--color-hairline)] shadow-xs"
+}) => {
   // Starts with the visible text so the accessible name matches the label (WCAG 2.5.3).
   const settingsLabel = hasApiKey ? 'API connected, change API settings' : 'Connect API provider';
 
@@ -33,7 +44,7 @@ export const Header: React.FC<HeaderProps> = ({ hasApiKey, onOpenSettings, onGoT
   };
 
   return (
-    <header className="sticky top-0 z-30 backdrop-blur-xl bg-white/90 border-b border-[color:var(--color-hairline)] shadow-xs">
+    <header className={className}>
       <div className="max-w-6xl mx-auto px-4 md:px-6 min-h-16 py-2 flex flex-wrap items-center justify-between gap-3">
         {/* Brand - Exactly matches Landing Page logo */}
         <div
@@ -53,21 +64,9 @@ export const Header: React.FC<HeaderProps> = ({ hasApiKey, onOpenSettings, onGoT
 
         {nav}
 
-        {/* Right controls: provider/model + user profile + global status + API button + Logout */}
+        {/* Right controls: user profile + global status + API button + Logout */}
         <div className="flex items-center gap-2.5">
           {status}
-
-          {apiSettings && (
-            <div
-              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-2)] text-xs font-mono text-[color:var(--color-ink)] shadow-xs"
-              title={`Active LLM: ${apiSettings.provider.toUpperCase()} (${apiSettings.model || 'default'})`}
-            >
-              <Cpu className="w-3.5 h-3.5 text-[#7c3aed]" />
-              <span className="font-semibold text-[#7c3aed] capitalize">{apiSettings.provider}</span>
-              <span className="text-[color:var(--color-ink-muted)]">/</span>
-              <span className="text-[color:var(--color-ink-muted)] truncate max-w-[130px]">{apiSettings.model || 'default'}</span>
-            </div>
-          )}
 
           <button
             type="button"

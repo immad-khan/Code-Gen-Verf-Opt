@@ -7,6 +7,7 @@ interface PipelineNavProps {
   onSelectStep: (step: PipelineStep) => void;
   hasResult: boolean;
   maxUnlockedStep?: PipelineStep;
+  className?: string;
 }
 
 export const PipelineNav: React.FC<PipelineNavProps> = ({
@@ -14,9 +15,10 @@ export const PipelineNav: React.FC<PipelineNavProps> = ({
   onSelectStep,
   hasResult,
   maxUnlockedStep = 6,
+  className = "border-b border-[color:var(--color-hairline)] bg-[color:var(--color-surface-1)]",
 }) => {
   const steps = [
-    { number: 1 as PipelineStep, label: 'Prompt', shortLabel: 'Prompt', desc: 'Task / Benchmark', Icon: PenLine },
+    { number: 1 as PipelineStep, label: 'Prompt', shortLabel: 'Prompt', desc: 'Task requirements', Icon: PenLine },
     { number: 2 as PipelineStep, label: 'Interface', shortLabel: 'Interface', desc: 'Contract review', Icon: FileText },
     { number: 3 as PipelineStep, label: 'Tests (Lock)', shortLabel: 'Tests', desc: 'Pytest & integrity', Icon: Lock },
     { number: 4 as PipelineStep, label: 'Code', shortLabel: 'Code', desc: 'Docker synthesis', Icon: Code2 },
@@ -25,7 +27,7 @@ export const PipelineNav: React.FC<PipelineNavProps> = ({
   ];
 
   return (
-    <div className="border-b border-[color:var(--color-hairline)] bg-[color:var(--color-surface-1)] sticky top-0 z-30">
+    <div className={className}>
       <div className="max-w-6xl mx-auto px-3 sm:px-6 py-3">
         <div className="flex items-center overflow-x-auto scrollbar-none gap-2 sm:gap-2 pb-1 sm:pb-0 justify-between">
           {steps.map((s, idx) => {

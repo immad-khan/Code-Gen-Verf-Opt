@@ -30,6 +30,7 @@ public class AuthController : ControllerBase
     public record GitHubAuthRequest(string Code, string? RedirectUri);
     public record SendOtpRequest(string Channel, string To, string? Code);
     public record VerifyOtpRequest(string To, string Code);
+    public record SaveApiSettingsRequest(string Email, string Provider, string ApiKey, string? Model);
 
     private static readonly ConcurrentDictionary<string, (string Code, DateTime ExpiresAt, int Attempts)> _otpCache = new();
 
@@ -63,13 +64,7 @@ public class AuthController : ControllerBase
         return Ok(new
         {
             ok = true,
-            user = new
-            {
-                id = user.Id,
-                name = user.Name,
-                email = user.Email,
-                phone = user.Phone
-            }
+            user = FormatUserResponse(user)
         });
     }
 
@@ -92,13 +87,7 @@ public class AuthController : ControllerBase
         return Ok(new
         {
             ok = true,
-            user = new
-            {
-                id = user.Id,
-                name = user.Name,
-                email = user.Email,
-                phone = user.Phone
-            }
+            user = FormatUserResponse(user)
         });
     }
 
@@ -138,13 +127,7 @@ public class AuthController : ControllerBase
         return Ok(new
         {
             ok = true,
-            user = new
-            {
-                id = user.Id,
-                name = user.Name,
-                email = user.Email,
-                phone = user.Phone
-            }
+            user = FormatUserResponse(user)
         });
     }
 
@@ -284,13 +267,7 @@ public class AuthController : ControllerBase
             return Ok(new
             {
                 ok = true,
-                user = new
-                {
-                    id = user.Id,
-                    name = user.Name,
-                    email = user.Email,
-                    phone = user.Phone
-                }
+                user = FormatUserResponse(user)
             });
         }
         catch (Exception ex)
@@ -440,6 +417,97 @@ public class AuthController : ControllerBase
         _otpCache.TryRemove(key, out _);
         return Ok(new { ok = true, message = "Code verified successfully." });
     }
+
+    [HttpGet("api-settings")]
+    public async Task<IActionResult> GetApiSettings([FromQuery] string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+            return BadRequest(new { ok = false, error = "Email query parameter is required." });
+
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail);
+
+        if (user == null || string.IsNullOrWhiteSpace(user.LlmApiKey))
+        {
+            return Ok(new { ok = true, settings = (object?)null });
+        }
+
+        return Ok(new
+        {
+            ok = true,
+            settings = new
+            {
+                provider = user.LlmProvider ?? "groq",
+                apiKey = user.LlmApiKey,
+                model = user.LlmModel ?? "llama-3.1-8b-instant"
+            }
+        });
+    }
+
+    [HttpPost("api-settings")]
+    public async Task<IActionResult> SaveApiSettings([FromBody] SaveApiSettingsRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.Email))
+            return BadRequest(new { ok = false, error = "Email is required." });
+
+        if (string.IsNullOrWhiteSpace(req.ApiKey))
+            return BadRequest(new { ok = false, error = "API key cannot be empty." });
+
+        var normalizedEmail = req.Email.Trim().ToLowerInvariant();
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail);
+
+        if (user == null)
+        {
+            user = new UserEntity
+            {
+                Name = normalizedEmail.Split('@')[0],
+                Email = normalizedEmail,
+                PasswordHash = ComputeHash(Guid.NewGuid().ToString("N")),
+                Provider = "local",
+                CreatedAt = DateTime.UtcNow,
+            };
+            _db.Users.Add(user);
+        }
+
+        user.LlmProvider = string.IsNullOrWhiteSpace(req.Provider) ? "groq" : req.Provider.Trim().ToLowerInvariant();
+        user.LlmApiKey = req.ApiKey.Trim();
+        user.LlmModel = string.IsNullOrWhiteSpace(req.Model) ? "llama-3.1-8b-instant" : req.Model.Trim();
+        user.ApiSettingsJson = JsonSerializer.Serialize(new
+        {
+            provider = user.LlmProvider,
+            apiKey = user.LlmApiKey,
+            model = user.LlmModel
+        });
+        user.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync();
+
+        return Ok(new
+        {
+            ok = true,
+            message = "API key linked to user account successfully.",
+            settings = new
+            {
+                provider = user.LlmProvider,
+                apiKey = user.LlmApiKey,
+                model = user.LlmModel
+            }
+        });
+    }
+
+    private static object FormatUserResponse(UserEntity user) => new
+    {
+        id = user.Id,
+        name = user.Name,
+        email = user.Email,
+        phone = user.Phone,
+        apiSettings = !string.IsNullOrEmpty(user.LlmApiKey) ? new
+        {
+            provider = user.LlmProvider ?? "groq",
+            apiKey = user.LlmApiKey,
+            model = user.LlmModel ?? "llama-3.1-8b-instant"
+        } : null
+    };
 
     private static string ComputeHash(string password)
     {

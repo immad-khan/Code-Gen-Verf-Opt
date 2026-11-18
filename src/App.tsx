@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { PipelineStep, AIResultData, ApiSettings, AgentLog, PythonAuditFinding, OptimizationResponse, GeneratedCodeFile, InterfaceDefinition, LockedTestSuite, CompareRepairResponse, ImprovedRepairSources } from './types';
 import { processPromptWithAgents, generateCodeFromBackend } from './services/aiService';
+import { backendBaseUrl } from './api/client';
 import { analyzePythonCode } from './analyzer';
 import { runBackendVerification, VerificationResponse } from './services/verificationService';
 import { runBackendOptimization, runCompareOptimization } from './services/optimizationService';
@@ -247,21 +248,59 @@ export function App() {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
-  // Reset localStorage on initial load to use the latest .env keys
+  // Sync API settings from the database for the logged-in user
+  const userEmail = currentUser?.email || '';
   useEffect(() => {
-    try {
-      localStorage.removeItem('maci_api_settings_v2');
-      // Reload settings after clearing localStorage
-      const freshSettings = loadSettings();
-      setApiSettings(freshSettings);
-    } catch {}
-  }, []);
+    if (!userEmail) return;
+
+    let isMounted = true;
+    (async () => {
+      try {
+        const res = await fetch(`${backendBaseUrl()}/api/auth/api-settings?email=${encodeURIComponent(userEmail)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.settings?.apiKey && isMounted) {
+            setApiSettings(data.settings);
+            try {
+              localStorage.setItem('maci_api_settings_v2', JSON.stringify(data.settings));
+            } catch {}
+          }
+        }
+      } catch (err) {
+        console.debug('Failed to sync API settings from DB:', err);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userEmail]);
 
   const hasApiKey = apiSettings.apiKey.trim().length > 8;
 
-  const handleSaveSettings = (s: ApiSettings) => {
+  const handleSaveSettings = async (s: ApiSettings) => {
     setApiSettings(s);
-    try { localStorage.setItem('maci_api_settings_v2', JSON.stringify(s)); } catch {}
+    try {
+      localStorage.setItem('maci_api_settings_v2', JSON.stringify(s));
+    } catch {}
+
+    // Link key details to user account in the database so they never need to add them every time
+    if (currentUser?.email && s.apiKey && s.apiKey.trim().length > 0) {
+      try {
+        await fetch(`${backendBaseUrl()}/api/auth/api-settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: currentUser.email,
+            provider: s.provider,
+            apiKey: s.apiKey.trim(),
+            model: s.model,
+          }),
+        });
+      } catch (err) {
+        console.warn('Failed to link API key to account in DB:', err);
+      }
+    }
   };
 
   const handleProcessQuery = async (confirmedInterface?: InterfaceDefinition) => {
@@ -522,30 +561,35 @@ export function App() {
 
   return (
     <div className="app-shell min-h-screen text-[color:var(--color-ink)] font-sans flex flex-col antialiased selection:bg-[#7c3aed] selection:text-white">
-      <Header
-        hasApiKey={hasApiKey}
-        user={currentUser}
-        apiSettings={apiSettings}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        onSignOut={handleSignOut}
-        onGoToLanding={() => {
-          if (activeView !== 'pipeline') {
-            setActiveView('pipeline');
-          } else {
-            setShowLanding(true);
-            window.location.hash = '';
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }
-        }}
-      />
-      {activeView === 'pipeline' && (
-        <PipelineNav
-          currentStep={currentStep}
-          onSelectStep={(step) => setCurrentStep(step)}
-          hasResult={hasGeneratedResult}
-          maxUnlockedStep={maxUnlockedStep}
+      {/* Sticky Top Navigation: Header at top, Pipeline Nav directly after it (no collision) */}
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-xl shadow-xs">
+        <Header
+          hasApiKey={hasApiKey}
+          user={currentUser}
+          apiSettings={apiSettings}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onSignOut={handleSignOut}
+          className="backdrop-blur-xl bg-white/90 border-b border-[color:var(--color-hairline)]"
+          onGoToLanding={() => {
+            if (activeView !== 'pipeline') {
+              setActiveView('pipeline');
+            } else {
+              setShowLanding(true);
+              window.location.hash = '';
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+          }}
         />
-      )}
+        {activeView === 'pipeline' && (
+          <PipelineNav
+            currentStep={currentStep}
+            onSelectStep={(step) => setCurrentStep(step)}
+            hasResult={hasGeneratedResult}
+            maxUnlockedStep={maxUnlockedStep}
+            className="border-b border-[color:var(--color-hairline)] bg-[color:var(--color-surface-1)]"
+          />
+        )}
+      </div>
 
       {activeView === 'pipeline' && (
         <main className="flex-1 flex flex-col justify-start">

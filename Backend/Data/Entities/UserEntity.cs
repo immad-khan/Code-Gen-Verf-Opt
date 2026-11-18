@@ -29,6 +29,17 @@ public class UserEntity
     [MaxLength(255)]
     public string? ProviderId { get; set; }
 
+    [MaxLength(50)]
+    public string? LlmProvider { get; set; }
+
+    [MaxLength(500)]
+    public string? LlmApiKey { get; set; }
+
+    [MaxLength(100)]
+    public string? LlmModel { get; set; }
+
+    public string? ApiSettingsJson { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

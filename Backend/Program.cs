@@ -82,6 +82,21 @@ if (!string.IsNullOrEmpty(connectionString))
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             await db.Database.EnsureCreatedAsync();
+
+            try
+            {
+                await db.Database.ExecuteSqlRawAsync(@"
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS ""LlmProvider"" character varying(50);
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS ""LlmApiKey"" character varying(500);
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS ""LlmModel"" character varying(100);
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS ""ApiSettingsJson"" text;
+                ");
+            }
+            catch (Exception schemaEx)
+            {
+                app.Logger.LogWarning(schemaEx, "Schema migration check for API settings columns encountered an issue.");
+            }
+
             app.Logger.LogInformation("Neon PostgreSQL database initialized successfully.");
         }
         catch (Exception ex)
