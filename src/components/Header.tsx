@@ -1,11 +1,12 @@
 import React from 'react';
-import { KeyRound, LogOut } from 'lucide-react';
+import { KeyRound, LogOut, Home } from 'lucide-react';
 import { ApiSettings } from '../types';
 
 interface HeaderProps {
   hasApiKey: boolean;
   onOpenSettings: () => void;
   onGoToLanding?: () => void;
+  onGoToPipeline?: () => void;
   onSignOut?: () => void;
   user?: { name: string; email: string; phone?: string } | null;
   /** Top-level section navigation (AppShell passes SectionNav). */
@@ -20,6 +21,7 @@ export const Header: React.FC<HeaderProps> = ({
   hasApiKey,
   onOpenSettings,
   onGoToLanding,
+  onGoToPipeline,
   onSignOut,
   user,
   nav,
@@ -46,20 +48,34 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className={className}>
       <div className="max-w-6xl mx-auto px-4 md:px-6 min-h-16 py-2 flex flex-wrap items-center justify-between gap-3">
-        {/* Brand - Exactly matches Landing Page logo */}
-        <div
-          onClick={onGoToLanding}
-          className={`flex items-center gap-2.5 min-w-0 ${onGoToLanding ? 'cursor-pointer group' : ''}`}
-          title={onGoToLanding ? 'Return to Landing Page' : undefined}
-        >
-          <span className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-[#9d6cff] to-[#7c3aed] shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_8px_16px_-8px_rgba(124,58,237,0.8)] shrink-0 group-hover:scale-105 transition-transform">
-            <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] text-white" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 12.5l5 5L19 7.5" />
-            </svg>
-          </span>
-          <span className="text-[1.35rem] font-extrabold tracking-tight text-ink leading-none">
-            Veri<span className="text-brand-600">Flow</span>
-          </span>
+        {/* Brand & Home Navigation */}
+        <div className="flex items-center gap-2">
+          <div
+            onClick={onGoToLanding}
+            className={`flex items-center gap-2.5 min-w-0 ${onGoToLanding ? 'cursor-pointer group' : ''}`}
+            title={onGoToLanding ? 'Return to Landing Page' : undefined}
+          >
+            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-[#9d6cff] to-[#7c3aed] shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_8px_16px_-8px_rgba(124,58,237,0.8)] shrink-0 group-hover:scale-105 transition-transform">
+              <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] text-white" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12.5l5 5L19 7.5" />
+              </svg>
+            </span>
+            <span className="text-[1.35rem] font-extrabold tracking-tight text-ink leading-none">
+              Veri<span className="text-brand-600">Flow</span>
+            </span>
+          </div>
+
+          {onGoToPipeline && (
+            <button
+              type="button"
+              onClick={onGoToPipeline}
+              aria-label="Pipeline (Home)"
+              title="Go to Pipeline (Home)"
+              className="ml-1 p-2 rounded-xl text-slate-500 hover:text-[#7c3aed] hover:bg-[#7c3aed]/10 transition-colors cursor-pointer flex items-center justify-center"
+            >
+              <Home className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {nav}
