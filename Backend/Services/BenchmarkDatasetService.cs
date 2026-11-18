@@ -223,13 +223,28 @@ public class BenchmarkDatasetService : IBenchmarkDatasetService
             sb.AppendLine();
 
             int tIdx = 1;
-            if (testList != null)
+            if (testList != null && testList.Count > 0)
             {
                 foreach (var t in testList)
                 {
                     sb.AppendLine($"def test_{entryPoint}_{tIdx}():");
                     sb.AppendLine($"    {t?.GetValue<string>() ?? "assert True"}");
                     tIdx++;
+                }
+            }
+            else
+            {
+                var assertion = node["assertion"]?.GetValue<string>() ?? "";
+                var lines = assertion.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var l in lines)
+                {
+                    var trimmed = l.Trim();
+                    if (trimmed.StartsWith("assert "))
+                    {
+                        sb.AppendLine($"def test_{entryPoint}_{tIdx}():");
+                        sb.AppendLine($"    {trimmed}");
+                        tIdx++;
+                    }
                 }
             }
 
