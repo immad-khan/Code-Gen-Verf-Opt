@@ -191,6 +191,61 @@ export interface ApiSettings {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Independent Checks (Advisory Warnings, Non-Gating)
+// ─────────────────────────────────────────────────────────────
+
+export interface PromptExampleResult {
+  example: string;
+  input: string;
+  expected: string;
+  actual: string;
+  passed: boolean;
+  error?: string;
+}
+
+export interface PromptExamplesCheckResult {
+  executed: boolean;
+  totalExamples: number;
+  passedExamples: number;
+  failedExamples: number;
+  examples: PromptExampleResult[];
+  warnings: string[];
+}
+
+export interface FuzzCheckResult {
+  executed: boolean;
+  inputsTried: number;
+  hasUnexpectedException: boolean;
+  hasWrongReturnType: boolean;
+  hasTimeout: boolean;
+  failureDetails?: string;
+  warnings: string[];
+}
+
+export interface DisagreementDetail {
+  input: string;
+  solution1Output: string;
+  solution2Output: string;
+}
+
+export interface SecondSolutionCheckResult {
+  enabled: boolean;
+  executed: boolean;
+  secondaryModel?: string;
+  totalInputsTested: number;
+  disagreementCount: number;
+  disagreements: DisagreementDetail[];
+  warnings: string[];
+}
+
+export interface IndependentChecksResult {
+  promptExamples: PromptExamplesCheckResult;
+  fuzzCheck: FuzzCheckResult;
+  secondSolution: SecondSolutionCheckResult;
+  allWarnings: string[];
+}
+
+// ─────────────────────────────────────────────────────────────
 // Optimization & Repair Pipeline (Dou et al.)
 // ─────────────────────────────────────────────────────────────
 
