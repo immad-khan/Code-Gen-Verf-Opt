@@ -89,17 +89,13 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
   const initialDiagnosis = activeOptResult?.initialDiagnosis;
   const iterations = activeOptResult?.iterations || [];
   const activeTab = forcedIteration ?? activeIterationTab;
-  const currentIteration = iterations.find(it => it.iterationNumber === activeTab) || iterations[0];
+  const currentIteration = iterations.find(it => it.iterationNumber === activeTab);
 
   const runResult = activeOptResult?.runResult;
-  const baselineRate = runResult?.baselineComparator?.paperRepairSuccessRate ?? 29.2;
-  const baselineLabel = runResult?.baselineComparator?.label ?? 'Paper, GPT-4';
-  const initialFailingBugs = summary?.totalBugsBefore ?? 0;
-  const rsrDisplay = initialFailingBugs === 0
-    ? 'N/A'
-    : summary
-    ? `${summary.repairSuccessRate.toFixed(1)}%`
-    : 'N/A';
+  const measuredPassRate = (total?: number, rate?: number) => total && rate != null ? `${Math.round(rate)}%` : 'N/A';
+  const baselineRate = runResult?.baselineComparator ?? 29.2;
+  const baselineLabel = runResult?.baselineLabel ?? 'Paper, GPT-4';
+  const rsrDisplay = summary?.repairSuccessRate == null ? 'N/A' : `${summary.repairSuccessRate.toFixed(1)}%`;
   const isRepairSkipped = Boolean(activeOptResult?.repairSkipped || runResult?.repairSkipped);
 
   const filesToDisplay = currentIteration?.repairedFiles || result.generatedCode;
@@ -147,7 +143,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
             </span>
           </div>
           <p className="text-xs text-[color:var(--color-ink-muted)] mt-1">
-            Machine-verified evidence &amp; bug taxonomy feedback loop (Iteration {activeTab} of 2).
+            Taxonomy-guided repair · up to two measured iterations.
           </p>
         </div>
 
@@ -186,12 +182,12 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
         <div className="flex items-center gap-2">
           <span className="font-semibold text-[color:var(--color-ink)]">Active Model Profile:</span>
           <span className="px-2 py-0.5 rounded bg-[color:var(--color-surface-1)] border border-[color:var(--color-hairline)] font-mono font-bold text-[color:var(--color-brand-soft)]">
-            {apiSettings?.provider || 'openrouter'} / {apiSettings?.model || 'deepseek/deepseek-r1'}
+            {apiSettings?.provider || 'not recorded'} / {runResult?.model || apiSettings?.model || 'not recorded'}
           </span>
         </div>
         <div className="flex items-center gap-2">
           <span className="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
-          <span>Docker Sandbox: <code className="font-mono text-[color:var(--color-ink)]">veriflow-sandbox:3.11</code> (--network none)</span>
+          <span>Verification: backend Python process</span>
         </div>
       </div>
 
@@ -362,9 +358,9 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                   </td>
                   <td className="py-2.5 px-4 text-center font-semibold text-[color:var(--color-ink-muted)]">
                     {compareResult.summary.improvedFixedInRound1 && !compareResult.summary.douFixedInRound1
-                      ? 'Improved (+100%)'
+                      ? 'Improved passed first'
                       : compareResult.summary.douFixedInRound1 && !compareResult.summary.improvedFixedInRound1
-                      ? 'Dou (+100%)'
+                      ? 'Dou passed first'
                       : 'Equal'}
                   </td>
                 </tr>
@@ -394,14 +390,14 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                     {compareResult.summary.douUnresolved ? (
                       <span className="text-rose-400">Unresolved</span>
                     ) : (
-                      <span className="text-emerald-400">All Passed</span>
+                      <span>{compareResult.douResult.summary.repairSuccessRate == null ? 'N/A' : 'Repaired'}</span>
                     )}
                   </td>
                   <td className="py-2.5 px-4 text-center font-bold">
                     {compareResult.summary.improvedUnresolved ? (
                       <span className="text-rose-400">Unresolved</span>
                     ) : (
-                      <span className="text-emerald-400">All Passed</span>
+                      <span>{compareResult.improvedResult.summary.repairSuccessRate == null ? 'N/A' : 'Repaired'}</span>
                     )}
                   </td>
                   <td className="py-2.5 px-4 text-center font-semibold text-[color:var(--color-ink-muted)]">
@@ -411,7 +407,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                   </td>
                 </tr>
                 <tr>
-                  <td className="py-2.5 px-4 font-medium text-[color:var(--color-ink)]">Total Tokens Consumed</td>
+                  <td className="py-2.5 px-4 font-medium text-[color:var(--color-ink)]">Estimated Tokens Consumed</td>
                   <td className="py-2.5 px-4 text-center font-mono font-bold text-[color:var(--color-ink)]">
                     {compareResult.summary.douTotalTokens.toLocaleString()}
                   </td>
@@ -491,9 +487,9 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
         <div className="card p-5 border border-emerald-500/30 bg-emerald-500/10 flex items-center gap-3 text-emerald-300 text-sm">
           <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
           <div>
-            <div className="font-bold text-emerald-200">Initial Verification Passed — Repair Skipped</div>
+            <div className="font-bold text-emerald-200">Repair skipped</div>
             <div className="text-xs text-emerald-300/80 mt-0.5">
-              All compiler, runtime, and test checks passed cleanly in Round 0. No LLM repair calls were needed.
+              No confirmed failing program to repair. Round 0 verdict: {summary?.initialVerdict ?? 'NOT_VERIFIED'}.
             </div>
           </div>
         </div>
@@ -510,11 +506,11 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
               Ready to Optimize &amp; Repair Code
             </h3>
             <p className="text-xs text-[color:var(--color-ink-muted)]">
-              Run the full Dou et al. methodology: maps all verification failures to the paper's bug taxonomy (A.1–C.4), carries compiler traces into self-critique repair prompts, and performs 2 bounded repair iterations.
+              Run taxonomy-guided repair: maps all verification failures to the paper's bug taxonomy (A.1–C.4), carries compiler traces into self-critique repair prompts, and performs 2 bounded repair iterations.
             </p>
           </div>
           <button
-            onClick={onRunOptimization}
+            onClick={handleTriggerRepair}
             className="btn-primary px-6 py-2.5 text-sm font-semibold flex items-center gap-2 cursor-pointer shadow-[0_6px_20px_rgba(124,58,237,0.4)]"
           >
             <Sparkles className="w-4 h-4" /> Start 2-Iteration Repair
@@ -527,11 +523,11 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
         <>
           {/* Top 4 Key Metric Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-            {/* Card 1: Repair Success Rate (RSR) */}
+            {/* Card 1: Program repair outcome (single run) */}
             <div className="card p-5 flex flex-col justify-between min-h-[170px] relative overflow-hidden">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-[color:var(--color-ink-muted)] uppercase tracking-wider">
-                  Repair Success Rate (RSR)
+                  Program repair outcome (single run)
                 </span>
                 <TrendingUp className="w-4 h-4 text-emerald-400" />
               </div>
@@ -540,13 +536,13 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                   {rsrDisplay}
                 </div>
                 <div className="text-[11px] text-[color:var(--color-brand-soft)] mt-1 font-medium flex items-center gap-1">
-                  <span>{baselineLabel}: ~{baselineRate}%</span>
+                  <span>Reference only · {baselineLabel}: {baselineRate}% over 120 initially failing programs</span>
                 </div>
               </div>
               <div className="w-full bg-[color:var(--color-surface-2)] h-2 rounded-full overflow-hidden border border-[color:var(--color-hairline)]">
                 <div
                   className="h-full bg-gradient-to-r from-[#7c3aed] to-emerald-400 rounded-full transition-all duration-700"
-                  style={{ width: `${initialFailingBugs === 0 ? 100 : Math.min(100, summary?.repairSuccessRate || 0)}%` }}
+                  style={{ width: `${Math.min(100, summary?.repairSuccessRate || 0)}%` }}
                 />
               </div>
             </div>
@@ -562,10 +558,10 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
               <div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-lg text-[color:var(--color-ink-muted)] line-through">
-                    {Math.round(summary?.initialPassRate ?? backendVerification?.metrics.passRate ?? 33)}%
+                    {measuredPassRate(runResult?.rounds[0]?.testsSummary.total, summary?.initialPassRate ?? backendVerification?.metrics.passRate)}
                   </span>
                   <span className="text-3xl font-extrabold text-emerald-400">
-                    → {Math.round(summary?.finalPassRate ?? 100)}%
+                    → {measuredPassRate(runResult?.rounds.at(-1)?.testsSummary.total, summary?.finalPassRate)}
                   </span>
                 </div>
                 <div className="text-[11px] text-[color:var(--color-ink-muted)] mt-1 flex items-center gap-1.5">
@@ -574,7 +570,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                   </span>
                   <span>→</span>
                   <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
-                    {summary?.finalVerdict || 'PASS'}
+                    {summary?.finalVerdict || 'NOT_VERIFIED'}
                   </span>
                 </div>
               </div>
@@ -587,7 +583,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
             <div className="card p-5 flex flex-col justify-between min-h-[170px]">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-[color:var(--color-ink-muted)] uppercase tracking-wider">
-                  Bugs Resolved
+                  Reduction in findings
                 </span>
                 <Cpu className="w-4 h-4 text-[color:var(--color-brand-soft)]" />
               </div>
@@ -600,7 +596,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                 </div>
               </div>
               <div className="text-[11px] text-emerald-400 font-semibold">
-                {summary?.totalBugsAfter === 0 ? '✓ 0 remaining blocking bugs' : `${summary?.totalBugsAfter} remaining`}
+                {summary?.totalBugsAfter === 0 ? 'No diagnosed findings' : `${summary?.totalBugsAfter} remaining`}
               </div>
             </div>
 
@@ -621,7 +617,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                 </div>
               </div>
               <div className="text-[11px] text-[color:var(--color-brand-soft)] font-medium">
-                {runResult?.modelId ? `Model: ${runResult.modelId}` : 'Configured: DeepSeek-R1'}
+                {`Model: ${runResult?.model || apiSettings?.model || 'not recorded'}`}
               </div>
             </div>
           </div>
@@ -634,18 +630,18 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                   Dou et al. Bug Taxonomy Classification (Section 4)
                 </h3>
                 <p className="text-xs text-[color:var(--color-ink-muted)]">
-                  Machine-verified mapping across 3 primary categories and 10 secondary categories.
+                  Automated classification of execution findings; not expert annotation.
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs px-2.5 py-1 rounded bg-[#7c3aed]/10 text-[color:var(--color-brand-soft)] border border-[#7c3aed]/30 font-semibold">
-                  Syntax RSR: {summary?.syntaxRepairRate ?? 100}%
+                  Syntax findings removed: {summary?.syntaxRepairRate == null ? 'N/A' : `${summary.syntaxRepairRate}%`}
                 </span>
                 <span className="text-xs px-2.5 py-1 rounded bg-[#7c3aed]/10 text-[color:var(--color-brand-soft)] border border-[#7c3aed]/30 font-semibold">
-                  Runtime RSR: {summary?.runtimeRepairRate ?? 100}%
+                  Runtime findings removed: {summary?.runtimeRepairRate == null ? 'N/A' : `${summary.runtimeRepairRate}%`}
                 </span>
                 <span className="text-xs px-2.5 py-1 rounded bg-[#7c3aed]/10 text-[color:var(--color-brand-soft)] border border-[#7c3aed]/30 font-semibold">
-                  Functional RSR: {summary?.functionalRepairRate ?? 100}%
+                  Functional findings removed: {summary?.functionalRepairRate == null ? 'N/A' : `${summary.functionalRepairRate}%`}
                 </span>
               </div>
             </div>
@@ -659,7 +655,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                     Type A: Syntax Bug
                   </span>
                   <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">
-                    RSR {summary?.syntaxRepairRate ?? 100}%
+                    {summary?.syntaxRepairRate == null ? 'N/A' : `${summary.syntaxRepairRate}%`}
                   </span>
                 </div>
                 <div className="text-xs text-[color:var(--color-ink-muted)] space-y-1">
@@ -680,7 +676,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                     Type B: Runtime Bug
                   </span>
                   <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">
-                    RSR {summary?.runtimeRepairRate ?? 100}%
+                    {summary?.runtimeRepairRate == null ? 'N/A' : `${summary.runtimeRepairRate}%`}
                   </span>
                 </div>
                 <div className="text-xs text-[color:var(--color-ink-muted)] space-y-1">
@@ -701,7 +697,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                     Type C: Functional Bug
                   </span>
                   <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">
-                    RSR {summary?.functionalRepairRate ?? 100}%
+                    {summary?.functionalRepairRate == null ? 'N/A' : `${summary.functionalRepairRate}%`}
                   </span>
                 </div>
                 <div className="text-xs text-[color:var(--color-ink-muted)] space-y-1">
@@ -753,7 +749,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                       </div>
                       <div className="shrink-0">
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                          <Check className="w-3 h-3" /> Resolved in Iterations
+                          <Check className="w-3 h-3" /> Round 0 finding
                         </span>
                       </div>
                     </div>

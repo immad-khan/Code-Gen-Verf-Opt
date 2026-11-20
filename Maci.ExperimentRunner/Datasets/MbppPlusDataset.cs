@@ -1,3 +1,4 @@
+using Backend.Services;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -18,34 +19,14 @@ public sealed class MbppPlusDataset : IBenchmarkDataset
         foreach (var rawLine in File.ReadLines(filePath))
         {
             if (string.IsNullOrWhiteSpace(rawLine)) continue;
-            var line = rawLine.Replace("-Infinity", "null").Replace("Infinity", "null").Replace("NaN", "null");
-            var node = JsonNode.Parse(line);
+            var node = BenchmarkSuite.Metadata(rawLine);
             if (node == null) continue;
 
             var taskId = node["task_id"]?.GetValue<string>() ?? "";
             var prompt = node["prompt"]?.GetValue<string>() ?? "";
             var entryPoint = node["entry_point"]?.GetValue<string>() ?? "";
             var canonical = node["canonical_solution"]?.GetValue<string>() ?? "";
-            var assertion = node["assertion"]?.GetValue<string>() ?? "";
-
-            // Indent assertions for pytest function
-            var sb = new StringBuilder();
-            using var reader = new StringReader(assertion);
-            string? assertionLine;
-            while ((assertionLine = reader.ReadLine()) != null)
-            {
-                if (string.IsNullOrWhiteSpace(assertionLine)) continue;
-                sb.AppendLine("    " + assertionLine.Trim());
-            }
-
-            var testCode = $"""
-import sys
-
-from solution import {entryPoint}
-
-def test_{entryPoint}():
-{sb}
-""";
+            var testCode = BenchmarkSuite.Load(dataDirectory, rawLine);
 
             problems.Add(new BenchmarkProblem
             {

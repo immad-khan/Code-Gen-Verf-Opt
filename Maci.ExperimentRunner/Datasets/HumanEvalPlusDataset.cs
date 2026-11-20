@@ -1,3 +1,4 @@
+using Backend.Services;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -17,28 +18,14 @@ public sealed class HumanEvalPlusDataset : IBenchmarkDataset
         foreach (var rawLine in File.ReadLines(filePath))
         {
             if (string.IsNullOrWhiteSpace(rawLine)) continue;
-            var line = rawLine.Replace("-Infinity", "null").Replace("Infinity", "null").Replace("NaN", "null");
-            var node = JsonNode.Parse(line);
+            var node = BenchmarkSuite.Metadata(rawLine);
             if (node == null) continue;
 
             var taskId = node["task_id"]?.GetValue<string>() ?? "";
             var prompt = node["prompt"]?.GetValue<string>() ?? "";
             var entryPoint = node["entry_point"]?.GetValue<string>() ?? "";
             var canonical = node["canonical_solution"]?.GetValue<string>() ?? "";
-            var test = node["test"]?.GetValue<string>() ?? "";
-
-            // Compose pytest file content:
-            // imports entry_point from solution, defines check(candidate), runs check(entry_point)
-            var testCode = $"""
-import sys
-
-from solution import {entryPoint}
-
-{test}
-
-def test_{entryPoint}():
-    check({entryPoint})
-""";
+            var testCode = BenchmarkSuite.Load(dataDirectory, rawLine);
 
             problems.Add(new BenchmarkProblem
             {

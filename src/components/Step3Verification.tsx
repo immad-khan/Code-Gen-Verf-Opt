@@ -112,20 +112,15 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
   const m = backendVerification?.metrics;
   const hasResult = Boolean(backendVerification);
   const hasSkippedOrError = Boolean(
-    backendVerification?.techniques?.some(t => t.status === 'SKIPPED' || t.status === 'ERROR')
+    backendVerification?.techniques?.some(t => t.status === 'SKIP' || t.status === 'ERROR')
   );
   const isFullyVerified = backendVerification?.overallVerdict === 'VERIFIED';
-  const showNotVerified = Boolean(backendVerification && !isFullyVerified);
+  const showNotVerified = !isFullyVerified;
   
   // Real metrics calculated directly from backend verification results
-  const passRate = m?.passRate != null
-    ? Math.round(m.passRate)
-    : backendVerification
-      ? Math.round((backendVerification.totalPassed / Math.max(1, backendVerification.totalPassed + backendVerification.totalFailed)) * 100)
-      : null;
-
-  const passedTests = m?.passedTests ?? (backendVerification ? backendVerification.totalPassed : null);
-  const totalTests = m?.totalTests ?? (backendVerification ? (backendVerification.totalPassed + backendVerification.totalFailed) : null);
+  const passRate = m?.totalTests ? Math.round(m.passRate) : null;
+  const passedTests = m?.passedTests ?? null;
+  const totalTests = m?.totalTests ?? null;
 
   // Helper to explain why any issue is a problem
   const getWhyItIsAnIssue = (msg: string, tech: string) => {
@@ -338,15 +333,9 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
 
           <p className="text-xs font-normal">
             {backendVerification ? (
-              isFullyVerified ? (
-                <span className="text-emerald-400 font-semibold font-mono">
-                  PASSED {passedTests ?? backendVerification.totalPassed}/{totalTests ?? (backendVerification.totalPassed + backendVerification.totalFailed)} locked tests
-                </span>
-              ) : (
-                <span className="text-amber-400 font-semibold font-mono">
-                  FAILED ({passedTests ?? backendVerification.totalPassed}/{totalTests ?? (backendVerification.totalPassed + backendVerification.totalFailed)} locked tests passed)
-                </span>
-              )
+              <span className={isFullyVerified ? 'text-emerald-400' : 'text-amber-400'}>
+                {backendVerification.overallVerdict} · {totalTests ? `${passedTests}/${totalTests} tests passed` : 'No measured pytest count'}
+              </span>
             ) : (
               <span className="text-[color:var(--color-ink-muted)]">
                 {verificationError ? 'Verification unavailable' : 'Awaiting verification'}
@@ -1029,7 +1018,7 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
                         t.status === 'PASS'
                           ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                          : t.status === 'SKIPPED' || t.status === 'ERROR'
+                          : t.status === 'SKIP' || t.status === 'ERROR'
                           ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                           : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                       }`}>

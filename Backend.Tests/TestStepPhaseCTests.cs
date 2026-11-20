@@ -192,6 +192,12 @@ public class TestStepPhaseCTests
         Assert.True(appsDetail.Interface.IsStdinStdout);
         Assert.Equal("read stdin, print stdout", appsDetail.Interface.Signature);
         Assert.False(string.IsNullOrWhiteSpace(appsDetail.LockedTestHash));
+
+        var function = Assert.IsType<OkObjectResult>(controller.GetProblem("apps_plus", "apps_plus_5341"));
+        var detail = Assert.IsType<BenchmarkProblemDetail>(function.Value);
+        Assert.False(detail.Interface.IsStdinStdout);
+        Assert.Equal("series_slices", detail.Interface.Name);
+        Assert.Contains("series_slices(*args) == expected", detail.PreviewTests);
     }
 
     // --- Mock Helpers ---

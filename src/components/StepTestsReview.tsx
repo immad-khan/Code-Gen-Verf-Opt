@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, ArrowRight, Lock, Unlock, ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, Play, RefreshCw, Sparkles, Hash, Eye } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Lock, Unlock, ShieldCheck, AlertTriangle, AlertCircle, RefreshCw, Sparkles, Hash } from 'lucide-react';
 import { ApiSettings, InterfaceDefinition, LockedTestSuite } from '../types';
 import { generateTests, validateTests, lockTests } from '../services/aiService';
 
@@ -22,7 +22,6 @@ export const StepTestsReview: React.FC<StepTestsReviewProps> = ({
   apiSettings,
   lockedTestSuite,
   isBenchmarkProblem,
-  benchmarkId,
   onLockTests,
   onUnlockTests,
   onProceedToCode,

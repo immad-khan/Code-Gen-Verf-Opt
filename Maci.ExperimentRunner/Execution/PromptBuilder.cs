@@ -70,18 +70,13 @@ Please provide a self-contained Python script that solves the following problem 
             );
         }
 
-        var categoryText = mode.Equals("dou_no_bt", StringComparison.OrdinalIgnoreCase)
-            ? ""
-            : $"The bug is categorized as: Type {diagnosis.PrimaryType}. {diagnosis.SubTypeName}\n";
-
-        return $"""
-I have the following Python code that contains a bug:
-```python
-{failingCode.Trim()}
-```
-{categoryText}Compiler feedback: {diagnosis.CompilerFeedback.Trim()}
-
-Please analyze the root causes of the bug, identify the bug locations, and provide the corrected Python code in a markdown code block.
-""";
+        var taxonomy = TaxonomyProvider.Default;
+        return taxonomy.Renderer.Render("dou_critique", new Dictionary<string, string>
+        {
+            ["prompt"] = originalPrompt ?? throw new ArgumentNullException(nameof(originalPrompt)),
+            ["solution"] = failingCode,
+            ["error log"] = diagnosis.CompilerFeedback,
+            ["checklist"] = mode == "dou_no_bt" ? "" : taxonomy.Definition.ChecklistText()
+        });
     }
 }

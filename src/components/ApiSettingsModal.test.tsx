@@ -42,7 +42,7 @@ describe('ApiSettingsModal accessibility', () => {
     expect(html).toContain('id="settings-modal-title"');
     expect(html).toContain('id="settings-modal-description"');
     expect(html).toContain('Connect your AI provider');
-    expect(html).toContain('Your API key stays in your browser\'s localStorage');
+    expect(html).toContain('Your API key is saved in this browser.');
   });
 
   it('has an accessible close button with sr-only text', () => {

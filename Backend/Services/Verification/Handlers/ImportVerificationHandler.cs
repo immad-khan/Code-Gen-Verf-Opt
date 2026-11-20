@@ -51,8 +51,8 @@ public class ImportVerificationHandler : VerificationHandlerBase
             }
             else
             {
-                technique.Status = "PASS";
-                technique.Details = "No imports to check";
+                technique.Status = "ERROR";
+                technique.Details = "No diagnostic output: no imports to check";
             }
         }
         catch (Exception ex)

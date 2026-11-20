@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { History, ArrowLeft, ArrowRight, Trash2, Clock, Search, Sparkles, Code2, CheckCircle2, Terminal } from 'lucide-react';
+import { History, ArrowLeft, ArrowRight, Trash2, Clock, Search, Code2, CheckCircle2, Terminal } from 'lucide-react';
 
 export interface HistoryItem {
   id: string;

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-VeriFlow Baseline Reproduction Reporting Script (Dou et al., Sci China Inf Sci 2026)
+VeriFlow Measured Benchmark Reporting Script (Dou et al., Sci China Inf Sci 2026)
 Generates comprehensive CSV and Markdown reports from SQLite experiment storage:
 1. Pass rates per benchmark (HumanEval+, MBPP+, APPS+ tiers) vs Paper R1 Targets
 2. Bug distribution table (A.1 to C.4) with counts, frequencies, and resolution rates
@@ -12,6 +12,7 @@ Generates comprehensive CSV and Markdown reports from SQLite experiment storage:
 
 import sys
 import os
+from pathlib import Path
 import json
 import sqlite3
 import random
@@ -29,26 +30,12 @@ PAPER_TARGETS = {
     "apps_plus_intro": {"name": "APPS+ (Introductory)", "target_r0": 87.5, "target_final": 87.5},
     "apps_plus_interview": {"name": "APPS+ (Interview)", "target_r0": 66.7, "target_final": 66.7},
     "apps_plus_competition": {"name": "APPS+ (Competition)", "target_r0": 55.0, "target_final": 55.0},
-    "apps_plus_total": {"name": "APPS+ (Total)", "target_r0": 71.2, "target_final": 71.2},
-    "overall": {"name": "Overall Benchmark Total", "target_r0": 80.6, "target_final": 80.6},
+    "apps_plus_total": {"name": "APPS+ (Total)", "target_r0": 69.8, "target_final": 69.8},
+    "overall": {"name": "Overall Benchmark Total", "target_r0": 71.2, "target_final": 71.2},
 }
 
-TAXONOMY = [
-    ("A", "A.1", "Incomplete syntax structure"),
-    ("A", "A.2", "Incorrect indentation"),
-    ("A", "A.3", "Undefined symbols (syntax-level)"),
-    ("A", "A.4", "Other syntax errors"),
-    ("B", "B.1", "API usage error"),
-    ("B", "B.2", "Definition missing"),
-    ("B", "B.3", "Boundary condition"),
-    ("B", "B.4", "Input-output / argument mismatch"),
-    ("B", "B.5", "Timeout / infinite loop"),
-    ("B", "B.6", "Other runtime errors"),
-    ("C", "C.1", "Misunderstanding and logic error"),
-    ("C", "C.2", "Boundary and special condition"),
-    ("C", "C.3", "Algorithmic / computational flaw"),
-    ("C", "C.4", "Prompt constraint violation"),
-]
+with (Path(__file__).resolve().parents[1] / 'shared/taxonomy.v1.json').open() as taxonomy_file:
+    TAXONOMY = [(c['primary'], c['id'], c['name']) for c in json.load(taxonomy_file)['categories']]
 
 def compute_code_metrics(code: str):
     lines = code.strip().splitlines()
@@ -92,8 +79,7 @@ def analyze_run(db_path: str, run_id: Optional[str] = None, output_dir: str = "r
         cursor.execute("SELECT run_id, created_at, model, mode, iterations, seed FROM experiment_runs ORDER BY created_at DESC LIMIT 1")
         run_row = cursor.fetchone()
         if not run_row:
-            print(f"[ERROR] No experiment runs found in {db_path}")
-            return
+            raise ValueError(f"No experiment runs found in {db_path}")
         run_id = run_row["run_id"]
     else:
         cursor.execute("SELECT run_id, created_at, model, mode, iterations, seed FROM experiment_runs WHERE run_id = ?", (run_id,))
@@ -115,8 +101,7 @@ def analyze_run(db_path: str, run_id: Optional[str] = None, output_dir: str = "r
     problems = [dict(row) for row in cursor.fetchall()]
 
     if not problems:
-        print(f"[WARN] No problems recorded for run {run_id}.")
-        return
+        raise ValueError(f"No measured problems recorded for run {run_id}.")
 
     # Fetch problem rounds
     cursor.execute("""
@@ -131,6 +116,11 @@ def analyze_run(db_path: str, run_id: Optional[str] = None, output_dir: str = "r
     for r in cursor.fetchall():
         pid = r["problem_run_id"]
         rounds_by_prob.setdefault(pid, []).append(dict(r))
+
+    for problem in problems:
+        rounds = rounds_by_prob.get(problem['problem_run_id'], [])
+        if not rounds or rounds[0]['round_number'] != 0 or not rounds[0]['code_snapshot']:
+            raise ValueError(f"Cannot publish: no generated Round 0 snapshot for {problem['problem_id']}")
 
     # 1. PASS RATES PER BENCHMARK
     pass_rate_rows = []
@@ -167,14 +157,16 @@ def analyze_run(db_path: str, run_id: Optional[str] = None, output_dir: str = "r
         stats = calc_group_stats(group)
         meta = PAPER_TARGETS.get(key, {"name": key, "target_r0": None, "target_final": None})
         target_r0 = meta["target_r0"]
-        delta = (stats["r0_rate"] - target_r0) if target_r0 is not None and stats["n"] > 0 else None
+        paper_sizes = {"humaneval_plus": 164, "mbpp_plus": 399, "apps_plus_total": 600, "overall": 1163}
+        comparable = model_name in {"deepseek-reasoner", "deepseek/deepseek-r1"} and stats["n"] == paper_sizes.get(key, 200)
+        delta = (stats["r0_rate"] - target_r0) if target_r0 is not None and comparable else None
         
         row = {
             "Benchmark": meta["name"],
             "Count (N)": stats["n"],
-            "Pass@Round 0 (%)": round(stats["r0_rate"], 1),
-            "Pass after Iter 1 (%)": round(stats["r1_rate"], 1),
-            "Pass after Iter 2 (%)": round(stats["r2_rate"], 1),
+            "Pass@Round 0 (%)": round(stats["r0_rate"], 1) if group else "N/A",
+            "Pass after Iter 1 (%)": round(stats["r1_rate"], 1) if group else "N/A",
+            "Pass after Iter 2 (%)": round(stats["r2_rate"], 1) if group else "N/A",
             "Paper Target (R1) (%)": target_r0 if target_r0 is not None else "N/A",
             "Delta vs Paper (%)": f"{delta:+.1f}%" if delta is not None else "N/A"
         }
@@ -194,9 +186,9 @@ def analyze_run(db_path: str, run_id: Optional[str] = None, output_dir: str = "r
 
     bug_dist_data = []
     for cat, code, name in TAXONOMY:
-        init_count = sum(1 for p in problems if p.get("initial_bug_sub") == code or (p.get("initial_bug_primary") == cat and not p.get("initial_bug_sub")))
-        final_count = sum(1 for p in problems if not p["passed"] and (p.get("final_bug_sub") == code or (p.get("final_bug_primary") == cat and not p.get("final_bug_sub"))))
-        fixed_count = sum(1 for p in problems if p["passed"] and p["passed_round"] > 0 and (p.get("initial_bug_sub") == code or (p.get("initial_bug_primary") == cat and not p.get("initial_bug_sub"))))
+        init_count = sum(1 for p in problems if p.get("initial_bug_sub") == code)
+        final_count = sum(1 for p in problems if not p["passed"] and (p.get("final_bug_sub") == code))
+        fixed_count = sum(1 for p in problems if p["passed"] and p["passed_round"] > 0 and (p.get("initial_bug_sub") == code))
         
         pct_fail = (init_count / total_failing_r0 * 100.0) if total_failing_r0 > 0 else 0.0
         pct_all = (init_count / total_probs * 100.0) if total_probs > 0 else 0.0
@@ -239,7 +231,7 @@ def analyze_run(db_path: str, run_id: Optional[str] = None, output_dir: str = "r
 
     # Sample of 120 failing problems (seed 42)
     random.seed(seed)
-    sample_failing = list(failing_r0_probs)
+    sample_failing = sorted(failing_r0_probs, key=lambda p: (p["benchmark"], p["problem_id"]))
     if len(sample_failing) > 120:
         sample_120 = random.sample(sample_failing, 120)
     else:
@@ -247,7 +239,7 @@ def analyze_run(db_path: str, run_id: Optional[str] = None, output_dir: str = "r
 
     rsr_rows = [
         {"Cohort": "All Failing Problems (Overall)", **calc_rsr(problems)},
-        {"Cohort": "Fixed 120 Failing Sample (Seed 42)", **calc_rsr(sample_120)},
+        {"Cohort": f"Seeded failing sample (n={len(sample_120)}, seed={seed})", **calc_rsr(sample_120)},
         {"Cohort": "Type A (Syntax) Failures", **calc_rsr([p for p in problems if p.get("initial_bug_primary") == "A"])},
         {"Cohort": "Type B (Runtime) Failures", **calc_rsr([p for p in problems if p.get("initial_bug_primary") == "B"])},
         {"Cohort": "Type C (Logic) Failures", **calc_rsr([p for p in problems if p.get("initial_bug_primary") == "C"])},
@@ -300,7 +292,7 @@ def analyze_run(db_path: str, run_id: Optional[str] = None, output_dir: str = "r
                         p_id = p_data.get("task_id") or p_data.get("problem_id")
                         c_code = p_data.get("canonical_solution") or p_data.get("code")
                         if p_id and c_code:
-                            canonicals[p_id] = c_code
+                            canonicals[p_id] = (p_data["prompt"] if p_id.startswith("HumanEval/") else "") + c_code
                     except Exception:
                         pass
 
@@ -313,7 +305,7 @@ def analyze_run(db_path: str, run_id: Optional[str] = None, output_dir: str = "r
         prob_id = p["problem_id"]
         canon_code = canonicals.get(prob_id, "")
         pr_rounds = rounds_by_prob.get(p["problem_run_id"], [])
-        latest_code = pr_rounds[-1]["code_snapshot"] if pr_rounds else canon_code
+        latest_code = pr_rounds[0]["code_snapshot"]
 
         c_metrics = compute_code_metrics(canon_code) if canon_code else None
         g_metrics = compute_code_metrics(latest_code) if latest_code else None
@@ -358,13 +350,6 @@ def analyze_run(db_path: str, run_id: Optional[str] = None, output_dir: str = "r
     total_ms = sum(p["total_duration_ms"] for p in problems)
     avg_prob_ms = (total_ms / len(problems)) if problems else 0.0
 
-    # Pricing for DeepSeek-R1 (deepseek-reasoner):
-    # Standard: $0.55 / 1M prompt tokens (cache miss), $2.19 / 1M output tokens
-    # Approximate split: 40% prompt, 60% generation+thinking
-    prompt_tokens_est = int(total_tok * 0.40)
-    completion_tokens_est = int(total_tok * 0.60)
-    est_cost_usd = (prompt_tokens_est / 1_000_000 * 0.55) + (completion_tokens_est / 1_000_000 * 2.19)
-
     token_summary = [
         {"Metric": "Model Used", "Value": model_name},
         {"Metric": "Repair Mode", "Value": mode_name},
@@ -372,7 +357,7 @@ def analyze_run(db_path: str, run_id: Optional[str] = None, output_dir: str = "r
         {"Metric": "Total Rounds Executed", "Value": sum(len(v) for v in rounds_by_prob.values())},
         {"Metric": "Total Tokens Consumed", "Value": f"{total_tok:,}"},
         {"Metric": "Average Tokens / Problem", "Value": f"{(total_tok / len(problems)):,.1f}" if problems else "0"},
-        {"Metric": "Estimated Total Cost (USD)", "Value": f"${est_cost_usd:.4f}"},
+        {"Metric": "Estimated Total Cost (USD)", "Value": "N/A (no recorded billing data)"},
         {"Metric": "Total Execution Time", "Value": f"{total_ms / 1000.0:.2f} s ({total_ms / 60000.0:.2f} min)"},
         {"Metric": "Average Time / Problem", "Value": f"{avg_prob_ms / 1000.0:.2f} s"}
     ]
@@ -386,11 +371,11 @@ def analyze_run(db_path: str, run_id: Optional[str] = None, output_dir: str = "r
     # 6. GENERATE EXPERIMENT_REPORT.MD
     md_path = os.path.join(output_dir, "EXPERIMENT_REPORT.md")
     with open(md_path, "w", encoding="utf-8") as f:
-        f.write(f"# VeriFlow Baseline Reproduction Report\n\n")
+        f.write(f"# VeriFlow Measured Benchmark Report\n\n")
         f.write(f"> **Reference Paper**: Dou et al., *\"What is wrong with your code generated by LLMs? An extensive study\"*, Sci China Inf Sci 2026, 69(1):112107.\n\n")
         f.write(f"- **Target Model**: `{model_name}`\n")
-        f.write(f"- **Repair Mode**: `{mode_name}` (Exact Paper Baseline Figure 6, n=2 iterations, latest feedback only)\n")
-        f.write(f"- **Execution Sandbox**: Docker Python 3.11 (`veriflow-sandbox:3.11`, `--network none`, `--memory 4g`, `:ro` tests)\n")
+        f.write(f"- **Repair Mode**: `{mode_name}` (budget: {run_row['iterations']} iterations)\n")
+        f.write(f"- **Harness**: C# batch runner, Docker pytest\n")
         f.write(f"- **Run ID**: `{run_id}`\n")
         f.write(f"- **Timestamp**: `{run_row['created_at'] if run_row else 'N/A'}`\n\n")
         

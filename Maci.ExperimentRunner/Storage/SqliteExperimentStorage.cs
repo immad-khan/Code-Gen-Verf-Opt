@@ -89,12 +89,7 @@ public sealed class SqliteExperimentStorage : IExperimentStorage
         var sql = """
             INSERT INTO experiment_runs (run_id, created_at, model, mode, iterations, seed, config_json)
             VALUES (@runId, @createdAt, @model, @mode, @iterations, @seed, @configJson)
-            ON CONFLICT(run_id) DO UPDATE SET
-                model = excluded.model,
-                mode = excluded.mode,
-                iterations = excluded.iterations,
-                seed = excluded.seed,
-                config_json = excluded.config_json;
+            ON CONFLICT(run_id) DO NOTHING;
         """;
 
         await using var cmd = new SqliteCommand(sql, conn);
@@ -106,7 +101,13 @@ public sealed class SqliteExperimentStorage : IExperimentStorage
         cmd.Parameters.AddWithValue("@seed", seed);
         cmd.Parameters.AddWithValue("@configJson", configJson);
 
-        await cmd.ExecuteNonQueryAsync(ct);
+        if (await cmd.ExecuteNonQueryAsync(ct) == 0)
+        {
+            using var existing = new SqliteCommand("SELECT config_json FROM experiment_runs WHERE run_id = @id", conn);
+            existing.Parameters.AddWithValue("@id", runId);
+            if ((string?)await existing.ExecuteScalarAsync(ct) != configJson)
+                throw new InvalidOperationException("Cannot resume a different configuration or legacy harness; use a new run ID.");
+        }
     }
 
     public async Task<string?> GetLatestRunIdAsync(string model, string mode, int seed, CancellationToken ct = default)
@@ -139,11 +140,8 @@ public sealed class SqliteExperimentStorage : IExperimentStorage
         return count > 0;
     }
 
-    public async Task SaveRoundAsync(ProblemRoundRecord round, CancellationToken ct = default)
+    private static async Task SaveRoundAsync(SqliteConnection conn, SqliteTransaction tx, ProblemRoundRecord round, CancellationToken ct)
     {
-        await using var conn = new SqliteConnection(_connectionString);
-        await conn.OpenAsync(ct);
-
         var roundId = $"{round.ProblemRunId}:r{round.RoundNumber}";
         var sql = """
             INSERT INTO problem_rounds (
@@ -164,7 +162,7 @@ public sealed class SqliteExperimentStorage : IExperimentStorage
                 duration_ms = excluded.duration_ms;
         """;
 
-        await using var cmd = new SqliteCommand(sql, conn);
+        await using var cmd = new SqliteCommand(sql, conn, tx);
         cmd.Parameters.AddWithValue("@roundId", roundId);
         cmd.Parameters.AddWithValue("@problemRunId", round.ProblemRunId);
         cmd.Parameters.AddWithValue("@roundNumber", round.RoundNumber);
@@ -182,11 +180,12 @@ public sealed class SqliteExperimentStorage : IExperimentStorage
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    public async Task SaveProblemRunAsync(ProblemRunRecord run, CancellationToken ct = default)
+    public async Task SaveProblemRunAsync(ProblemRunRecord run, IReadOnlyList<ProblemRoundRecord> rounds, CancellationToken ct = default)
     {
         await using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync(ct);
 
+        using var tx = conn.BeginTransaction();
         var problemRunId = $"{run.RunId}:{run.Benchmark}:{run.ProblemId}";
         var sql = """
             INSERT INTO problem_runs (
@@ -208,7 +207,7 @@ public sealed class SqliteExperimentStorage : IExperimentStorage
                 completed_at = excluded.completed_at;
         """;
 
-        await using var cmd = new SqliteCommand(sql, conn);
+        await using var cmd = new SqliteCommand(sql, conn, tx);
         cmd.Parameters.AddWithValue("@problemRunId", problemRunId);
         cmd.Parameters.AddWithValue("@runId", run.RunId);
         cmd.Parameters.AddWithValue("@bm", run.Benchmark);
@@ -224,5 +223,7 @@ public sealed class SqliteExperimentStorage : IExperimentStorage
         cmd.Parameters.AddWithValue("@completedAt", DateTime.UtcNow.ToString("O"));
 
         await cmd.ExecuteNonQueryAsync(ct);
+        foreach (var round in rounds) await SaveRoundAsync(conn, tx, round, ct);
+        tx.Commit();
     }
 }

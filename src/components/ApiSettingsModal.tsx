@@ -238,7 +238,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
               Connect your AI provider
             </h3>
             <p id="settings-modal-description" className="text-xs text-[color:var(--color-ink-muted)] mt-0.5">
-              Your API key is securely linked to your account in the database so you don't have to enter it every time.
+              Your API key is saved in this browser. Requests may send it to the backend to call your provider.
             </p>
           </div>
         </div>
@@ -288,7 +288,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onCl
           </div>
           <p id="api-key-description" className="text-[10px] text-[color:var(--color-ink-faint)] mt-1.5 flex items-center gap-1">
             <Shield className="w-3 h-3" aria-hidden="true" />
-            Stored locally · Sent only to {providerMeta.name}
+            Provider: {providerMeta.name}
           </p>
         </div>
 

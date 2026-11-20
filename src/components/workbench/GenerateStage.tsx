@@ -6,7 +6,6 @@ import { processPromptWithAgents } from '../../services/aiService';
 import type { GenerateResult, StageStatus } from '../../state/workbench';
 import { useWorkbench } from '../../state/WorkbenchContext';
 import { ErrorState, LoadingState } from '../common/AsyncState';
-import { Step1Input } from '../Step1Input';
 import { CodeFileViewer } from '../Step2CodeOutput';
 import { runStageOperation } from './stageModel';
 
@@ -58,7 +57,8 @@ export const GenerateStageView: React.FC<GenerateStageViewProps> = ({
   const showFiles = status === 'complete' && files.length > 0;
   return (
     <div className="flex flex-col" aria-busy={running || undefined}>
-      <Step1Input prompt={prompt} onPromptChange={onPromptChange} onProcess={onGenerate} isProcessing={running} />
+      <label>Problem description<textarea value={prompt} disabled={running} onChange={e => onPromptChange(e.target.value)} /></label>
+      <button type="button" disabled={running || !prompt.trim()} onClick={onGenerate}>Generate code</button>
 
       <div className="max-w-6xl w-full mx-auto px-4 md:px-6 pb-8 flex flex-col gap-4">
         {running ? <LoadingState label="Generating code" /> : null}

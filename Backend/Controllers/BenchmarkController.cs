@@ -18,10 +18,10 @@ public class BenchmarkController : ControllerBase
     /// Lists all available problems from HumanEval+, MBPP+, and APPS+.
     /// </summary>
     [HttpGet("problems")]
-    public IActionResult ListProblems()
+    public IActionResult ListProblems([FromQuery] string? benchmark = null)
     {
         var problems = _benchmarkService.ListProblems();
-        return Ok(problems);
+        return Ok(string.IsNullOrWhiteSpace(benchmark) ? problems : problems.Where(p => p.Benchmark == benchmark).ToList());
     }
 
     /// <summary>
@@ -37,7 +37,9 @@ public class BenchmarkController : ControllerBase
             return BadRequest(new { error = "Both 'benchmark' and 'id' query parameters are required." });
         }
 
-        var detail = _benchmarkService.GetProblem(benchmark, id);
+        BenchmarkProblemDetail? detail;
+        try { detail = _benchmarkService.GetProblem(benchmark, id); }
+        catch (FileNotFoundException ex) { return StatusCode(503, new { error = ex.Message }); }
         if (detail == null)
         {
             return NotFound(new { error = $"Problem '{id}' not found in benchmark '{benchmark}'." });

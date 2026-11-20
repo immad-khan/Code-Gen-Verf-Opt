@@ -72,6 +72,9 @@ public static class Program
             config.Benchmarks = cliBenchmarks.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
         }
 
+        if (config.Mode is not ("dou" or "dou_no_bt" or "improved") || config.Iterations is < 1 or > 2)
+            throw new ArgumentException("Expected mode dou, dou_no_bt or improved, with a 1–2 round budget.");
+
         // Resolve DeepSeek API Key
         var apiKey = config.ApiKey ?? Environment.GetEnvironmentVariable("DEEPSEEK_API_KEY");
         if (string.IsNullOrEmpty(apiKey) && File.Exists(".env"))
@@ -139,12 +142,17 @@ public static class Program
             runId = $"{config.Model}_{config.Mode}_{config.Seed}_{DateTime.UtcNow:yyyyMMdd_HHmmss}";
         }
 
+        // Record effective CLI overrides without persisting the provider credential.
+        var metadata = JsonSerializer.SerializeToNode(config)!.AsObject();
+        metadata.Remove("apiKey");
+        metadata["harnessVersion"] = "suites-v1";
+        configJson = metadata.ToJsonString();
         await storage.RegisterRunAsync(runId, config.Model, config.Mode, config.Iterations, config.Seed, configJson);
 
         Console.WriteLine($"\n[RUN INITIALIZED] Run ID: {runId}");
 
         var sandbox = new DockerSandbox(config.DockerImage);
-        DeepSeekClient? llmClient = !string.IsNullOrEmpty(apiKey) ? new DeepSeekClient(apiKey, config.Model) : null;
+        DeepSeekClient? llmClient = !string.IsNullOrEmpty(apiKey) ? new DeepSeekClient(apiKey, config.Model, config.ApiEndpoint) : null;
         var engine = new ExperimentEngine(config, sandbox, storage, llmClient, runId);
 
         // Load benchmark problems
@@ -222,14 +230,19 @@ public static class Program
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[EXCEPTION] Failed processing problem {prob.ProblemId}: {ex.Message}");
-                finalFailCount++;
-                initialFailingCount++;
+                Console.Error.WriteLine($"Run incomplete at {prob.ProblemId}: {ex.Message}");
+                return 1; // Infrastructure failures are not incorrect model outputs.
             }
         }
 
         timer.Stop();
 
+        if (config.DryRun)
+        {
+            Console.WriteLine($"Canonical smoke check only: {finalFailCount} failed. No model report produced.");
+            return finalFailCount == 0 ? 0 : 1;
+        }
+        totalCount -= skippedCount; // console counts describe only newly executed tasks
         var totalPassed = r0PassCount + r1PassCount + r2PassCount;
         var rsr = initialFailingCount > 0
             ? $"{(double)fixedCount / initialFailingCount * 100.0:F1}% ({fixedCount}/{initialFailingCount})"
@@ -284,11 +297,13 @@ public static class Program
                 await proc.WaitForExitAsync();
                 if (!string.IsNullOrWhiteSpace(stdout)) Console.WriteLine(stdout.Trim());
                 if (!string.IsNullOrWhiteSpace(stderr)) Console.WriteLine(stderr.Trim());
+                if (proc.ExitCode != 0) throw new InvalidOperationException("Benchmark report generation failed.");
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[WARN] Could not auto-generate report: {ex.Message}");
+            Console.Error.WriteLine($"Could not generate measured report: {ex.Message}");
+            throw;
         }
     }
 }

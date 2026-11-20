@@ -34,6 +34,5 @@ public interface IExperimentStorage
     Task RegisterRunAsync(string runId, string model, string mode, int iterations, int seed, string configJson, CancellationToken ct = default);
     Task<string?> GetLatestRunIdAsync(string model, string mode, int seed, CancellationToken ct = default);
     Task<bool> IsProblemCompletedAsync(string runId, string benchmark, string problemId, CancellationToken ct = default);
-    Task SaveRoundAsync(ProblemRoundRecord round, CancellationToken ct = default);
-    Task SaveProblemRunAsync(ProblemRunRecord run, CancellationToken ct = default);
+    Task SaveProblemRunAsync(ProblemRunRecord run, IReadOnlyList<ProblemRoundRecord> rounds, CancellationToken ct = default);
 }

@@ -1,3 +1,5 @@
+using Backend.Models;
+using Backend.Services.Repair;
 using System.Collections.Concurrent;
 
 namespace Backend.Services;
@@ -31,5 +33,20 @@ public class LockedTestStore : ILockedTestStore
     public bool TryGet(string hash, out (string TestCode, int TestCount) item)
     {
         return _store.TryGetValue(hash, out item);
+    }
+}
+
+public static class LockedSuiteFiles
+{
+    public static string? Apply(ILockedTestStore store, string? hash, List<GeneratedCodeFile> files)
+    {
+        if (string.IsNullOrWhiteSpace(hash)) return null;
+        if (!store.TryGet(hash, out var suite)) return "Locked test suite not found. Select or lock the suite again.";
+        if (!string.Equals(TestHashUtility.ComputeHash(suite.TestCode), hash, StringComparison.OrdinalIgnoreCase))
+            return "Locked test hash integrity validation failed.";
+        files.RemoveAll(RepairFiles.IsTestFile);
+        files.Add(new GeneratedCodeFile { Path = "test_solution.py", Name = "test_solution.py",
+            Category = "test", Description = "Locked pytest suite", Content = suite.TestCode });
+        return null;
     }
 }

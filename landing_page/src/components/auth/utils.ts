@@ -13,7 +13,7 @@ export type Form = {
 };
 
 export type Errors = Partial<Record<"name" | "email" | "phone" | "password" | "confirm" | "terms" | "form", string>>;
-export type Notice = { kind: "info" | "success"; text: string } | null;
+export type Notice = { kind: "info" | "success" | "err"; text: string } | null;
 
 export type Country = { code: string; name: string; dial: string; len?: number };
 

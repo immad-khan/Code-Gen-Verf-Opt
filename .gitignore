@@ -124,3 +124,5 @@ $RECYCLE.BIN/
 # Package installers & local downloads
 *.deb
 dotnet-install.sh
+/data/suites-v1/
+/data/*_tasks.jsonl

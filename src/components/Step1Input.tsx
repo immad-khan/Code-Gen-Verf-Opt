@@ -9,7 +9,7 @@ import { BenchmarkPicker } from './BenchmarkPicker';
  * Feature flag: set to true when conducting research experiments / paper evaluations.
  * Hidden for everyday user flow.
  */
-const SHOW_BENCHMARK = false;
+const SHOW_BENCHMARK = import.meta.env.VITE_ENABLE_BENCHMARKS === 'true';
 
 interface Step1InputProps {
   prompt: string;

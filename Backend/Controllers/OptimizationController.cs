@@ -23,52 +23,12 @@ public class OptimizationController : ControllerBase
         if (request.Files == null || request.Files.Count == 0)
             return BadRequest(new { error = "No files provided for optimization" });
 
-        if (!string.IsNullOrWhiteSpace(request.LockedTestHash))
-        {
-            if (!_lockedTestStore.TryGet(request.LockedTestHash, out var lockedItem))
-            {
-                return BadRequest(new { error = $"Locked test suite not found for hash: {request.LockedTestHash}" });
-            }
+        var lockError = LockedSuiteFiles.Apply(_lockedTestStore, request.LockedTestHash, request.Files);
+        if (lockError != null) return BadRequest(new { error = lockError });
 
-            var verifiedHash = TestHashUtility.ComputeHash(lockedItem.TestCode);
-            if (!string.Equals(verifiedHash, request.LockedTestHash, StringComparison.OrdinalIgnoreCase))
-            {
-                return BadRequest(new { error = "Server test hash integrity validation failed." });
-            }
-
-            // Enforce locked test file
-            var existingTest = request.Files.FirstOrDefault(f => f.Name.StartsWith("test_", StringComparison.OrdinalIgnoreCase) || f.Path.Contains("test"));
-            if (existingTest != null)
-            {
-                existingTest.Content = lockedItem.TestCode;
-            }
-            else
-            {
-                request.Files.Add(new GeneratedCodeFile
-                {
-                    Name = "test_solution.py",
-                    Path = "test_solution.py",
-                    Language = "python",
-                    Category = "test",
-                    Description = "Locked pytest suite",
-                    Content = lockedItem.TestCode
-                });
-            }
-        }
-
+        // Never score a browser-supplied verdict or one computed before tests were locked.
+        request.VerificationResult = null;
         var result = await _optimizationService.OptimizeAsync(request);
-
-        if (request.VerificationResult != null)
-        {
-            result.RunResult = _optimizationService.BuildRunResult(
-                request.OriginalPrompt,
-                request.ApiSettings.Model ?? "deepseek-reasoner",
-                request.VerificationResult,
-                result,
-                result.TotalDurationMs
-            );
-        }
-
         return Ok(result);
     }
 
@@ -78,39 +38,10 @@ public class OptimizationController : ControllerBase
         if (request.Files == null || request.Files.Count == 0)
             return BadRequest(new { error = "No files provided for compare optimization" });
 
-        if (!string.IsNullOrWhiteSpace(request.LockedTestHash))
-        {
-            if (!_lockedTestStore.TryGet(request.LockedTestHash, out var lockedItem))
-            {
-                return BadRequest(new { error = $"Locked test suite not found for hash: {request.LockedTestHash}" });
-            }
+        var lockError = LockedSuiteFiles.Apply(_lockedTestStore, request.LockedTestHash, request.Files);
+        if (lockError != null) return BadRequest(new { error = lockError });
 
-            var verifiedHash = TestHashUtility.ComputeHash(lockedItem.TestCode);
-            if (!string.Equals(verifiedHash, request.LockedTestHash, StringComparison.OrdinalIgnoreCase))
-            {
-                return BadRequest(new { error = "Server test hash integrity validation failed." });
-            }
-
-            // Enforce locked test file
-            var existingTest = request.Files.FirstOrDefault(f => f.Name.StartsWith("test_", StringComparison.OrdinalIgnoreCase) || f.Path.Contains("test"));
-            if (existingTest != null)
-            {
-                existingTest.Content = lockedItem.TestCode;
-            }
-            else
-            {
-                request.Files.Add(new GeneratedCodeFile
-                {
-                    Name = "test_solution.py",
-                    Path = "test_solution.py",
-                    Language = "python",
-                    Category = "test",
-                    Description = "Locked pytest suite",
-                    Content = lockedItem.TestCode
-                });
-            }
-        }
-
+        request.VerificationResult = null;
         var result = await _optimizationService.CompareAsync(request);
         return Ok(result);
     }

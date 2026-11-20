@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, ArrowRight, CheckCircle2, RefreshCw, Sparkles, Terminal, FileCode2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, RefreshCw, Terminal, FileCode2 } from 'lucide-react';
 import { ApiSettings, InterfaceDefinition } from '../types';
 import { extractInterface } from '../services/aiService';
 

@@ -36,11 +36,16 @@ public class PytestVerificationHandler : VerificationHandlerBase
                 return;
             }
 
-            if (exitCode == 0)
+            if (exitCode < 0 && !stderr.Contains("timed out", StringComparison.OrdinalIgnoreCase))
+            {
+                technique.Status = "ERROR";
+            }
+            else if (exitCode == 0)
             {
                 technique.Status = "PASS";
                 var passMatch = Regex.Match(output, @"(\d+)\s+passed");
-                if (passMatch.Success)
+                if (Regex.IsMatch(output, @"\d+\s+(?:skipped|xfailed)")) technique.Status = "SKIP";
+                if (passMatch.Success && technique.Status == "PASS")
                     technique.Details = $"{passMatch.Groups[1].Value} test(s) passed";
             }
             else if (exitCode == 5)
@@ -55,7 +60,9 @@ public class PytestVerificationHandler : VerificationHandlerBase
                 var passMatch = Regex.Match(output, @"(\d+)\s+passed");
                 var failed = failMatch.Success ? failMatch.Groups[1].Value : "?";
                 var passed = passMatch.Success ? passMatch.Groups[1].Value : "0";
-                technique.Details = $"{failed} test(s) failed, {passed} passed";
+                technique.Details = stderr.Contains("timed out", StringComparison.OrdinalIgnoreCase)
+                    ? "The execution of the code has exceeded the time limit (timeout)"
+                    : $"{failed} test(s) failed, {passed} passed";
 
                 var errorLines = output.Split('\n')
                     .Where(l => l.Contains("FAILED") || l.Contains("ERROR") || l.Contains("assert"))
