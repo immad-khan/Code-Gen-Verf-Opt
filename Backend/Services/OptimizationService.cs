@@ -72,7 +72,7 @@ public class OptimizationService
     {
         var totalSw = Stopwatch.StartNew();
         var response = new OptimizationResponse();
-        var maxIterations = Math.Min(Math.Max(request.MaxIterations, 1), 3); // Default 2, clamp 1-3
+        var maxIterations = Math.Clamp(request.MaxIterations, 1, 2);
 
         // Step 1: Initial Verification & Diagnosis
         var currentFiles = request.Files.Select(f => new GeneratedCodeFile
@@ -94,13 +94,15 @@ public class OptimizationService
         var episodicHistory = new List<string>();
 
         // Requirement 4: If no check fails initially, SKIP repair. Do not call the LLM.
-        if (initialDiagnosis.TotalBugs == 0 && (initialVerification.OverallVerdict is "VERIFIED" or "PASS"))
+        if (TestOutcome(initialVerification) != false)
         {
-            _logger.LogInformation("All checks verified in Round 0. Skipping repair loop entirely.");
+            _logger.LogInformation("No confirmed initial program failure; skipping repair.");
             response.RepairSkipped = true;
             response.FinalDiagnosis = initialDiagnosis;
             response.Summary = BuildSummary(initialDiagnosis, initialDiagnosis, 0, new List<OptimizationIteration>(), initialVerification, initialVerification);
             response.TotalDurationMs = totalSw.ElapsedMilliseconds;
+            response.RunResult = BuildRunResult(request.OriginalPrompt, request.ApiSettings.Model, initialVerification, response, response.TotalDurationMs);
+            response.RunResult.RepairMode = request.RepairMode;
             return response;
         }
 
@@ -108,9 +110,9 @@ public class OptimizationService
         for (int iter = 1; iter <= maxIterations; iter++)
         {
             // If all bugs resolved in previous iteration, break early (Round 2 skipped if Round 1 passed)
-            if (iter > 1 && currentDiagnosis.TotalBugs == 0 && (previousVerification?.OverallVerdict is "VERIFIED" or "PASS"))
+            if (iter > 1 && TestOutcome(previousVerification) != false)
             {
-                _logger.LogInformation("Round {PrevRound} verified all checks. Stopping repair loop early.", iter - 1);
+                _logger.LogInformation("No confirmed program failure in round {PrevRound}; stopping.", iter - 1);
                 break;
             }
 
@@ -123,7 +125,7 @@ public class OptimizationService
 
             // Requirement 8: Episodic memory (history) is NOT part of paper mode "dou".
             // Only pass history if requested and not in pure "dou" mode.
-            var historyForPrompt = (request.EnableEpisodicMemory && request.RepairMode != "dou")
+            var historyForPrompt = (request.RepairMode == "improved" && request.ImprovedSources?.History != false)
                 ? episodicHistory
                 : new List<string>();
 
@@ -169,8 +171,7 @@ public class OptimizationService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error calling LLM for repair iteration {Iteration}", iter);
-                rawLlmResponse = $"Repair call error: {ex.Message}";
-                repairedFiles = currentFiles;
+                throw;
             }
 
             iterationData.LlmCritiqueResponse = rawLlmResponse;
@@ -188,6 +189,8 @@ public class OptimizationService
 
             // Re-verify repaired code
             var reVerification = await _verificationService.VerifyAsync(currentFiles);
+            if (TestOutcome(reVerification) == null)
+                throw new InvalidOperationException("Re-verification was incomplete; no repair outcome can be measured.");
             iterationData.ReVerification = reVerification;
 
             // Re-diagnose
@@ -199,7 +202,7 @@ public class OptimizationService
             response.Iterations.Add(iterationData);
 
             // Add episodic memory for next iteration if enabled
-            if (nextDiagnosis.TotalBugs > 0 && request.EnableEpisodicMemory && request.RepairMode != "dou")
+            if (nextDiagnosis.TotalBugs > 0 && request.RepairMode == "improved" && request.ImprovedSources?.History != false)
             {
                 var topBug = nextDiagnosis.Bugs.FirstOrDefault();
                 var bugDesc = topBug != null ? $"{topBug.TaxonomyId} ({topBug.Message})" : "unresolved errors";
@@ -309,19 +312,22 @@ public class OptimizationService
         var improvedTotalTokens = improvedResult.Iterations.Sum(it => (it.CritiquePrompt.Length + it.LlmCritiqueResponse.Length + 3) / 4);
 
         // 5. Evaluate outcome per round
-        bool douR1Pass = douResult.Iterations.Count >= 1 && douResult.Iterations[0].BugsRemainingAfter == 0 && (douResult.Iterations[0].ReVerification?.OverallVerdict is "PASS" or "VERIFIED");
-        bool douR2Pass = !douR1Pass && douResult.Iterations.Count >= 2 && douResult.Iterations[1].BugsRemainingAfter == 0 && (douResult.Iterations[1].ReVerification?.OverallVerdict is "PASS" or "VERIFIED");
-        bool douUnresolved = douResult.FinalDiagnosis.TotalBugs > 0 || (douResult.Iterations.LastOrDefault()?.ReVerification?.OverallVerdict is not ("PASS" or "VERIFIED"));
-
-        bool impR1Pass = improvedResult.Iterations.Count >= 1 && improvedResult.Iterations[0].BugsRemainingAfter == 0 && (improvedResult.Iterations[0].ReVerification?.OverallVerdict is "PASS" or "VERIFIED");
-        bool impR2Pass = !impR1Pass && improvedResult.Iterations.Count >= 2 && improvedResult.Iterations[1].BugsRemainingAfter == 0 && (improvedResult.Iterations[1].ReVerification?.OverallVerdict is "PASS" or "VERIFIED");
-        bool impUnresolved = improvedResult.FinalDiagnosis.TotalBugs > 0 || (improvedResult.Iterations.LastOrDefault()?.ReVerification?.OverallVerdict is not ("PASS" or "VERIFIED"));
+        bool PassedAt(OptimizationResponse r, int n) => TestOutcome(r.Iterations.ElementAtOrDefault(n - 1)?.ReVerification) == true;
+        bool douR1Pass = PassedAt(douResult, 1), douR2Pass = PassedAt(douResult, 2);
+        bool impR1Pass = PassedAt(improvedResult, 1), impR2Pass = PassedAt(improvedResult, 2);
+        bool douUnresolved = TestOutcome(initialVerification) == false && !douR1Pass && !douR2Pass;
+        bool impUnresolved = TestOutcome(initialVerification) == false && !impR1Pass && !impR2Pass;
 
         // 6. Winner determination
         string winner;
         string description;
 
-        if (impR1Pass && !douR1Pass)
+        if (TestOutcome(initialVerification) != false)
+        {
+            winner = "tie";
+            description = "No verified initial failure; repair comparison is not applicable.";
+        }
+        else if (impR1Pass && !douR1Pass)
         {
             winner = "improved";
             description = "Improved mode fixed all bugs in Round 1, whereas Dou required multiple rounds or remained unresolved.";
@@ -492,7 +498,7 @@ public class OptimizationService
         var report = new BugTaxonomyReport();
         var classifiedBugs = new List<BugClassification>();
 
-        foreach (var technique in verification.Techniques)
+        foreach (var technique in verification.Techniques.Where(t => (t.Id is >= 1 and <= 3) && t.Status == "FAIL"))
         {
             foreach (var issue in technique.Issues)
             {
@@ -805,6 +811,14 @@ public class OptimizationService
     /// <summary>
     /// Builds the summary metrics comparing initial diagnosis vs final diagnosis across iterations.
     /// </summary>
+    internal static bool? TestOutcome(VerificationResponse? result)
+    {
+        var tests = result?.Techniques.FirstOrDefault(t => t.Id == 3);
+        if (tests?.Status == "FAIL" || result?.Techniques.Any(t => (t.Id is 1 or 2) && t.Status == "FAIL") == true) return false;
+        if (tests?.Status == "PASS" && result!.Metrics.TotalTests > 0 && result.Metrics.FailedTests == 0) return true;
+        return null;
+    }
+
     private OptimizationSummary BuildSummary(
         BugTaxonomyReport initial,
         BugTaxonomyReport final,
@@ -825,10 +839,13 @@ public class OptimizationService
             FinalPassRate = finalVerification?.Metrics.PassRate ?? initialVerification.Metrics.PassRate
         };
 
-        // RSR = fixed_bugs / initial_failing. If initial == 0, null ("N/A")
-        summary.RepairSuccessRate = summary.TotalBugsBefore > 0
-            ? Math.Round((summary.TotalBugsFixed * 100.0) / summary.TotalBugsBefore, 1)
-            : null;
+        // A single eligible program contributes either zero or one repair, never partial credit.
+        // The product's other checks remain advisory to this metric. Unknown pytest
+        // outcomes (e.g. no suite, tool unavailable) have no measurable rate.
+        var initialPassed = TestOutcome(initialVerification);
+        var finalPassed = TestOutcome(finalVerification);
+        summary.RepairSuccessRate = initialPassed == false && finalPassed.HasValue
+            ? (finalPassed.Value ? 100.0 : 0.0) : null;
 
         if (iterations.Count > 0)
             summary.BugsFixedIteration1 = iterations[0].BugsFixedThisIteration;

@@ -67,19 +67,7 @@ public sealed class ExperimentEngine
             }
 
             Console.WriteLine($"[DRY-RUN PASS] Canonical solution passed 100% in Docker sandbox!");
-            await _storage.SaveProblemRunAsync(new ProblemRunRecord(
-                RunId: _runId,
-                Benchmark: problem.Benchmark,
-                ProblemId: problem.ProblemId,
-                SubTier: problem.SubTier,
-                Passed: true,
-                PassedRound: 0,
-                InitialBugPrimary: null,
-                InitialBugSub: null,
-                FinalBugPrimary: null,
-                FinalBugSub: null,
-                TotalDurationMs: overallSw.ElapsedMilliseconds
-            ), ct);
+            // Smoke checks never create measured problem or round records.
             return new ProblemExecutionSummary(Passed: true, PassedRound: 0, InitialBugPrimary: null, InitialBugSub: null, WasSkipped: false);
         }
 
@@ -97,10 +85,11 @@ public sealed class ExperimentEngine
         Console.WriteLine($"--> Round 0: Running generated code in Docker sandbox ({_config.DockerImage})...");
         var r0Result = await _sandbox.RunTestAsync(initialCode, problem.TestCode, _config.TimeoutSeconds, ct);
 
+        var rounds = new List<ProblemRoundRecord>();
         if (r0Result.Success)
         {
             Console.WriteLine($"[SUCCESS] Round 0 passed all tests! Repair skipped.");
-            await _storage.SaveRoundAsync(new ProblemRoundRecord(
+            rounds.Add(new ProblemRoundRecord(
                 ProblemRunId: problemRunId,
                 RoundNumber: 0,
                 Prompt: genPrompt,
@@ -112,7 +101,7 @@ public sealed class ExperimentEngine
                 CompilerFeedback: null,
                 TokenCount: genResponse.TotalTokens,
                 DurationMs: (long)genResponse.Duration.TotalMilliseconds + (long)r0Result.Duration.TotalMilliseconds
-            ), ct);
+            ));
 
             await _storage.SaveProblemRunAsync(new ProblemRunRecord(
                 RunId: _runId,
@@ -126,7 +115,7 @@ public sealed class ExperimentEngine
                 FinalBugPrimary: null,
                 FinalBugSub: null,
                 TotalDurationMs: overallSw.ElapsedMilliseconds
-            ), ct);
+            ), rounds, ct);
 
             return new ProblemExecutionSummary(Passed: true, PassedRound: 0, InitialBugPrimary: null, InitialBugSub: null, WasSkipped: false);
         }
@@ -136,7 +125,7 @@ public sealed class ExperimentEngine
         Console.WriteLine($"[R0 FAIL] Diagnosed bug: Type {r0Diag.PrimaryType} ({r0Diag.SubType}: {r0Diag.SubTypeName})");
         Console.WriteLine($"  Feedback: {r0Diag.CompilerFeedback}");
 
-        await _storage.SaveRoundAsync(new ProblemRoundRecord(
+        rounds.Add(new ProblemRoundRecord(
             ProblemRunId: problemRunId,
             RoundNumber: 0,
             Prompt: genPrompt,
@@ -148,7 +137,7 @@ public sealed class ExperimentEngine
             CompilerFeedback: r0Diag.CompilerFeedback,
             TokenCount: genResponse.TotalTokens,
             DurationMs: (long)genResponse.Duration.TotalMilliseconds + (long)r0Result.Duration.TotalMilliseconds
-        ), ct);
+        ));
 
         // ================= REPAIR LOOP: n = iterations (default 2) =================
         var currentCode = initialCode;
@@ -172,7 +161,7 @@ public sealed class ExperimentEngine
                 passed = true;
                 passedRound = round;
 
-                await _storage.SaveRoundAsync(new ProblemRoundRecord(
+                rounds.Add(new ProblemRoundRecord(
                     ProblemRunId: problemRunId,
                     RoundNumber: round,
                     Prompt: repairPrompt,
@@ -184,7 +173,7 @@ public sealed class ExperimentEngine
                     CompilerFeedback: null,
                     TokenCount: repairResponse.TotalTokens,
                     DurationMs: (long)repairResponse.Duration.TotalMilliseconds + (long)repairResult.Duration.TotalMilliseconds
-                ), ct);
+                ));
 
                 break;
             }
@@ -192,7 +181,7 @@ public sealed class ExperimentEngine
             var nextDiag = BugClassifier.Classify(repairResult);
             Console.WriteLine($"[R{round} FAIL] Repaired code still failed: Type {nextDiag.PrimaryType} ({nextDiag.SubType}: {nextDiag.SubTypeName})");
 
-            await _storage.SaveRoundAsync(new ProblemRoundRecord(
+            rounds.Add(new ProblemRoundRecord(
                 ProblemRunId: problemRunId,
                 RoundNumber: round,
                 Prompt: repairPrompt,
@@ -204,7 +193,7 @@ public sealed class ExperimentEngine
                 CompilerFeedback: nextDiag.CompilerFeedback,
                 TokenCount: repairResponse.TotalTokens,
                 DurationMs: (long)repairResponse.Duration.TotalMilliseconds + (long)repairResult.Duration.TotalMilliseconds
-            ), ct);
+            ));
 
             currentCode = repairedCode;
             currentDiag = nextDiag;
@@ -222,7 +211,7 @@ public sealed class ExperimentEngine
             FinalBugPrimary: passed ? null : currentDiag.PrimaryType,
             FinalBugSub: passed ? null : currentDiag.SubType,
             TotalDurationMs: overallSw.ElapsedMilliseconds
-        ), ct);
+        ), rounds, ct);
 
         overallSw.Stop();
         return new ProblemExecutionSummary(Passed: passed, PassedRound: passedRound, InitialBugPrimary: r0Diag.PrimaryType, InitialBugSub: r0Diag.SubType, WasSkipped: false);

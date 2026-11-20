@@ -12,7 +12,7 @@ declare global {
           initTokenClient: (config: {
             client_id: string;
             scope: string;
-            callback: (response: { access_token?: string; error?: string }) => void;
+            callback: (response: { access_token?: string; error?: string; error_description?: string }) => void;
             error_callback?: (err: unknown) => void;
           }) => {
             requestAccessToken: (overrideConfig?: { prompt?: string }) => void;
@@ -56,13 +56,14 @@ function loadGoogleGsiScript(): Promise<void> {
 export async function signInWithGoogle(): Promise<ProviderProfile> {
   await loadGoogleGsiScript();
 
-  if (!window.google?.accounts?.oauth2) {
+  const oauth2 = window.google?.accounts?.oauth2;
+  if (!oauth2) {
     throw new Error("Google Identity Services not available");
   }
 
   return new Promise((resolve, reject) => {
     try {
-      const client = window.google.accounts.oauth2.initTokenClient({
+      const client = oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
         scope: "email profile openid",
         callback: async (tokenResponse) => {

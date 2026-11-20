@@ -10,7 +10,7 @@ DATASETS = {
         "expected_count": 164
     },
     "mbpp_plus": {
-        "url": "https://github.com/evalplus/mbppplus_release/releases/download/v0.2.0/MbppPlus.jsonl.gz",
+        "url": "https://github.com/evalplus/mbppplus_release/releases/download/v0.1.0/MbppPlus.jsonl.gz",
         "dest": "data/mbpp_plus.jsonl",
         "expected_count": 399
     }
@@ -31,7 +31,7 @@ def main():
                 
         print(f"[OK] {name} saved! Total problems: {len(lines)} (Expected: {info['expected_count']})")
         if len(lines) != info["expected_count"]:
-            print(f"[WARN] Count mismatch for {name}: {len(lines)} != {info['expected_count']}")
+            raise ValueError(f"Count mismatch for {name}: {len(lines)} != {info['expected_count']}")
         else:
             print(f"[VERIFIED] {name} matches expected count {info['expected_count']} exactly!")
 

@@ -1,3 +1,4 @@
+import { backendBaseUrl } from '../api/client';
 import { GeneratedCodeFile, IndependentChecksResult, InterfaceDefinition, ApiSettings } from '../types';
 
 export interface VerificationIssue {
@@ -51,11 +52,6 @@ export interface VerificationResponse {
   independentChecks?: IndependentChecksResult;
 }
 
-const BACKEND_URL = (
-  import.meta.env.VITE_BACKEND_URL?.trim() ||
-  (import.meta.env.PROD ? 'https://code-gen-verf-opt.onrender.com' : 'http://localhost:5000')
-).replace(/\/+$/, '');
-
 export async function runBackendVerification(
   files: GeneratedCodeFile[],
   lockedTestHash?: string,
@@ -63,7 +59,7 @@ export async function runBackendVerification(
   interfaceDef?: InterfaceDefinition,
   secondaryApiSettings?: ApiSettings | null
 ): Promise<VerificationResponse> {
-  const response = await fetch(`${BACKEND_URL}/api/verification`, {
+  const response = await fetch(`${backendBaseUrl()}/api/verification`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

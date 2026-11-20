@@ -36,8 +36,10 @@ public class VerificationPipeline : IVerificationPipeline
             foreach (var file in files)
             {
                 if (string.IsNullOrWhiteSpace(file.Content)) continue;
-                var safePath = file.Path.Replace('/', Path.DirectorySeparatorChar);
-                var filePath = Path.Combine(tempDir, safePath);
+                var safePath = (string.IsNullOrWhiteSpace(file.Path) ? file.Name : file.Path).Replace('/', Path.DirectorySeparatorChar);
+                var filePath = Path.GetFullPath(Path.Combine(tempDir, safePath));
+                if (!filePath.StartsWith(tempDir + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                    throw new InvalidDataException("Project file outside verification directory.");
                 var dir = Path.GetDirectoryName(filePath);
                 if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
                 await File.WriteAllTextAsync(filePath, file.Content);
@@ -178,14 +180,14 @@ public class VerificationPipeline : IVerificationPipeline
         if (t3Pytest != null && (t3Pytest.Status == "PASS" || t3Pytest.Status == "FAIL"))
         {
             var pytestDetails = t3Pytest.Details ?? "";
-            var passMatch = Regex.Match(pytestDetails, @"(\d+)\s+passed");
-            var failMatch = Regex.Match(pytestDetails, @"(\d+)\s+failed");
-            metrics.PassedTests = passMatch.Success ? int.Parse(passMatch.Groups[1].Value) : (t3Pytest.Status == "PASS" ? 1 : 0);
+            var passMatch = Regex.Match(pytestDetails, @"(\d+)\s+(?:test\(s\) )?passed");
+            var failMatch = Regex.Match(pytestDetails, @"(\d+)\s+(?:test\(s\) )?failed");
+            metrics.PassedTests = passMatch.Success ? int.Parse(passMatch.Groups[1].Value) : 0;
             metrics.FailedTests = failMatch.Success ? int.Parse(failMatch.Groups[1].Value) : 0;
             metrics.TotalTests = metrics.PassedTests + metrics.FailedTests;
             metrics.PassRate = metrics.TotalTests > 0
                 ? Math.Round((double)metrics.PassedTests / metrics.TotalTests * 100, 1)
-                : (t3Pytest.Status == "PASS" ? 100.0 : 0.0);
+                : 0.0;
         }
 
         metrics.SyntaxBugCount = (t1Ast != null && t1Ast.Status == "FAIL") ? t1Ast.Issues.Count : 0;

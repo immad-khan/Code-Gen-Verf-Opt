@@ -68,45 +68,6 @@ async function syncGoogleUserToBackend(profile: ProviderProfile) {
   }
 }
 
-export async function syncApiSettingsFromBackend(email: string): Promise<{ provider: string; apiKey: string; model: string } | null> {
-  try {
-    const res = await fetch(`${BACKEND_URL}/api/auth/api-settings?email=${encodeURIComponent(email)}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.settings?.apiKey) {
-        try {
-          localStorage.setItem('maci_api_settings_v2', JSON.stringify(data.settings));
-        } catch {}
-        return data.settings;
-      }
-    }
-  } catch (e) {
-    console.debug('Backend API settings sync skipped:', e);
-  }
-  return null;
-}
-
-export async function saveUserApiSettingsToBackend(
-  email: string,
-  settings: { provider: string; apiKey: string; model: string }
-): Promise<boolean> {
-  try {
-    const res = await fetch(`${BACKEND_URL}/api/auth/api-settings`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email,
-        provider: settings.provider,
-        apiKey: settings.apiKey,
-        model: settings.model,
-      }),
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
 /* ------------------------------------------------------------------ */
 /* local user store                                                    */
 /* ------------------------------------------------------------------ */
@@ -212,10 +173,6 @@ export async function signIn(email: string, password: string, remember: boolean)
   }
   const session = toSession(user);
   setSession(session, remember);
-  if (provider === "google") {
-    void syncGoogleUserToBackend(profile);
-  }
-  void syncApiSettingsFromBackend(email);
   return { ok: true, user: session };
 }
 
@@ -261,7 +218,6 @@ export async function signInWithProvider(provider: Provider, profile: ProviderPr
   if (provider === "google") {
     void syncGoogleUserToBackend(profile);
   }
-  void syncApiSettingsFromBackend(email);
   return { ok: true, user: session };
 }
 

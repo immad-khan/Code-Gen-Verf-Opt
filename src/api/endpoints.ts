@@ -1,4 +1,5 @@
-// Typed wrappers for every MACI backend endpoint used by the Web UI.
+// Prototype session/experiments client. Not used by the mounted workbench; its
+// shipped wire contracts are in src/services and src/types.ts (see BENCHMARKS.md).
 // Workbench calls use the 120 s timeout, Experiments calls 10 s, health 5 s.
 
 import { apiRequest, jsonInit, TIMEOUTS } from './client';

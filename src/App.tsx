@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { PipelineStep, AIResultData, ApiSettings, AgentLog, PythonAuditFinding, OptimizationResponse, GeneratedCodeFile, InterfaceDefinition, LockedTestSuite, CompareRepairResponse, ImprovedRepairSources } from './types';
-import { processPromptWithAgents, generateCodeFromBackend } from './services/aiService';
-import { backendBaseUrl } from './api/client';
+import { generateCodeFromBackend } from './services/aiService';
 import { analyzePythonCode } from './analyzer';
 import { runBackendVerification, VerificationResponse } from './services/verificationService';
 import { runBackendOptimization, runCompareOptimization } from './services/optimizationService';
@@ -13,7 +12,6 @@ import { StepTestsReview } from './components/StepTestsReview';
 import { Step2CodeOutput } from './components/Step2CodeOutput';
 import { Step3Verification } from './components/Step3Verification';
 import { Step4Optimization } from './components/Step4Optimization';
-import { Step8FinalResults } from './components/Step8FinalResults';
 import { ProcessingOverlay } from './components/ProcessingOverlay';
 import { ExportModal } from './components/ExportModal';
 import { ApiSettingsModal } from './components/ApiSettingsModal';
@@ -148,7 +146,6 @@ export function App() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [rawErrorResponse, setRawErrorResponse] = useState<string | null>(null);
 
-  const temperature = 0.1;
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   type ActiveView = 'pipeline' | 'history' | 'profile';
@@ -163,6 +160,10 @@ export function App() {
   });
 
   const handleSelectHistoryPrompt = (selectedPrompt: string) => {
+    clearEvidence();
+    setConfirmedInterface(null);
+    setLockedTestSuite(null);
+    setBenchmarkInfo(null);
     setPrompt(selectedPrompt);
     setCurrentStep(1);
     setActiveView('pipeline');
@@ -206,6 +207,7 @@ export function App() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [optimizationResult, setOptimizationResult] = useState<OptimizationResponse | null>(null);
   const [compareResult, setCompareResult] = useState<CompareRepairResponse | null>(null);
+  const [repairError, setRepairError] = useState<string | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [confirmedInterface, setConfirmedInterface] = useState<InterfaceDefinition | null>(null);
   const [lockedTestSuite, setLockedTestSuite] = useState<LockedTestSuite | null>(null);
@@ -248,34 +250,6 @@ export function App() {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
-  // Sync API settings from the database for the logged-in user
-  const userEmail = currentUser?.email || '';
-  useEffect(() => {
-    if (!userEmail) return;
-
-    let isMounted = true;
-    (async () => {
-      try {
-        const res = await fetch(`${backendBaseUrl()}/api/auth/api-settings?email=${encodeURIComponent(userEmail)}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.settings?.apiKey && isMounted) {
-            setApiSettings(data.settings);
-            try {
-              localStorage.setItem('maci_api_settings_v2', JSON.stringify(data.settings));
-            } catch {}
-          }
-        }
-      } catch (err) {
-        console.debug('Failed to sync API settings from DB:', err);
-      }
-    })();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [userEmail]);
-
   const hasApiKey = apiSettings.apiKey.trim().length > 8;
 
   const handleSaveSettings = async (s: ApiSettings) => {
@@ -284,27 +258,28 @@ export function App() {
       localStorage.setItem('maci_api_settings_v2', JSON.stringify(s));
     } catch {}
 
-    // Link key details to user account in the database so they never need to add them every time
-    if (currentUser?.email && s.apiKey && s.apiKey.trim().length > 0) {
-      try {
-        await fetch(`${backendBaseUrl()}/api/auth/api-settings`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: currentUser.email,
-            provider: s.provider,
-            apiKey: s.apiKey.trim(),
-            model: s.model,
-          }),
-        });
-      } catch (err) {
-        console.warn('Failed to link API key to account in DB:', err);
-      }
-    }
   };
 
+  const [generationSettings, setGenerationSettings] = useState<ApiSettings | null>(null);
+  // In-flight results belong to one input, test lock, and code snapshot.
+  const runVersion = useRef(0);
+  const clearEvidence = () => {
+    runVersion.current++;
+    setResultData(createInitialResultData());
+    setHasGeneratedResult(false);
+    setBackendVerification(null);
+    setOptimizationResult(null);
+    setCompareResult(null);
+    setRepairError(null);
+    setVerificationError(null);
+    setIsProcessing(false);
+    setIsVerifying(false);
+    setIsOptimizing(false);
+  };
   const handleProcessQuery = async (confirmedInterface?: InterfaceDefinition) => {
     if (!prompt.trim()) return;
+    clearEvidence();
+    const version = runVersion.current;
     setIsProcessing(true);
     setProgress(5);
     setAllLogs([]);
@@ -315,22 +290,9 @@ export function App() {
     setCompareResult(null);
 
     try {
-      let codeFiles: GeneratedCodeFile[] = [];
-      try {
-        codeFiles = await generateCodeFromBackend(prompt, apiSettings, confirmedInterface);
-      } catch (backendErr: any) {
-        if (backendErr.rawResponse) {
-          setRawErrorResponse(backendErr.rawResponse);
-          throw backendErr;
-        }
-        console.warn('Backend generation failed, trying browser agent:', backendErr);
-        const data = await processPromptWithAgents(prompt, apiSettings, (pct, log) => {
-          setProgress(pct);
-          setCurrentLog(log);
-          setAllLogs(prev => [...prev, log]);
-        }, temperature);
-        codeFiles = data.generatedCode;
-      }
+      const codeFiles = await generateCodeFromBackend(prompt, apiSettings, confirmedInterface);
+
+      if (version !== runVersion.current) return;
 
       // Check if LLM returned an error (non-code request)
       if (!codeFiles || codeFiles.length === 0) {
@@ -367,7 +329,7 @@ export function App() {
             .slice(0, 3)
             .map(f => f.title),
           confidence: 'High',
-          confidenceReason: `Live code from ${apiSettings.provider.toUpperCase()} + real verification on backend.`,
+          confidenceReason: `Live code from ${apiSettings.provider.toUpperCase()} ; static findings only.`,
         },
         mergeGate: {
           verdict: analysis.findings.some(f => f.severity === 'CRITICAL') ? 'BLOCKED'
@@ -376,7 +338,7 @@ export function App() {
             ? `Analyzer found ${analysis.findings.filter(f => f.severity === 'CRITICAL').length} CRITICAL issue(s).`
             : analysis.findings.some(f => f.severity === 'HIGH')
             ? `Analyzer found HIGH-severity issues — address before merge.`
-            : `Analyzer cleared all CRITICAL/HIGH checks. Safe to merge.`,
+            : `No critical or high static findings. Runtime verification is separate.`,
           temperature: 0.1,
         },
         metrics: {
@@ -398,6 +360,7 @@ export function App() {
       setCurrentLog(completionLog);
       setAllLogs(prev => [...prev, completionLog]);
 
+      setGenerationSettings(apiSettings);
       setResultData(enriched);
       setHasGeneratedResult(true);
 
@@ -408,7 +371,7 @@ export function App() {
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' }),
         provider: apiSettings.provider,
         model: apiSettings.model,
-        verdict: enriched.mergeGate.verdict === 'APPROVED' ? 'Verified ✓' : 'Analyzed',
+        verdict: 'Analyzed',
       };
       setHistoryItems(prev => {
         const next = [newHistoryItem, ...prev.filter(p => p.prompt !== prompt.trim())].slice(0, 30);
@@ -431,19 +394,23 @@ export function App() {
         secondaryApiSettings
       )
         .then(verification => {
+          if (version !== runVersion.current) return;
           setBackendVerification(verification);
           console.log('Backend verification succeeded:', verification);
         })
         .catch(verifyErr => {
+          if (version !== runVersion.current) return;
           const msg = verifyErr instanceof Error ? verifyErr.message : String(verifyErr);
           console.warn('Backend verification failed:', verifyErr);
           setVerificationError(msg);
         })
         .finally(() => {
-          setIsVerifying(false);
+          if (version === runVersion.current) setIsVerifying(false);
         });
     } catch (err) {
-      console.error('Processing failed:', err);
+      if (version !== runVersion.current) return;
+      setCurrentStep(1);
+      if (err && typeof err === 'object' && 'rawResponse' in err) setRawErrorResponse(String(err.rawResponse));
       setErrorMessage(err instanceof Error ? err.message : 'An unknown error occurred');
       setIsProcessing(false);
     }
@@ -451,7 +418,9 @@ export function App() {
 
   const handleRetryVerification = async (overrideSecondarySettings?: ApiSettings | null) => {
     if (!resultData?.generatedCode || resultData.generatedCode.length === 0) return;
+    const version = runVersion.current;
     setIsVerifying(true);
+    setBackendVerification(null);
     setVerificationError(null);
     const secSettings = overrideSecondarySettings !== undefined ? overrideSecondarySettings : secondaryApiSettings;
     try {
@@ -462,14 +431,16 @@ export function App() {
         confirmedInterface || undefined,
         secSettings
       );
+      if (version !== runVersion.current) return;
       setBackendVerification(verification);
       console.log('Backend verification retry succeeded:', verification);
     } catch (verifyErr) {
+      if (version !== runVersion.current) return;
       const msg = verifyErr instanceof Error ? verifyErr.message : String(verifyErr);
       console.warn('Backend verification retry failed:', verifyErr);
       setVerificationError(msg);
     } finally {
-      setIsVerifying(false);
+      if (version === runVersion.current) setIsVerifying(false);
     }
   };
 
@@ -478,18 +449,22 @@ export function App() {
     sources?: ImprovedRepairSources
   ) => {
     if (!resultData?.generatedCode || resultData.generatedCode.length === 0) return;
+    const version = runVersion.current;
+    setRepairError(null);
+    setOptimizationResult(null);
+    setCompareResult(null);
     setIsOptimizing(true);
     try {
       if (mode === 'compare') {
         const compRes = await runCompareOptimization({
           files: resultData.generatedCode,
           originalPrompt: prompt,
-          apiSettings,
-          verificationResult: backendVerification,
+          apiSettings: generationSettings || apiSettings,
           maxIterations: 2,
           lockedTestHash: lockedTestSuite?.hash,
           improvedSources: sources,
         });
+        if (version !== runVersion.current) return;
         setCompareResult(compRes);
         setOptimizationResult(compRes.improvedResult);
       } else {
@@ -497,19 +472,20 @@ export function App() {
         const res = await runBackendOptimization({
           files: resultData.generatedCode,
           originalPrompt: prompt,
-          apiSettings,
-          verificationResult: backendVerification,
+          apiSettings: generationSettings || apiSettings,
           maxIterations: 2,
           lockedTestHash: lockedTestSuite?.hash,
           mode,
           improvedSources: sources,
         });
+        if (version !== runVersion.current) return;
         setOptimizationResult(res);
       }
     } catch (err) {
-      console.error('Optimization error:', err);
+      if (version !== runVersion.current) return;
+      setRepairError(err instanceof Error ? err.message : 'Repair failed');
     } finally {
-      setIsOptimizing(false);
+      if (version === runVersion.current) setIsOptimizing(false);
     }
   };
 
@@ -518,18 +494,15 @@ export function App() {
       ...prev,
       generatedCode: repairedFiles,
     }));
-    alert('Repaired codebase applied successfully!');
+    setBackendVerification(null);
+    setOptimizationResult(null);
+    setCompareResult(null);
+    setCurrentStep(4);
   };
 
   const handleUpdateFindings = (updatedFindings: PythonAuditFinding[]) => {
     setResultData(prev => ({ ...prev, findings: updatedFindings }));
   };
-
-  const round1Iteration = optimizationResult?.iterations.find(it => it.iterationNumber === 1);
-  const round1Verification = round1Iteration?.reVerification || null;
-
-  const round2Iteration = optimizationResult?.iterations.find(it => it.iterationNumber === 2);
-  const round2Verification = round2Iteration?.reVerification || null;
 
   const maxUnlockedStep: PipelineStep = optimizationResult
     ? 6
@@ -598,17 +571,18 @@ export function App() {
           <Step1Input
             prompt={prompt}
             onPromptChange={(newPrompt) => {
+              clearEvidence();
               setPrompt(newPrompt);
               setBenchmarkInfo(null);
               setConfirmedInterface(null);
               setLockedTestSuite(null);
-              setHasGeneratedResult(false);
             }}
             onProceedToInterface={(iface) => {
               setConfirmedInterface(iface);
               setCurrentStep(2);
             }}
             onSelectBenchmarkProblem={(payload) => {
+              clearEvidence();
               setPrompt(payload.prompt);
               setConfirmedInterface(payload.interface);
               setLockedTestSuite(payload.lockedTestSuite);
@@ -631,6 +605,8 @@ export function App() {
             isBenchmarkProblem={Boolean(benchmarkInfo)}
             benchmarkId={benchmarkInfo?.problemId}
             onConfirmInterface={(iface) => {
+              clearEvidence();
+              if (!benchmarkInfo) setLockedTestSuite(null);
               setConfirmedInterface(iface);
               setCurrentStep(3);
             }}
@@ -651,8 +627,8 @@ export function App() {
               setLockedTestSuite(suite);
             }}
             onUnlockTests={() => {
+              clearEvidence();
               setLockedTestSuite(null);
-              setHasGeneratedResult(false);
             }}
             onProceedToCode={async () => {
               setCurrentStep(4);
@@ -691,10 +667,7 @@ export function App() {
             onBackToCode={() => setCurrentStep(4)}
             onBackToPrompt={() => setCurrentStep(1)}
             onExport={() => setIsExportModalOpen(true)}
-            onProceedToOptimization={async () => {
-              if (!optimizationResult && !isOptimizing) {
-                await handleRunOptimization();
-              }
+            onProceedToOptimization={() => {
               setCurrentStep(6);
             }}
             backendVerification={backendVerification}
@@ -716,6 +689,7 @@ export function App() {
         )}
 
         {/* Step 6: Repair & Comparison Pipeline (Dou / Improved / Compare modes, R1 & R2) */}
+        {currentStep === 6 && repairError && <p role="alert">Repair not verified: {repairError}</p>}
         {currentStep === 6 && (
           <Step4Optimization
             result={resultData}
@@ -728,7 +702,7 @@ export function App() {
             onApplyRepairedCode={handleApplyRepairedCode}
             title="Repair & Comparison Pipeline"
             stepBadge="Step 6 · Automated Synthesis Repair"
-            apiSettings={apiSettings}
+            apiSettings={generationSettings || apiSettings}
           />
         )}
       </main>

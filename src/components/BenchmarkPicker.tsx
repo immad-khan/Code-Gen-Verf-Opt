@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Database, Search, CheckCircle2, ShieldCheck, ArrowRight, Sparkles, Filter, Code2, Lock } from 'lucide-react';
+import { Database, Search, CheckCircle2, ArrowRight, Filter, Lock } from 'lucide-react';
 import { fetchBenchmarkProblems, fetchBenchmarkProblem } from '../services/aiService';
 import { InterfaceDefinition, LockedTestSuite } from '../types';
 
@@ -97,6 +97,7 @@ export const BenchmarkPicker: React.FC<BenchmarkPickerProps> = ({ onSelectProble
 
   return (
     <div className="card p-6 border-2 border-[#7c3aed]/30 bg-[color:var(--color-surface-1)] rounded-2xl shadow-xl space-y-6 animate-fade-up">
+      {loadError && <p role="alert">{loadError}</p>}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[color:var(--color-hairline)]">
         <div>

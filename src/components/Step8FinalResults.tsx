@@ -44,9 +44,9 @@ export const Step8FinalResults: React.FC<Step8FinalResultsProps> = ({
   const summary = optimizationResult?.summary;
   const iterations = optimizationResult?.iterations || [];
   const runResult = optimizationResult?.runResult;
-  const r0 = runResult?.rounds?.find(r => r.roundNumber === 0);
-  const r1 = runResult?.rounds?.find(r => r.roundNumber === 1);
-  const r2 = runResult?.rounds?.find(r => r.roundNumber === 2);
+  const r0 = runResult?.rounds?.find(r => r.roundIndex === 0);
+  const r1 = runResult?.rounds?.find(r => r.roundIndex === 1);
+  const r2 = runResult?.rounds?.find(r => r.roundIndex === 2);
 
   // Versions of files
   const round0Files: GeneratedCodeFile[] = result.generatedCode;
@@ -108,10 +108,10 @@ export const Step8FinalResults: React.FC<Step8FinalResultsProps> = ({
   // Verification scores (% checks passed)
   const calcScore = (v: VerificationResponse | null | undefined, roundIndex?: number) => {
     if (runResult?.rounds && roundIndex != null) {
-      const rnd = runResult.rounds.find(r => r.roundNumber === roundIndex);
-      if (rnd && rnd.checkStatuses.length > 0) {
-        const passed = rnd.checkStatuses.filter(c => c.status === 'PASS').length;
-        return Math.round((passed / rnd.checkStatuses.length) * 100);
+      const rnd = runResult.rounds.find(r => r.roundIndex === roundIndex);
+      if (rnd && rnd.techniqueStatuses.length > 0) {
+        const passed = rnd.techniqueStatuses.filter(c => c.status === 'PASS').length;
+        return Math.round((passed / rnd.techniqueStatuses.length) * 100);
       }
     }
     if (!v) return null;
@@ -130,10 +130,10 @@ export const Step8FinalResults: React.FC<Step8FinalResultsProps> = ({
       ? `${runResult.repairSuccessRate.toFixed(1)}%`
       : (summary?.repairSuccessRate != null ? `${summary.repairSuccessRate.toFixed(1)}%` : 'N/A'));
 
-  const baselineRate = runResult?.baselineComparator?.paperRepairSuccessRate ?? 29.2;
-  const baselineLabel = runResult?.baselineComparator?.label ?? 'Paper, GPT-4';
+  const baselineRate = runResult?.baselineComparator ?? 29.2;
+  const baselineLabel = runResult?.baselineLabel ?? 'Paper, GPT-4';
 
-  const finalVerdict = runResult?.overallVerdict || round2Verification?.overallVerdict || round1Verification?.overallVerdict || initialVerification?.overallVerdict || 'PASS';
+  const finalVerdict = runResult?.overallVerdict || round2Verification?.overallVerdict || round1Verification?.overallVerdict || initialVerification?.overallVerdict || 'NOT_VERIFIED';
 
   // 7-Technique comparison list
   const techniqueNames = [
@@ -147,9 +147,9 @@ export const Step8FinalResults: React.FC<Step8FinalResultsProps> = ({
   ];
 
   const getTechStatus = (roundIndex: number, keyword: string, fallbackV?: VerificationResponse | null) => {
-    const round = runResult?.rounds?.find(r => r.roundNumber === roundIndex);
-    if (round?.checkStatuses) {
-      const match = round.checkStatuses.find(c => c.checkName.toLowerCase().includes(keyword.toLowerCase()));
+    const round = runResult?.rounds?.find(r => r.roundIndex === roundIndex);
+    if (round?.techniqueStatuses) {
+      const match = round.techniqueStatuses.find(c => c.name.toLowerCase().includes(keyword.toLowerCase()));
       if (match) return match.status;
     }
     if (fallbackV?.techniques) {

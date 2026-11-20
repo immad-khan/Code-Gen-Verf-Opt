@@ -13,3 +13,4 @@
 *.deb
 *.email
 *.txt
+!Backend/requirements.txt

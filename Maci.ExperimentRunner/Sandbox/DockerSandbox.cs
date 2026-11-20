@@ -100,6 +100,8 @@ public sealed class DockerSandbox : IDockerSandbox
             }
 
             var exitCode = timedOut ? -1 : process.ExitCode;
+            if (!timedOut && (exitCode is < 0 or > 2 || exitCode == 0 && !System.Text.RegularExpressions.Regex.IsMatch(stdoutSb.ToString(), @"\b[1-9]\d* passed\b")))
+                throw new InvalidOperationException($"No benchmark verdict (Docker/pytest exit {exitCode}). Check the image, test collection, and worker logs.");
             var success = !timedOut && exitCode == 0;
 
             return new SandboxExecutionResult(

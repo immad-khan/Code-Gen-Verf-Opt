@@ -13,7 +13,6 @@ interface PipelineNavProps {
 export const PipelineNav: React.FC<PipelineNavProps> = ({
   currentStep,
   onSelectStep,
-  hasResult,
   maxUnlockedStep = 6,
   className = "border-b border-[color:var(--color-hairline)] bg-[color:var(--color-surface-1)]",
 }) => {

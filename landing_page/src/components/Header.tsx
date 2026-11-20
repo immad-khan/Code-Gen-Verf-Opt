@@ -58,7 +58,7 @@ const NAV = [
   ["Results", "results"],
 ] as const;
 
-export function Header({ user, onSignOut }: { user: SessionUser | null; onSignOut?: () => void }) {
+export function Header({ user }: { user: SessionUser | null; onSignOut?: () => void }) {
   const [active, setActive] = useState<string>("");
 
   useEffect(() => {

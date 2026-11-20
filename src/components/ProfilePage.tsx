@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  User,
   ArrowLeft,
   Mail,
   Phone,
@@ -8,7 +7,6 @@ import {
   CheckCircle2,
   Lock,
   KeyRound,
-  LogOut,
   Cpu,
   Eye,
   EyeOff,
@@ -33,7 +31,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   user,
   apiSettings,
   onOpenSettings,
-  onSignOut,
   onBackToPipeline,
   onUserUpdated,
 }) => {

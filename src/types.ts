@@ -294,13 +294,13 @@ export interface OptimizationSummary {
   totalBugsBefore: number;
   totalBugsAfter: number;
   totalBugsFixed: number;
-  repairSuccessRate: number;
+  repairSuccessRate: number | null;
   iterationsPerformed: number;
   bugsFixedIteration1: number;
   bugsFixedIteration2: number;
-  syntaxRepairRate: number;
-  runtimeRepairRate: number;
-  functionalRepairRate: number;
+  syntaxRepairRate: number | null;
+  runtimeRepairRate: number | null;
+  functionalRepairRate: number | null;
   bugEvolutions: BugEvolution[];
   initialVerdict: string;
   finalVerdict: string;
@@ -335,65 +335,36 @@ export interface DiagnosedBugRecord {
   compilerFeedback: string;
 }
 
-export interface TestRunSummary {
-  totalTests: number;
-  passed: number;
-  failed: number;
-  skipped: number;
-  passRate: number;
-  durationMs: number;
-}
-
-export interface GeneratedCodeFileSnapshot {
-  name: string;
-  path: string;
-  content: string;
-  category?: string;
-}
-
-export interface TokenAccounting {
-  promptTokens: number;
-  completionTokens: number;
-  reasoningTokens: number;
-  totalTokens: number;
-  estimatedCostUsd: number;
-}
-
-export interface BaselineComparator {
-  paperRepairSuccessRate: number;
-  label: string;
-}
-
 export interface RunRoundResult {
-  roundNumber: number;
-  stageName: string;
+  roundIndex: number;
   verdict: string;
-  checkStatuses: CheckStatusRecord[];
-  diagnosedBugs: DiagnosedBugRecord[];
-  testsSummary: TestRunSummary;
-  codeSnapshot: GeneratedCodeFileSnapshot[];
-  promptSent?: string;
-  llmResponseReceived?: string;
-  tokens: TokenAccounting;
+  techniqueStatuses: import('./services/verificationService').VerificationTechnique[];
+  diagnosedBugs: BugClassification[];
+  testsSummary: { total: number; passed: number; failed: number; skipped: number; passRate: number };
+  codeSnapshot: GeneratedCodeFile[];
+  promptSent: string;
+  llmResponse: string;
+  tokenMetrics: { inputTokens: number; outputTokens: number; reasoningTokens: number; totalTokens: number };
   durationMs: number;
 }
 
 export interface RunResult {
   runId: string;
-  problemId: string;
-  benchmark: string;
-  modelId: string;
-  executionDateUtc: string;
-  mode: string;
-  lockedTestHash?: string;
+  model: string;
+  timestamp: string;
+  originalPrompt: string;
+  parameters: Record<string, unknown>;
+  initialFailingBugs: number;
+  fixedBugs: number;
   overallVerdict: string;
   repairSkipped: boolean;
   repairSuccessRate: number | null;
-  baselineComparator: BaselineComparator;
+  baselineComparator: number;
+  baselineLabel: string;
   rounds: RunRoundResult[];
   totalDurationMs: number;
-  repairMode?: string;
-  enabledSources?: string[];
+  repairMode: string;
+  enabledSources: string[];
 }
 
 export interface ImprovedRepairSources {

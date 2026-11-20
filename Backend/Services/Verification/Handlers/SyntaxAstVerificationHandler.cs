@@ -55,8 +55,8 @@ public class SyntaxAstVerificationHandler : VerificationHandlerBase
             }
             else
             {
-                technique.Status = "PASS";
-                technique.Details = "No Python files to check";
+                technique.Status = "ERROR";
+                technique.Details = "No diagnostic output: no Python files to check";
             }
         }
         catch (Exception ex)

@@ -26,7 +26,6 @@ export const Header: React.FC<HeaderProps> = ({
   user,
   nav,
   status,
-  apiSettings,
   className = "sticky top-0 z-30 backdrop-blur-xl bg-white/90 border-b border-[color:var(--color-hairline)] shadow-xs"
 }) => {
   // Starts with the visible text so the accessible name matches the label (WCAG 2.5.3).

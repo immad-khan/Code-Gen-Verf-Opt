@@ -52,7 +52,7 @@ public class RunResult
     public int FixedBugs { get; set; }
     
     /// <summary>
-    /// RSR = fixed_bugs / initial_failing. Null if initial_failing == 0 (UI renders as "N/A").
+    /// One program: 100 if repaired, 0 if still failing, null if initially passing or not measured.
     /// </summary>
     public double? RepairSuccessRate { get; set; }
     

@@ -73,7 +73,7 @@ public class BenchmarkDatasetService : IBenchmarkDatasetService
                 if (string.IsNullOrWhiteSpace(line)) continue;
                 try
                 {
-                    var node = JsonNode.Parse(line.Replace("-Infinity", "null").Replace("Infinity", "null").Replace("NaN", "null"));
+                    var node = BenchmarkSuite.Metadata(line);
                     if (node == null) continue;
                     var taskId = node["task_id"]?.GetValue<string>() ?? "";
                     var entry = node["entry_point"]?.GetValue<string>() ?? taskId;
@@ -97,7 +97,7 @@ public class BenchmarkDatasetService : IBenchmarkDatasetService
                 if (string.IsNullOrWhiteSpace(line)) continue;
                 try
                 {
-                    var node = JsonNode.Parse(line);
+                    var node = BenchmarkSuite.Metadata(line);
                     if (node == null) continue;
                     var taskId = node["task_id"]?.GetValue<string>() ?? "";
                     var entry = node["entry_point"]?.GetValue<string>() ?? taskId;
@@ -121,7 +121,7 @@ public class BenchmarkDatasetService : IBenchmarkDatasetService
                 if (string.IsNullOrWhiteSpace(line)) continue;
                 try
                 {
-                    var node = JsonNode.Parse(line);
+                    var node = BenchmarkSuite.Metadata(line);
                     if (node == null) continue;
                     var id = node["problem_id"]?.GetValue<string>() ?? node["id"]?.GetValue<string>() ?? "";
                     var difficulty = node["difficulty"]?.GetValue<string>() ?? "introductory";
@@ -169,25 +169,14 @@ public class BenchmarkDatasetService : IBenchmarkDatasetService
         foreach (var line in File.ReadLines(path))
         {
             if (string.IsNullOrWhiteSpace(line)) continue;
-            var node = JsonNode.Parse(line.Replace("-Infinity", "null").Replace("Infinity", "null").Replace("NaN", "null"));
+            var node = BenchmarkSuite.Metadata(line);
             if (node == null) continue;
             var taskId = node["task_id"]?.GetValue<string>() ?? "";
             if (!taskId.Equals(problemId, StringComparison.OrdinalIgnoreCase)) continue;
 
             var prompt = node["prompt"]?.GetValue<string>() ?? "";
             var entryPoint = node["entry_point"]?.GetValue<string>() ?? "";
-            var test = node["test"]?.GetValue<string>() ?? "";
-
-            var testCode = $"""
-                import sys
-                from solution import {entryPoint}
-
-                {test}
-
-                def test_{entryPoint}():
-                    check({entryPoint})
-                """;
-
+            var testCode = BenchmarkSuite.Load(_dataDir, line);
             var iface = ExtractInterfaceFromPrompt(prompt, entryPoint);
             return CreateDetail("humaneval_plus", taskId, prompt, iface, testCode);
         }
@@ -203,52 +192,14 @@ public class BenchmarkDatasetService : IBenchmarkDatasetService
         foreach (var line in File.ReadLines(path))
         {
             if (string.IsNullOrWhiteSpace(line)) continue;
-            var node = JsonNode.Parse(line);
+            var node = BenchmarkSuite.Metadata(line);
             if (node == null) continue;
             var taskId = node["task_id"]?.GetValue<string>() ?? "";
             if (!taskId.Equals(problemId, StringComparison.OrdinalIgnoreCase)) continue;
 
             var prompt = node["prompt"]?.GetValue<string>() ?? "";
             var entryPoint = node["entry_point"]?.GetValue<string>() ?? "";
-            var testList = node["test_list"]?.AsArray();
-            var testImports = node["test_imports"]?.AsArray();
-
-            var sb = new StringBuilder();
-            sb.AppendLine("import math");
-            if (testImports != null)
-            {
-                foreach (var imp in testImports) sb.AppendLine(imp?.GetValue<string>() ?? "");
-            }
-            sb.AppendLine($"from solution import {entryPoint}");
-            sb.AppendLine();
-
-            int tIdx = 1;
-            if (testList != null && testList.Count > 0)
-            {
-                foreach (var t in testList)
-                {
-                    sb.AppendLine($"def test_{entryPoint}_{tIdx}():");
-                    sb.AppendLine($"    {t?.GetValue<string>() ?? "assert True"}");
-                    tIdx++;
-                }
-            }
-            else
-            {
-                var assertion = node["assertion"]?.GetValue<string>() ?? "";
-                var lines = assertion.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                foreach (var l in lines)
-                {
-                    var trimmed = l.Trim();
-                    if (trimmed.StartsWith("assert "))
-                    {
-                        sb.AppendLine($"def test_{entryPoint}_{tIdx}():");
-                        sb.AppendLine($"    {trimmed}");
-                        tIdx++;
-                    }
-                }
-            }
-
-            var testCode = sb.ToString();
+            var testCode = BenchmarkSuite.Load(_dataDir, line);
             var iface = new InterfaceDefinition
             {
                 Name = entryPoint,
@@ -270,58 +221,16 @@ public class BenchmarkDatasetService : IBenchmarkDatasetService
         foreach (var line in File.ReadLines(path))
         {
             if (string.IsNullOrWhiteSpace(line)) continue;
-            var node = JsonNode.Parse(line);
+            var node = BenchmarkSuite.Metadata(line);
             if (node == null) continue;
             var id = node["problem_id"]?.GetValue<string>() ?? node["id"]?.GetValue<string>() ?? "";
             if (!id.Equals(problemId, StringComparison.OrdinalIgnoreCase)) continue;
 
             var prompt = node["prompt"]?.GetValue<string>() ?? "";
-            var inputs = node["inputs"]?.AsArray();
-            var outputs = node["outputs"]?.AsArray();
-
-            var sb = new StringBuilder();
-            sb.AppendLine("import sys");
-            sb.AppendLine("import io");
-            sb.AppendLine("import pytest");
-            sb.AppendLine("from solution import *");
-            sb.AppendLine();
-
-            int count = Math.Min(inputs?.Count ?? 0, outputs?.Count ?? 0);
-            for (int i = 0; i < count; i++)
-            {
-                string rawIn;
-                if (inputs![i] is JsonValue jvIn && jvIn.TryGetValue<string>(out var strIn))
-                    rawIn = strIn;
-                else
-                    rawIn = inputs[i]?.ToJsonString() ?? "";
-
-                string rawOut;
-                if (outputs![i] is JsonValue jvOut && jvOut.TryGetValue<string>(out var strOut))
-                    rawOut = strOut;
-                else
-                    rawOut = outputs[i]?.ToJsonString() ?? "";
-
-                var inStr = rawIn.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "").Replace("\n", "\\n");
-                var outStr = rawOut.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "").Replace("\n", "\\n");
-
-                sb.AppendLine($"def test_case_{i + 1}(monkeypatch, capsys):");
-                sb.AppendLine($"    monkeypatch.setattr('sys.stdin', io.StringIO(\"{inStr}\"))");
-                sb.AppendLine("    try:");
-                sb.AppendLine("        import solution");
-                sb.AppendLine("        if hasattr(solution, 'main'): solution.main()");
-                sb.AppendLine("    except SystemExit:");
-                sb.AppendLine("        pass");
-                sb.AppendLine("    captured = capsys.readouterr()");
-                sb.AppendLine($"    assert captured.out.strip() == \"{outStr}\".strip()");
-                sb.AppendLine();
-            }
-
-            var testCode = sb.ToString();
-            var iface = new InterfaceDefinition
-            {
-                IsStdinStdout = true
-            };
-
+            var testCode = BenchmarkSuite.Load(_dataDir, line);
+            var entryPoint = BenchmarkSuite.AppsEntryPoint(node);
+            var iface = entryPoint == null ? new InterfaceDefinition { IsStdinStdout = true }
+                : ExtractInterfaceFromPrompt(prompt, entryPoint);
             return CreateDetail("apps_plus", id, prompt, iface, testCode);
         }
 
@@ -340,7 +249,7 @@ public class BenchmarkDatasetService : IBenchmarkDatasetService
 
         // Count tests
         var testCount = Regex.Matches(normalized, @"def\s+test_[a-zA-Z0-9_]+\s*\(").Count;
-        if (testCount == 0) testCount = 1;
+        if (testCount == 0) throw new InvalidDataException("Prepared benchmark suite contains no pytest functions.");
 
         // Automatically store in locked test store
         _lockedTestStore.Store(hash, normalized, testCount);
@@ -373,7 +282,7 @@ public class BenchmarkDatasetService : IBenchmarkDatasetService
                 testsFound++;
                 if (testsFound > maxTests) break;
             }
-            sb.AppendLine(line);
+            sb.AppendLine(line.Length <= 500 ? line : line[..500] + " # ... preview truncated");
         }
 
         if (testsFound > maxTests)
