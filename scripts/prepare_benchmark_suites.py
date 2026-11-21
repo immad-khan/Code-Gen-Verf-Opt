@@ -39,11 +39,6 @@ def test_{entry}():
 
 
 def plus_suite(row, dataset):
-    from evalplus.data.mbpp import mbpp_deserialize_inputs
-    from evalplus.eval._special_oracle import (
-        MBPP_OUTPUT_NOT_NONE_TASKS, MBPP_OUTPUT_SET_EQ_TASKS,
-        _digit_distance_nums, _surface_Area,
-    )
     entry = row['entry_point']
     extra = row['plus_input']
     if row['task_id'] == 'Mbpp/793' and extra == {}:
@@ -53,6 +48,11 @@ def plus_suite(row, dataset):
         raise ValueError(f"Invalid EvalPlus record: {row['task_id']}")
     code = row['canonical_solution']
     if dataset == 'mbpp_plus':
+        from evalplus.data.mbpp import mbpp_deserialize_inputs
+        from evalplus.eval._special_oracle import (
+            MBPP_OUTPUT_NOT_NONE_TASKS, MBPP_OUTPUT_SET_EQ_TASKS,
+            _digit_distance_nums, _surface_Area,
+        )
         inputs = mbpp_deserialize_inputs(row['task_id'], inputs)
     else:
         code = row['prompt'] + code
