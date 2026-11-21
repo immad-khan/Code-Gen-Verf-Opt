@@ -87,6 +87,7 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
 
   const summary = activeOptResult?.summary;
   const initialDiagnosis = activeOptResult?.initialDiagnosis;
+  const finalDiagnosis = activeOptResult?.finalDiagnosis;
   const iterations = activeOptResult?.iterations || [];
   const activeTab = forcedIteration ?? activeIterationTab;
   const currentIteration = iterations.find(it => it.iterationNumber === activeTab);
@@ -665,7 +666,9 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                 </div>
                 <div className="mt-3 pt-2 border-t border-[color:var(--color-hairline)] text-[11px] text-[color:var(--color-ink-faint)] flex justify-between">
                   <span>Initial: {initialDiagnosis?.syntaxBugs ?? 0}</span>
-                  <span className="text-emerald-400 font-semibold">Remaining: 0</span>
+                  <span className={(finalDiagnosis?.syntaxBugs ?? 0) === 0 ? "text-emerald-400 font-semibold" : "text-rose-400 font-semibold"}>
+                    Remaining: {finalDiagnosis?.syntaxBugs ?? (summary?.syntaxRepairRate === 100 ? 0 : (initialDiagnosis?.syntaxBugs ?? 0))}
+                  </span>
                 </div>
               </div>
 
@@ -686,7 +689,9 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                 </div>
                 <div className="mt-3 pt-2 border-t border-[color:var(--color-hairline)] text-[11px] text-[color:var(--color-ink-faint)] flex justify-between">
                   <span>Initial: {initialDiagnosis?.runtimeBugs ?? 0}</span>
-                  <span className="text-emerald-400 font-semibold">Remaining: 0</span>
+                  <span className={(finalDiagnosis?.runtimeBugs ?? 0) === 0 ? "text-emerald-400 font-semibold" : "text-rose-400 font-semibold"}>
+                    Remaining: {finalDiagnosis?.runtimeBugs ?? (summary?.runtimeRepairRate === 100 ? 0 : (initialDiagnosis?.runtimeBugs ?? 0))}
+                  </span>
                 </div>
               </div>
 
@@ -707,7 +712,9 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                 </div>
                 <div className="mt-3 pt-2 border-t border-[color:var(--color-hairline)] text-[11px] text-[color:var(--color-ink-faint)] flex justify-between">
                   <span>Initial: {initialDiagnosis?.functionalBugs ?? 0}</span>
-                  <span className="text-emerald-400 font-semibold">Remaining: 0</span>
+                  <span className={(finalDiagnosis?.functionalBugs ?? 0) === 0 ? "text-emerald-400 font-semibold" : "text-rose-400 font-semibold"}>
+                    Remaining: {finalDiagnosis?.functionalBugs ?? (summary?.functionalRepairRate === 100 ? 0 : (initialDiagnosis?.functionalBugs ?? 0))}
+                  </span>
                 </div>
               </div>
             </div>
@@ -719,7 +726,9 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                   Initial Verified Findings &amp; Taxonomy Proofs
                 </h4>
                 <div className="space-y-2">
-                  {initialDiagnosis.bugs.map((bug: BugClassification, idx: number) => (
+                  {initialDiagnosis.bugs.map((bug: BugClassification, idx: number) => {
+                    const isResolved = summary?.repairSuccessRate === 100 || (finalDiagnosis != null && !finalDiagnosis.bugs.some(b => b.taxonomyId === bug.taxonomyId && b.message === bug.message));
+                    return (
                     <div
                       key={idx}
                       className="p-3.5 rounded-lg bg-[color:var(--color-surface-1)] border border-[color:var(--color-hairline)] flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs"
@@ -748,12 +757,23 @@ export const Step4Optimization: React.FC<Step4OptimizationProps> = ({
                         )}
                       </div>
                       <div className="shrink-0">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                          <Check className="w-3 h-3" /> Round 0 finding
-                        </span>
+                        {summary?.repairSuccessRate == null ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-[#7c3aed]/10 text-[color:var(--color-brand-soft)] border border-[#7c3aed]/20">
+                            Round 0 finding
+                          </span>
+                        ) : isResolved ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            <Check className="w-3 h-3" /> Resolved in repair
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                            Unresolved
+                          </span>
+                        )}
                       </div>
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               </div>
             )}
