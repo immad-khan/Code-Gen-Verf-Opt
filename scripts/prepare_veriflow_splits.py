@@ -79,17 +79,26 @@ def test_stdio():
 '''
 
 MBPP_OUTPUT_SET_EQ_TASKS = {
-    "Mbpp/2", "Mbpp/72", "Mbpp/85", "Mbpp/143", "Mbpp/251", "Mbpp/279",
-    "Mbpp/424", "Mbpp/433", "Mbpp/458", "Mbpp/572", "Mbpp/577", "Mbpp/610",
-    "Mbpp/740", "Mbpp/775", "Mbpp/784"
+    "similar_elements", "differ_At_One_Bit_Pos", "find_tuples", "get_pairs_count",
+    "remove_duplicate", "count_variable_length", "find_even_numbers", "find_odd_numbers",
+    "common_in_nested_lists", "find_combinations", "unique_sublists"
 }
 
 MBPP_OUTPUT_NOT_NONE_TASKS = {
-    "Mbpp/75", "Mbpp/82", "Mbpp/108", "Mbpp/120", "Mbpp/128", "Mbpp/133",
-    "Mbpp/226", "Mbpp/249", "Mbpp/267", "Mbpp/294", "Mbpp/306", "Mbpp/437",
-    "Mbpp/477", "Mbpp/562", "Mbpp/579", "Mbpp/588", "Mbpp/607", "Mbpp/726",
-    "Mbpp/744", "Mbpp/785"
+    "is_sublist", "has_duplicate", "is_woodall", "check_element", "is_prime",
+    "check_isosceles", "is_undulating", "is_valid_parentheses"
 }
+
+
+def _surface_Area(b, s):
+    return 2 * b * s + b * b
+
+
+def _digit_distance_nums(n1, n2):
+    s1, s2 = str(n1), str(n2)
+    m = max(len(s1), len(s2))
+    s1, s2 = s1.zfill(m), s2.zfill(m)
+    return sum(abs(int(c1) - int(c2)) for c1, c2 in zip(s1, s2))
 
 
 def normalize_code(code: str) -> str:
@@ -120,6 +129,8 @@ def deserialize_mbpp_inputs(task_id: str, inputs: list) -> list:
         return res
     if task_id == "Mbpp/124":
         return [[complex(inp[0]), complex(inp[1])] for inp in inputs]
+    if task_id == "Mbpp/252":
+        return [[complex(inp[0]) if isinstance(inp[0], str) else inp[0]] for inp in inputs]
     if task_id == "Mbpp/580":
         def to_tup(x):
             return tuple(to_tup(i) if isinstance(i, list) else i for i in x) if isinstance(x, list) else x
@@ -139,36 +150,37 @@ def evaluate_plus_cases(row, dataset, all_inputs):
     scope = {}
     exec(code, scope)
     cases = []
+    comparison = 'assert out == expected'
 
     for args in processed_inputs:
         expected = scope[entry](*deepcopy(args))
-        if dataset == 'mbpp_plus' and row.get('task_id') in MBPP_OUTPUT_NOT_NONE_TASKS:
+        if dataset == 'mbpp_plus' and entry in MBPP_OUTPUT_NOT_NONE_TASKS:
             expected = expected is not None
-        elif dataset == 'mbpp_plus' and row.get('task_id') in MBPP_OUTPUT_SET_EQ_TASKS:
-            expected = set(expected)
+            comparison = 'assert (out if isinstance(out, bool) else out is not None) == expected'
+        elif dataset == 'mbpp_plus' and entry in MBPP_OUTPUT_SET_EQ_TASKS:
+            comparison = 'assert set(out) == set(expected)'
+        elif dataset == 'humaneval_plus' and entry == 'find_zero':
+            comparison = f'assert abs(sum(c * out**i for i, c in enumerate(args[0]))) <= {row.get("atol", 1e-4)!r}'
+        elif dataset == 'mbpp_plus' and entry == 'are_equivalent':
+            comparison = 'pass  # Official oracle accepts any non-raising return.'
+        elif dataset == 'mbpp_plus' and entry == 'sum_div':
+            comparison = 'assert out == expected or out == 0'
+        elif dataset == 'mbpp_plus' and entry in ('surface_Area', 'digit_distance_nums'):
+            alt = (_surface_Area if entry == 'surface_Area' else _digit_distance_nums)(*args)
+            expected = (expected, alt)
+            comparison = 'assert out in expected'
+        else:
+            atol_val = row.get("atol", 0)
+            comparison = (
+                'if out != expected:\n'
+                f'            tol = {atol_val!r} or (1e-6 if isinstance(expected, float) or (isinstance(expected, (list, tuple)) and expected and all(isinstance(x, float) for x in expected)) else 0)\n'
+                '            assert tol and type(out) is type(expected) and np.shape(out) == np.shape(expected) and np.allclose(out, expected, rtol=1e-7, atol=tol)'
+            )
+
         if isinstance(expected, dict):
             expected = dict(expected)
         hashed = isinstance(expected, str) and len(expected) > 4096
         cases.append((args, hashlib.sha256(expected.encode()).digest() if hashed else expected, hashed))
-
-    # Determine comparison expression
-    if dataset == 'mbpp_plus' and row.get('task_id') in MBPP_OUTPUT_NOT_NONE_TASKS:
-        comparison = 'assert (out if isinstance(out, bool) else out is not None) == expected'
-    elif dataset == 'mbpp_plus' and row.get('task_id') in MBPP_OUTPUT_SET_EQ_TASKS:
-        comparison = 'assert set(out) == set(expected)'
-    elif dataset == 'humaneval_plus' and entry == 'find_zero':
-        comparison = f'assert abs(sum(c * out**i for i, c in enumerate(args[0]))) <= {row.get("atol", 1e-4)!r}'
-    elif dataset == 'mbpp_plus' and entry == 'are_equivalent':
-        comparison = 'pass  # Official oracle accepts any non-raising return.'
-    elif dataset == 'mbpp_plus' and entry == 'sum_div':
-        comparison = 'assert out == expected or out == 0'
-    else:
-        atol_val = row.get("atol", 0)
-        comparison = (
-            'if out != expected:\n'
-            f'            tol = {atol_val!r} or (1e-6 if isinstance(expected, float) or (isinstance(expected, (list, tuple)) and expected and all(isinstance(x, float) for x in expected)) else 0)\n'
-            '            assert tol and type(out) is type(expected) and np.shape(out) == np.shape(expected) and np.allclose(out, expected, rtol=1e-7, atol=tol)'
-        )
 
     return cases, comparison
 
