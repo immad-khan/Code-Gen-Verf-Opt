@@ -1,5 +1,5 @@
 import React from 'react';
-import { History, User } from 'lucide-react';
+import { Home, History, User } from 'lucide-react';
 
 interface LeftNavbarProps {
   activeView: 'pipeline' | 'history' | 'profile';
@@ -20,7 +20,37 @@ export const LeftNavbar: React.FC<LeftNavbarProps> = ({
         {/* Subtle metallic brushed top highlight */}
         <div className="w-4 h-0.5 rounded-full bg-slate-400/75 mb-1" aria-hidden="true" />
 
-        {/* 1. History Button */}
+        {/* 1. Home / Pipeline Button */}
+        <div className="relative group">
+          <button
+            type="button"
+            onClick={() => onNavigate('pipeline')}
+            aria-label="Pipeline (Home)"
+            title="Pipeline (Home)"
+            className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center transition-all duration-200 cursor-pointer ${
+              activeView === 'pipeline'
+                ? 'bg-[#7c3aed] text-white shadow-[0_4px_14px_rgba(124,58,237,0.5)] scale-105 ring-1 ring-white/60'
+                : 'text-slate-600 hover:text-[#7c3aed] hover:bg-white/80 hover:shadow-xs hover:scale-105 active:scale-95'
+            }`}
+          >
+            <Home className="w-5 h-5 transition-transform group-hover:scale-110" />
+          </button>
+
+          {/* Floating Tooltip */}
+          <div
+            role="tooltip"
+            className="pointer-events-none absolute left-full ml-3 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-slate-100 bg-slate-900/95 border border-slate-700/90 rounded-lg shadow-2xl whitespace-nowrap z-50 animate-fade-in backdrop-blur-md"
+          >
+            <Home className="w-3.5 h-3.5 text-[#a78bfa]" />
+            <span>Pipeline (Home)</span>
+            <div className="absolute -left-1 top-1/2 -translate-y-1/2 border-y-4 border-y-transparent border-r-4 border-r-slate-900" />
+          </div>
+        </div>
+
+        {/* Metallic divider dot */}
+        <div className="w-1 h-1 rounded-full bg-slate-400/60" aria-hidden="true" />
+
+        {/* 2. History Button */}
         <div className="relative group">
           <button
             type="button"
