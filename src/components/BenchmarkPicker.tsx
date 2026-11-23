@@ -62,6 +62,7 @@ export const BenchmarkPicker: React.FC<BenchmarkPickerProps> = ({ onSelectProble
     setSelectedProblemId(summary.problemId);
     setIsLoadingDetail(true);
     setProblemDetail(null);
+    setLoadError(null);
     try {
       const detail = await fetchBenchmarkProblem(summary.benchmark, summary.problemId);
       setProblemDetail(detail);
@@ -268,6 +269,11 @@ export const BenchmarkPicker: React.FC<BenchmarkPickerProps> = ({ onSelectProble
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
+            </div>
+          ) : loadError ? (
+            <div className="h-64 flex flex-col items-center justify-center text-center text-xs text-rose-400 p-6 space-y-2">
+              <p className="font-semibold">Failed to load problem specification</p>
+              <p className="text-[11px] text-rose-300/80">{loadError}</p>
             </div>
           ) : (
             <div className="h-64 flex flex-col items-center justify-center text-center text-xs text-[color:var(--color-ink-faint)] p-6 space-y-2">
