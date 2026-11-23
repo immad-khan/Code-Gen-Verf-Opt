@@ -6,10 +6,10 @@ import { extractInterface } from '../services/aiService';
 import { BenchmarkPicker } from './BenchmarkPicker';
 
 /**
- * Feature flag: set to true when conducting research experiments / paper evaluations.
- * Hidden for everyday user flow.
+ * Feature flag: set to false only if explicitly disabled.
+ * Defaults to true so benchmark problem selection is accessible.
  */
-const SHOW_BENCHMARK = import.meta.env.VITE_ENABLE_BENCHMARKS === 'true';
+const SHOW_BENCHMARK = import.meta.env.VITE_ENABLE_BENCHMARKS !== 'false';
 
 interface Step1InputProps {
   prompt: string;
