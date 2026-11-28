@@ -194,7 +194,9 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
             line: iss.line,
             message: iss.message,
             whyIsThisAnIssue: getWhyItIsAnIssue(iss.message, t.name),
-            snippet: iss.codeSnippet,
+            snippet: iss.codeSnippet && iss.codeSnippet.length > 300
+              ? iss.codeSnippet.slice(0, 300) + ' … (truncated)'
+              : iss.codeSnippet,
           });
         });
       });
@@ -268,7 +270,7 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
       {isVerifying && (
         <div className="p-4 bg-[color:var(--color-surface-2)] border border-[color:var(--color-hairline)] text-[color:var(--color-ink)] rounded-xl flex items-center gap-3 text-sm animate-pulse">
           <div className="w-4 h-4 border-2 border-[color:var(--color-brand-soft)] border-t-transparent rounded-full animate-spin"></div>
-          Running backend execution verification tests on Render...
+          Running unit tests...
         </div>
       )}
 
@@ -978,9 +980,9 @@ export const Step3Verification: React.FC<Step3VerificationProps> = ({
 
                 {/* Snippet */}
                 {issue.snippet && (
-                  <div className="p-2.5 rounded-lg bg-[color:var(--color-surface-2)] border border-[color:var(--color-hairline)] font-mono text-xs">
+                  <div className="p-2.5 rounded-lg bg-[color:var(--color-surface-2)] border border-[color:var(--color-hairline)] font-mono text-xs max-h-32 overflow-auto">
                     <div className="text-[10px] text-[color:var(--color-ink-muted)] mb-1 uppercase font-semibold">Offending Line</div>
-                    <code className="text-[11px] text-rose-300">{issue.snippet}</code>
+                    <code className="text-[11px] text-rose-300 break-all">{issue.snippet}</code>
                   </div>
                 )}
               </div>
